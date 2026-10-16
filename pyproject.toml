@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "microplatform"
+version = "0.1.0"
+description = "One intelligent web platform for the Louzoun lab's microbiome tools (MIPMLP, iMic, miMic, GIMIC, LOCATE)."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "flask>=3.1",
+    "pandas>=2.2,<3",  # MIPMLP 1.2.19 uses to_numeric(errors="ignore"), removed in pandas 3
+    "MIPMLP>=1.2.19",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
