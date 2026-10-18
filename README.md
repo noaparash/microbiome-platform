@@ -23,7 +23,17 @@ python -m pip install -e ".[dev]"
 python -m pytest
 ```
 
-Instructions for running the web app will be added in a later step.
+### Run the web app
+
+```powershell
+.venv\Scripts\Activate.ps1
+flask --app microplatform.web run
+```
+
+Then open http://127.0.0.1:5000. Uploads, results and the preprocessing
+cache are stored in `instance/`, which is not tracked by git. Set
+`MICROPLATFORM_SECRET_KEY` (and optionally `MICROPLATFORM_INSTANCE`) when
+deploying.
 
 ## Project layout
 
@@ -34,7 +44,8 @@ src/microplatform/
   router/     picks tools from the data and the user's goal
   reports/    unified results and reproducible reports
   web/        Flask app (pages, templates, styles)
-tests/        automated tests and small sample data
+  examples/   small example dataset (also used by the tests)
+tests/        automated tests
 docs/         documentation
 ```
 

@@ -142,8 +142,7 @@ def profile_counts(raw: pd.DataFrame) -> CountsProfile:
     if id_column != "ID":
         issues.append(Issue("warning", f"First column is '{id_column}'; expected 'ID'."))
 
-    ids = raw.iloc[:, 0].astype(str)
-    is_tax_row = ids.str.strip().str.lower() == TAXONOMY_ROW
+    is_tax_row = _taxonomy_rows(raw)
     has_taxonomy = bool(is_tax_row.any())
     if not has_taxonomy:
         issues.append(
@@ -228,6 +227,15 @@ def profile_labels(tags: pd.DataFrame, sample_ids: list[str]) -> LabelProfile:
         missing=missing,
         issues=issues,
     )
+
+
+def is_counts_table(table: pd.DataFrame) -> bool:
+    """True if the table has a 'taxonomy' row, i.e. it is a counts table, not labels."""
+    return table.shape[1] >= 2 and bool(_taxonomy_rows(table).any())
+
+
+def _taxonomy_rows(table: pd.DataFrame) -> pd.Series:
+    return table.iloc[:, 0].astype(str).str.strip().str.lower() == TAXONOMY_ROW
 
 
 def _taxonomy_depth(taxonomy: pd.Series) -> tuple[int, dict[str, float]]:

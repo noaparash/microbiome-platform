@@ -1,5 +1,4 @@
 import io
-from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -10,8 +9,8 @@ from microplatform.core.profiler import (
     profile_labels,
     read_table,
 )
+from microplatform.examples import EXAMPLES_DIR as DATA
 
-DATA = Path(__file__).parent / "data"
 TAX = "k__Bacteria;p__Firmicutes;c__Bacilli;o__Lactobacillales;f__Lactobacillaceae;g__Lactobacillus;s__"
 
 

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <h1>Understand your microbiome data</h1>
+  <p class="lead">
+    Upload a table. We work out what's in it, prepare it with the lab's
+    published methods, and explain every step.
+  </p>
+</section>
+
+<form class="dropzone" id="dropzone" action="{{ url_for('main.upload') }}"
+      method="post" enctype="multipart/form-data">
+  <input class="file-input" type="file" name="files" id="files"
+         accept=".csv,.tsv,.txt" multiple>
+  <label for="files" class="dropzone-label">
+    <svg class="dropzone-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+    </svg>
+    <span class="dropzone-title">Drop your files here, or <span class="link">browse</span></span>
+    <span class="dropzone-hint">A counts table (required) and a labels file (optional), as CSV or TSV</span>
+    <span class="dropzone-busy">Reading your files…</span>
+  </label>
+  <noscript><button class="btn" type="submit">Upload</button></noscript>
+</form>
+
+<form class="example" action="{{ url_for('main.example') }}" method="post">
+  <button class="btn-link" type="submit">No data at hand? Try the example dataset →</button>
+</form>
+
+<details class="format">
+  <summary>What should my files look like?</summary>
+  <div class="format-body">
+    <p><strong>Counts table:</strong> one row per sample and one column per bacterium.
+      The first column holds sample IDs, and the <em>last row</em> is named
+      <code>taxonomy</code>.</p>
+<pre>ID,       ASV1,          ASV2,          …
+sample1,  120,           0,             …
+sample2,  37,            5,             …
+taxonomy, k__Bacteria;…, k__Bacteria;…, …</pre>
+    <p><strong>Labels (optional):</strong> sample IDs in the first column and
+      the outcome in a column named <code>Tag</code>, for example sick/healthy
+      or an age.</p>
+  </div>
+</details>
+
+<section class="tools" aria-labelledby="tools-heading">
+  <h2 id="tools-heading">The tools behind it</h2>
+  <ul class="tool-grid">
+    {% for name, question, status in tools %}
+      <li class="tool-card">
+        <span class="chip chip-{{ status }}">
+          {{ {"available": "Available", "next": "Coming next", "planned": "Planned"}[status] }}
+        </span>
+        <h3>{{ name }}</h3>
+        <p>{{ question }}</p>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

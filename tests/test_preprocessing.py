@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pandas as pd
 import pytest
 
@@ -10,8 +8,8 @@ from microplatform.core.preprocessing import (
     preprocess,
 )
 from microplatform.core.profiler import read_table
+from microplatform.examples import EXAMPLES_DIR as DATA
 
-DATA = Path(__file__).parent / "data"
 
 
 @pytest.fixture(scope="module")

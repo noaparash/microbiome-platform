@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}{{ meta.counts_name }} · Microbiome Platform{% endblock %}
+{% block content %}
+<nav class="crumbs"><a href="{{ url_for('main.index') }}">← New analysis</a></nav>
+
+<header class="page-head">
+  <h1>{{ meta.counts_name }}</h1>
+  {% if meta.labels_name %}<p class="muted">with labels from {{ meta.labels_name }}</p>{% endif %}
+</header>
+
+<section class="card" aria-labelledby="profile-heading">
+  <h2 id="profile-heading">What we found</h2>
+  <dl class="stats">
+    <div><dt>Samples</dt><dd>{{ profile.n_samples }}</dd></div>
+    <div><dt>Taxa</dt><dd>{{ profile.n_taxa }}</dd></div>
+    <div><dt>Zeros</dt><dd>{{ "%.0f"|format(profile.zero_fraction * 100) }}%</dd></div>
+    {% if profile.value_kind == "counts" %}
+      <div><dt>Median reads</dt><dd>{{ "{:,.0f}".format(profile.median_reads) }}</dd></div>
+    {% endif %}
+  </dl>
+  <ul class="facts">
+    {% for line in profile.summary() %}<li>{{ line }}</li>{% endfor %}
+    {% if labels %}{% for line in labels.summary() %}<li>{{ line }}</li>{% endfor %}{% endif %}
+  </ul>
+
+  {% set issues = profile.issues + (labels.issues if labels else []) %}
+  {% if issues or label_error %}
+    <ul class="issues">
+      {% if label_error %}<li class="issue issue-error">{{ label_error }}</li>{% endif %}
+      {% for issue in issues %}<li class="issue issue-{{ issue.level }}">{{ issue.message }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+</section>
+
+{% if not record %}
+<section class="card action" aria-labelledby="next-heading">
+  <h2 id="next-heading">Next step: preprocessing</h2>
+  {% if profile.ok %}
+    <p>MIPMLP turns raw counts into a clean table that every tool can use.
+      We apply the settings recommended in the MIPMLP paper:
+      {{ {6: "genus", 7: "species"}.get(settings.taxonomy_level) }} level,
+      {{ settings.taxonomy_group }} grouping and {{ settings.normalization }} scaling.</p>
+    <form method="post" action="{{ url_for('main.run_preprocess', run_id=run.id) }}"
+          data-busy="Preprocessing… this takes about 20 seconds">
+      <button class="btn" type="submit">Preprocess with MIPMLP</button>
+    </form>
+  {% else %}
+    <p>Please fix the problems above and upload the file again.</p>
+    <a class="btn" href="{{ url_for('main.index') }}">Upload again</a>
+  {% endif %}
+</section>
+{% else %}
+<section class="card results" id="results" aria-labelledby="results-heading">
+  <div class="results-head">
+    <h2 id="results-heading">Preprocessed with MIPMLP</h2>
+    <a class="btn" href="{{ url_for('main.download', run_id=run.id) }}" download>Download table (CSV)</a>
+  </div>
+  <dl class="stats">
+    <div><dt>Samples</dt><dd>{{ record.samples }}</dd></div>
+    <div><dt>Taxa in</dt><dd>{{ record.input_taxa }}</dd></div>
+    <div><dt>Features out</dt><dd>{{ record.output_features }}</dd></div>
+    <div><dt>Time</dt><dd>{{ "cached" if record.from_cache else "%.0f s"|format(record.seconds) }}</dd></div>
+  </dl>
+  <ul class="facts">{% for line in record.summary %}<li>{{ line }}</li>{% endfor %}</ul>
+
+  <h3>Preview</h3>
+  <div class="table-scroll">
+    <table class="data">
+      <thead><tr><th scope="col">Sample</th>
+        {% for col in preview.columns[:6] %}<th scope="col" title="{{ col }}">{{ col|short_taxon }}</th>{% endfor %}
+        {% if preview.columns|length > 6 %}<th scope="col" class="muted">+{{ preview.columns|length - 6 }} more</th>{% endif %}
+      </tr></thead>
+      <tbody>
+        {% for sample, row in preview.iterrows() %}
+          <tr><th scope="row">{{ sample }}</th>
+            {% for value in row.values[:6] %}<td>{{ "%.2f"|format(value) }}</td>{% endfor %}
+            {% if preview.columns|length > 6 %}<td class="muted">…</td>{% endif %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <details class="record">
+    <summary>Reproducibility record</summary>
+    <dl class="record-list">
+      <div><dt>Tool</dt><dd>MIPMLP {{ record.mipmlp_version }}</dd></div>
+      {% for key, value in record.settings.items() %}
+        <div><dt>{{ key|replace("_", " ") }}</dt><dd><code>{{ value }}</code></dd></div>
+      {% endfor %}
+      <div><dt>Finished</dt><dd>{{ record.finished }}</dd></div>
+    </dl>
+  </details>
+</section>
+{% endif %}
+{% endblock %}
