@@ -43,12 +43,21 @@ if (figureGrid) {
           const css = getComputedStyle(document.documentElement);
           const color = (name) => css.getPropertyValue(name).trim();
           const axis = { gridcolor: color("--border"), linecolor: color("--border"), zerolinecolor: color("--border") };
+          const narrow = el.clientWidth < 520; // phones: smaller text and margins
+          if (narrow) {
+            fig.layout.margin = { l: 56, r: 12, t: 44, b: 48 };
+            fig.layout.title = { ...fig.layout.title, font: { size: 14 } };
+            for (const name of ["xaxis", "yaxis"]) {
+              fig.layout[name] = { ...fig.layout[name], title: { ...fig.layout[name].title, font: { size: 11 } }, tickfont: { size: 10 } };
+            }
+          }
           const layout = {
             ...fig.layout,
             autosize: true,
             paper_bgcolor: "rgba(0,0,0,0)",
             plot_bgcolor: "rgba(0,0,0,0)",
-            font: { family: color("--font"), color: color("--text") },
+            // Only the colour: passing the page's CSS font list breaks plotly's text measuring.
+            font: { ...fig.layout.font, color: color("--text") },
             xaxis: { ...fig.layout.xaxis, ...axis },
             yaxis: { ...fig.layout.yaxis, ...axis },
           };

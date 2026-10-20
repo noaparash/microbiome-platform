@@ -1,7 +1,10 @@
 """The site's content pages: Example, Methods, Docs & API, About, and the navigation."""
 
+from pathlib import Path
+
 import pytest
 
+import microplatform.web
 from microplatform import __version__
 from microplatform.references import TOOLS
 from microplatform.web import create_app
@@ -30,6 +33,30 @@ def test_every_page_loads_and_is_marked_in_the_navigation(client, path, label):
     for other in PAGES.values():
         assert f">{other}</a>" in page  # the full navigation is on every page
     assert f'aria-current="page">{label}</a>' in page
+
+
+@pytest.mark.parametrize("path", PAGES)
+def test_lab_identity_on_every_page(client, path):
+    page = client.get(path).get_data(as_text=True)
+    assert "Prof. Yoram Louzoun Lab" in page and "Bar-Ilan University" in page
+    assert "img/yolo_lab.jpg" in page
+
+
+def test_lab_logo_is_served(client):
+    response = client.get("/static/img/yolo_lab.jpg")
+    assert response.status_code == 200 and response.mimetype == "image/jpeg"
+    response.close()
+
+
+def test_question_cards_have_icons(client):
+    page = client.get("/").get_data(as_text=True)
+    assert page.count('class="icon-badge"') == 5
+
+
+def test_stylesheet_never_resets_transforms_globally():
+    """Regression: `* { transform: none }` scrambled plotly's titles and labels."""
+    css = (Path(microplatform.web.__file__).parent / "static" / "style.css").read_text(encoding="utf-8")
+    assert "transform: none !important" not in css
 
 
 def test_example_page_shows_the_real_data_check(client):

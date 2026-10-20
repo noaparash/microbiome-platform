@@ -1,0 +1,17 @@
+{# Line icons for the tasks and tools. `name` is a goal id or a tool name. #}
+{% macro icon(name, class="icon") -%}
+<svg class="{{ class }}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+  {%- if name in ("preprocess", "MIPMLP") %}
+  <path d="M4 5h16l-6 7.5V18l-4 2v-7.5z"/>
+  {%- elif name in ("differ", "miMic") %}
+  <path d="M4 20h16"/><path d="M7 16V9"/><path d="M12 16V4"/><path d="M17 16v-4"/>
+  {%- elif name in ("predict", "iMic") %}
+  <circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+  {%- elif name in ("group", "GIMIC") %}
+  <circle cx="7" cy="8" r="2.2"/><circle cx="10.5" cy="14.5" r="2.2"/><circle cx="16.5" cy="7.5" r="2.2"/>
+  <circle cx="17.5" cy="16" r="2.2"/><path d="M8.6 9.7l1 2.6M15 9.2l1.5 4.6"/>
+  {%- elif name in ("metabolites", "LOCATE") %}
+  <path d="M12 3l7 4v8l-7 4-7-4V7z"/><path d="M12 3v6M5 7l5 3M19 7l-5 3"/><circle cx="12" cy="11.5" r="2.5"/>
+  {%- endif %}
+</svg>
+{%- endmacro %}

@@ -55,4 +55,5 @@ def _signature(obj) -> str:
 
 
 def _first_paragraph(doc: str | None) -> str:
-    return " ".join((doc or "").strip().split("\n\n")[0].split())
+    """The first paragraph, on one line, without reStructuredText ``code`` marks."""
+    return " ".join((doc or "").strip().split("\n\n")[0].split()).replace("``", "")

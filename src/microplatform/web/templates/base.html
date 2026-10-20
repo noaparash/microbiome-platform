@@ -9,6 +9,14 @@
 </head>
 <body>
   <header class="site-header">
+    <div class="lab-bar">
+      <div class="wrap lab-bar-inner">
+        <a class="lab-link" href="https://yolo.math.biu.ac.il/">
+          <img class="lab-logo" src="{{ url_for('static', filename='img/yolo_lab.jpg') }}" alt="" width="20" height="20">
+          Prof. Yoram Louzoun Lab · Bar-Ilan University
+        </a>
+      </div>
+    </div>
     <div class="wrap header-inner">
       <a class="brand" href="{{ url_for('main.index') }}">
         <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
@@ -49,9 +57,13 @@
   </main>
 
   <footer class="site-footer">
-    <div class="wrap">
-      Louzoun Lab · Bar-Ilan University · Built on the lab's published methods:
-      <a href="{{ url_for('main.methods') }}">MIPMLP, iMic, miMic, GIMIC and LOCATE</a>.
+    <div class="wrap footer-inner">
+      <a class="lab-link" href="https://yolo.math.biu.ac.il/">
+        <img class="lab-logo" src="{{ url_for('static', filename='img/yolo_lab.jpg') }}" alt="YOLO lab logo" width="28" height="28">
+        <span><strong>Prof. Yoram Louzoun Lab</strong><br>Bar-Ilan University</span>
+      </a>
+      <p>Built on the lab's published methods:
+        <a href="{{ url_for('main.methods') }}">MIPMLP, iMic, miMic, GIMIC and LOCATE</a>.</p>
     </div>
   </footer>
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>

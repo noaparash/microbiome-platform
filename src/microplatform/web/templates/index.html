@@ -1,6 +1,8 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block content %}
 <section class="hero">
+  <p class="eyebrow">Five published methods · one place</p>
   <h1>Understand your microbiome data</h1>
   <p class="lead">
     Upload a table. We work out what's in it, choose the right method from
@@ -19,7 +21,10 @@
         <a class="question-card{% if chosen and chosen.id == goal.id %} is-chosen{% endif %}"
            href="{{ url_for('main.index', goal=goal.id) }}#upload"
            {% if chosen and chosen.id == goal.id %}aria-current="true"{% endif %}>
-          <span class="question-text">{{ goal.question }}</span>
+          <span class="question-head">
+            <span class="icon-badge">{{ icon(goal.id) }}</span>
+            <span class="question-text">{{ goal.question }}</span>
+          </span>
           <span class="question-meta">
             <span class="question-tool">{{ goal.tool }}</span>
             <span class="chip chip-{{ goal.status }}">
@@ -54,7 +59,8 @@
 
 <form class="example" action="{{ url_for('main.example') }}" method="post">
   {% if chosen %}<input type="hidden" name="goal" value="{{ chosen.id }}">{% endif %}
-  <button class="btn-link" type="submit">No data at hand? Try the example dataset →</button>
+  <span class="muted">No data at hand?</span>
+  <button class="btn btn-secondary" type="submit">Try the example dataset</button>
 </form>
 
 {% set open_format = get_flashed_messages(category_filter=["error"]) %}

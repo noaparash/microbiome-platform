@@ -39,7 +39,7 @@ MEDIA_TYPES = {
     ".csv": "text/csv",
     ".json": "application/json",
 }
-ACCENT = "#1f7a5c"
+ACCENT = "#0f766e"  # the site's teal
 MARKER = "#b42318"
 
 
