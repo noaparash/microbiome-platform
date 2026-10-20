@@ -133,6 +133,44 @@ def test_download_is_the_processed_table(client, processed_run):
     assert table.shape[0] == 40 and not table.isna().any().any()
 
 
+def test_results_show_figures_with_all_downloads(client, processed_run):
+    page = client.get(processed_run).get_data(as_text=True)
+    assert "Data quality" in page and "Sequencing depth per sample" in page
+    for label in ("PNG", "SVG", "Interactive", "Data (CSV)", "Download everything (ZIP)"):
+        assert label in page
+
+
+@pytest.mark.parametrize(("name", "mimetype"), [
+    ("reads_per_sample.png", "image/png"),
+    ("reads_per_sample.svg", "image/svg+xml"),
+    ("reads_per_sample.csv", "text/csv"),
+    ("taxa_prevalence.html", "text/html"),
+])
+def test_figure_files_are_served(client, processed_run, name, mimetype):
+    inline = client.get(f"{processed_run}/figures/{name}")
+    assert inline.status_code == 200 and inline.mimetype == mimetype
+    download = client.get(f"{processed_run}/figures/{name}?download=1")
+    assert "attachment" in download.headers["Content-Disposition"]
+
+
+@pytest.mark.parametrize("name", ["nope.png", "..%2Fmeta.json", "figures.json.."])
+def test_unknown_figure_file_is_404(client, processed_run, name):
+    assert client.get(f"{processed_run}/figures/{name}").status_code == 404
+
+
+def test_bundle_download(client, processed_run):
+    response = client.get(f"{processed_run}/bundle")
+    assert response.status_code == 200 and response.mimetype == "application/zip"
+    assert "example_counts_results.zip" in response.headers["Content-Disposition"]
+    assert response.data[:2] == b"PK"
+
+
+def test_plotly_is_served_locally(client):
+    response = client.get("/vendor/plotly.min.js")
+    assert response.status_code == 200 and response.mimetype == "text/javascript"
+    response.close()
+
+
 def test_download_before_preprocessing_is_404(client):
     url = upload(client, EXAMPLE[0]).headers["Location"]
     assert client.get(f"{url}/download").status_code == 404

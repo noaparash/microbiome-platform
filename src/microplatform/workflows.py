@@ -25,7 +25,11 @@ from microplatform.core.profiler import (
     read_table,
 )
 from microplatform.examples import EXAMPLE_COUNTS, EXAMPLE_TAGS
+from microplatform.reports import figures
+from microplatform.reports.bundle import build_bundle
 from microplatform.router.goals import GoalOption, default_goal, get_goal, goal_options
+
+__all__ = ["RunView", "build_bundle", "describe", "run_goal", "start_example_run", "start_run"]
 
 
 @dataclass
@@ -42,6 +46,7 @@ class RunView:
     settings: PreprocessSettings
     record: dict | None
     preview: pd.DataFrame | None
+    figures: list[figures.ExportedFigure]
 
     @property
     def ready(self) -> bool:
@@ -89,6 +94,7 @@ def describe(run: runs.Run) -> RunView:
         settings=CANONICAL,
         record=record,
         preview=run.processed_preview() if record else None,
+        figures=figures.load_manifest(run.figures_dir),
     )
 
 
@@ -115,7 +121,9 @@ def run_goal(run: runs.Run, goal_id: str, cache_dir: Path | None = None) -> None
 
 
 def _preprocess_only(run: runs.Run, cache_dir: Path | None) -> None:
-    run.save_result(preprocess(run.counts(), CANONICAL, cache_dir=cache_dir))
+    raw = run.counts()
+    run.save_result(preprocess(raw, CANONICAL, cache_dir=cache_dir))
+    figures.export(figures.preprocessing_figures(raw, CANONICAL), run.figures_dir)
 
 
 # One entry per available goal; engines will add theirs here.

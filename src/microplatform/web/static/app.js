@@ -29,6 +29,39 @@ if (zone) {
   });
 }
 
+// Interactive figures: load the locally served plotly.js only when a page has
+// figures, and swap each static PNG for its interactive version. If anything
+// fails, the PNG simply stays.
+const figureGrid = document.querySelector("[data-plotly]");
+if (figureGrid) {
+  const script = document.createElement("script");
+  script.src = figureGrid.dataset.plotly;
+  script.onload = () => {
+    for (const el of figureGrid.querySelectorAll("[data-plot]")) {
+      fetch(el.dataset.plot)
+        .then((response) => response.json())
+        .then((fig) => {
+          const css = getComputedStyle(document.documentElement);
+          const color = (name) => css.getPropertyValue(name).trim();
+          const axis = { gridcolor: color("--border"), linecolor: color("--border"), zerolinecolor: color("--border") };
+          const layout = {
+            ...fig.layout,
+            autosize: true,
+            paper_bgcolor: "rgba(0,0,0,0)",
+            plot_bgcolor: "rgba(0,0,0,0)",
+            font: { family: color("--font"), color: color("--text") },
+            xaxis: { ...fig.layout.xaxis, ...axis },
+            yaxis: { ...fig.layout.yaxis, ...axis },
+          };
+          el.replaceChildren();
+          return window.Plotly.newPlot(el, fig.data, layout, { responsive: true, displaylogo: false });
+        })
+        .catch(() => {});
+    }
+  };
+  document.head.append(script);
+}
+
 // Long-running forms: show what is happening and prevent double submits.
 for (const form of document.querySelectorAll("form[data-busy]")) {
   form.addEventListener("submit", () => {

@@ -12,6 +12,8 @@ dependencies = [
     "flask>=3.1",
     "pandas>=2.2,<3",  # MIPMLP 1.2.19 uses to_numeric(errors="ignore"), removed in pandas 3
     "MIPMLP>=1.2.19",
+    "matplotlib>=3.9",  # static figures (PNG, SVG)
+    "plotly>=6.0",      # interactive figures
 ]
 
 [project.optional-dependencies]

@@ -26,6 +26,9 @@ TAXONOMY_ROW = "taxonomy"
 # as categorical (e.g. 0/1/2 disease stages); anything else is continuous.
 MAX_CATEGORIES = 10
 
+# A sample with more than this many times the median read depth is flagged.
+DEPTH_OUTLIER = 10
+
 Severity = Literal["error", "warning"]
 LabelKind = Literal["binary", "categorical", "continuous"]
 ValueKind = Literal["counts", "relative", "transformed"]
@@ -210,6 +213,18 @@ def profile_counts(raw: pd.DataFrame) -> CountsProfile:
             "Check these samples' sequencing, or remove them.",
         ))
 
+    median = reads.median() if len(reads) else 0
+    deep = [(s, r) for s, r in zip(sample_ids, reads) if median > 0 and r > DEPTH_OUTLIER * median]
+    if deep:
+        name, top = max(deep, key=lambda d: d[1])
+        issues.append(Issue(
+            "warning",
+            f"{len(deep)} sample(s) have over {DEPTH_OUTLIER}× the median sequencing depth "
+            f"(e.g. '{name}': {top:,.0f} reads vs a median of {median:,.0f}).",
+            "Check them for contamination or a sequencing error. Preprocessing uses log of raw "
+            "counts, so unusually deep samples stand out in every analysis.",
+        ))
+
     depth, coverage = _taxonomy_depth(taxonomy) if taxonomy is not None else (0, {r: 0.0 for r in RANKS})
 
     return CountsProfile(
@@ -288,6 +303,21 @@ def profile_labels(tags: pd.DataFrame, sample_ids: list[str]) -> LabelProfile:
         missing=missing,
         issues=issues,
     )
+
+
+def count_matrix(raw: pd.DataFrame) -> pd.DataFrame:
+    """Samples × taxa as numbers (anything unreadable counts as 0).
+
+    The index holds sample IDs; columns are taxonomy strings when the table
+    has a taxonomy row.
+    """
+    is_tax_row = _taxonomy_rows(raw)
+    body = raw.loc[~is_tax_row]
+    values = body.iloc[:, 1:].apply(pd.to_numeric, errors="coerce").fillna(0)
+    values.index = body.iloc[:, 0].astype(str)
+    if is_tax_row.any():
+        values.columns = raw.loc[is_tax_row].iloc[-1, 1:].astype(str).to_numpy()
+    return values
 
 
 def is_counts_table(table: pd.DataFrame) -> bool:

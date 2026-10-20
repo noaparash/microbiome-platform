@@ -216,6 +216,14 @@ code, pre { font-family: var(--mono); font-size: 0.875em; }
 .data th[scope="row"], .data thead th:first-child { text-align: left; }
 .data tbody tr:last-child > * { border-bottom: 0; }
 
+.results-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.figures { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); }
+.figure { margin: 0; border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem; background: var(--surface); }
+.plot { aspect-ratio: 7 / 4; width: 100%; }
+.plot img { width: 100%; height: 100%; object-fit: contain; border-radius: 6px; background: #fff; }
+.figure figcaption { color: var(--muted); font-size: 0.875rem; margin-top: 0.5rem; }
+.downloads { font-size: 0.875rem; margin: 0.4rem 0 0; }
+
 .record { margin-top: 1.5rem; }
 .record summary { cursor: pointer; font-weight: 600; }
 .record-list { display: grid; gap: 0.25rem; margin: 0.75rem 0 0; }
@@ -227,7 +235,7 @@ code, pre { font-family: var(--mono); font-size: 0.875em; }
   .lab { display: none; }
   .card { padding: 1.1rem; }
   .record-list div { flex-direction: column; gap: 0; }
-  .results-head .btn { width: 100%; }
+  .results-actions, .results-head .btn { width: 100%; }
   .goal { grid-template-columns: auto 1fr; }
   .goal-meta { grid-column: 2; justify-items: start; text-align: left; }
 }

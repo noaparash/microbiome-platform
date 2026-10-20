@@ -5,6 +5,7 @@ No business logic lives here (see "Package-first" in CLAUDE.md).
 
 from __future__ import annotations
 
+import io
 from pathlib import Path
 
 from flask import (
@@ -23,6 +24,7 @@ from microplatform import runs, workflows
 from microplatform.core.errors import UserFacingError
 from microplatform.core.inputs import sort_uploads
 from microplatform.examples import TEMPLATES
+from microplatform.reports.figures import MEDIA_TYPES, PLOTLY_JS
 from microplatform.router.goals import GOALS
 
 bp = Blueprint("main", __name__)
@@ -85,11 +87,38 @@ def download(run_id: str):
     run = _get_run(run_id)
     if not run.processed_file.exists():
         abort(404)
-    stem = Path(run.meta()["counts_name"]).stem.replace(" ", "_")
     return send_file(
         run.processed_file, mimetype="text/csv", as_attachment=True,
-        download_name=f"{stem}_mipmlp.csv",
+        download_name=f"{_stem(run)}_mipmlp.csv",
     )
+
+
+@bp.get("/runs/<run_id>/figures/<name>")
+def figure_file(run_id: str, name: str):
+    path = _get_run(run_id).figure_file(name)
+    if path is None:
+        abort(404)
+    return send_file(path, mimetype=MEDIA_TYPES.get(path.suffix),
+                     as_attachment=request.args.get("download") == "1")
+
+
+@bp.get("/runs/<run_id>/bundle")
+def bundle(run_id: str):
+    run = _get_run(run_id)
+    return send_file(
+        io.BytesIO(workflows.build_bundle(run)), mimetype="application/zip",
+        as_attachment=True, download_name=f"{_stem(run)}_results.zip",
+    )
+
+
+@bp.get("/vendor/plotly.min.js")
+def plotly_js():
+    """Served locally so interactive figures work without internet access."""
+    return send_file(PLOTLY_JS, mimetype="text/javascript", max_age=86400)
+
+
+def _stem(run: runs.Run) -> str:
+    return Path(run.meta()["counts_name"]).stem.replace(" ", "_")
 
 
 def _runs_dir() -> Path:

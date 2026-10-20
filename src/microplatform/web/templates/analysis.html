@@ -79,7 +79,10 @@
 <section class="card results" id="results" aria-labelledby="results-heading">
   <div class="results-head">
     <h2 id="results-heading">Preprocessed with MIPMLP</h2>
-    <a class="btn" href="{{ url_for('main.download', run_id=view.run.id) }}" download>Download table (CSV)</a>
+    <div class="results-actions">
+      <a class="btn btn-secondary" href="{{ url_for('main.download', run_id=view.run.id) }}" download>Table (CSV)</a>
+      <a class="btn" href="{{ url_for('main.bundle', run_id=view.run.id) }}" download>Download everything (ZIP)</a>
+    </div>
   </div>
   <dl class="stats">
     <div><dt>Samples</dt><dd>{{ record.samples }}</dd></div>
@@ -88,6 +91,26 @@
     <div><dt>Time</dt><dd>{{ "cached" if record.from_cache else "%.0f s"|format(record.seconds) }}</dd></div>
   </dl>
   <ul class="facts">{% for line in record.summary %}<li>{{ line }}</li>{% endfor %}</ul>
+
+  {% if view.figures %}
+  <h3>Data quality</h3>
+  <div class="figures" data-plotly="{{ url_for('main.plotly_js') }}">
+    {% for fig in view.figures %}
+      <figure class="figure">
+        <div class="plot" data-plot="{{ url_for('main.figure_file', run_id=view.run.id, name=fig.files.json) }}">
+          <img src="{{ url_for('main.figure_file', run_id=view.run.id, name=fig.files.png) }}"
+               alt="{{ fig.title }}" loading="lazy">
+        </div>
+        <figcaption>{{ fig.caption }}</figcaption>
+        <p class="downloads">Download:
+          {% for fmt, label in [("png", "PNG"), ("svg", "SVG"), ("html", "Interactive"), ("csv", "Data (CSV)")] %}
+            <a href="{{ url_for('main.figure_file', run_id=view.run.id, name=fig.files[fmt], download=1) }}">{{ label }}</a>{% if not loop.last %} ·{% endif %}
+          {% endfor %}
+        </p>
+      </figure>
+    {% endfor %}
+  </div>
+  {% endif %}
 
   <h3>Preview</h3>
   {% set preview = view.preview %}

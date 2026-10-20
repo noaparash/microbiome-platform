@@ -9,6 +9,7 @@ random 32-character ID, which is also the run's results link:
     runs/<id>/counts.csv       the uploaded counts table (shared format)
     runs/<id>/labels.csv       optional labels, sample ID as the first column
     runs/<id>/processed.csv    MIPMLP output, once preprocessing has run
+    runs/<id>/figures/         each figure as PNG, SVG, HTML and JSON, plus its data CSV
     runs/<id>/record.json      reproducibility record and plain-language summary
 """
 
@@ -52,6 +53,22 @@ class Run:
     @property
     def record_file(self) -> Path:
         return self.path / "record.json"
+
+    @property
+    def figures_dir(self) -> Path:
+        return self.path / "figures"
+
+    def figure_file(self, name: str) -> Path | None:
+        """A file inside this run's figures folder, or None (never anything outside it).
+
+        Only exact names of existing files are accepted. Building a path from the
+        name and checking that it exists is not enough: Windows ignores case and
+        trailing dots, so 'figures.json..' would open 'figures.json'.
+        """
+        if not self.figures_dir.is_dir():
+            return None
+        existing = {p.name: p for p in self.figures_dir.iterdir() if p.is_file()}
+        return existing.get(name)
 
     def meta(self) -> dict:
         return json.loads((self.path / "meta.json").read_text(encoding="utf-8"))

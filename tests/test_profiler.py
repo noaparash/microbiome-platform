@@ -34,7 +34,7 @@ def example():
 
 def test_example_counts_profile(example):
     p = profile_counts(example[0])
-    assert p.ok
+    assert p.ok  # warnings (like the depth outlier) do not block
     assert (p.n_samples, p.n_taxa) == (40, 263)
     assert p.has_taxonomy
     assert p.value_kind == "counts"
@@ -52,6 +52,13 @@ def test_example_labels_profile(example):
     assert lp.kind == "binary"
     assert lp.class_counts == {"0": 20, "1": 20}
     assert lp.missing == []
+
+
+def test_example_flags_its_depth_outlier(example):
+    """Sample a498 has ~10M reads (90% one genus) against a ~30k median."""
+    warnings = [i for i in profile_counts(example[0]).issues if "median sequencing depth" in i.message]
+    assert len(warnings) == 1
+    assert "a498" in warnings[0].message and warnings[0].fix
 
 
 def test_summary_is_plain_language(example):
