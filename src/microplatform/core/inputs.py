@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from microplatform.core.contract import TAXONOMY_ROW
 from microplatform.core.errors import UserFacingError
 from microplatform.core.profiler import ProfileError, is_counts_table, read_table
 
@@ -47,22 +48,22 @@ def sort_uploads(files: list[tuple[str, bytes]]) -> Inputs:
         if is_counts_table(table):
             if counts is not None:
                 raise InputError(
-                    "Both files look like counts tables (both have a 'taxonomy' row).",
+                    f"Both files look like counts tables (both have a '{TAXONOMY_ROW}' row).",
                     "Upload one counts table at a time, optionally with a labels file.",
                 )
             counts = (name, table)
         else:
             if labels is not None:
                 raise InputError(
-                    "Neither file has a 'taxonomy' row, so no counts table was found.",
-                    "Add a last row named 'taxonomy' to the counts table. See the template.",
+                    f"Neither file has a '{TAXONOMY_ROW}' row, so no counts table was found.",
+                    f"Add a last row named '{TAXONOMY_ROW}' to the counts table. See the template.",
                 )
             labels = (name, table.set_index(table.columns[0]))
 
     if counts is None:
         raise InputError(
-            "No counts table was found: a counts table has a last row named 'taxonomy'.",
-            "Upload the counts table too, or add the 'taxonomy' row to it. See the template.",
+            f"No counts table was found: a counts table has a last row named '{TAXONOMY_ROW}'.",
+            f"Upload the counts table too, or add the '{TAXONOMY_ROW}' row to it. See the template.",
         )
     return Inputs(counts[0], counts[1], *(labels or (None, None)))
 

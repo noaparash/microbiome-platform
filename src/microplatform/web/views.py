@@ -21,6 +21,7 @@ from flask import (
 )
 
 from microplatform import runs, workflows
+from microplatform.core.contract import short_feature_name
 from microplatform.core.errors import UserFacingError
 from microplatform.core.inputs import sort_uploads
 from microplatform.examples import TEMPLATES
@@ -30,11 +31,7 @@ from microplatform.router.goals import GOALS
 bp = Blueprint("main", __name__)
 
 
-@bp.app_template_filter("short_taxon")
-def short_taxon(name: str) -> str:
-    """'Bacteria;...;Actinomycetaceae_0;;;' -> 'Actinomycetaceae_0'."""
-    parts = [p for p in str(name).split(";") if p.strip()]
-    return parts[-1] if parts else str(name)
+bp.add_app_template_filter(short_feature_name, "short_taxon")
 
 
 @bp.get("/")

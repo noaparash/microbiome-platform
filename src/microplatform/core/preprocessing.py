@@ -24,8 +24,9 @@ from typing import Literal
 
 import pandas as pd
 
+from microplatform.core.contract import ID_COLUMN, TAXONOMY_ROW
 from microplatform.core.errors import UserFacingError
-from microplatform.core.profiler import TAXONOMY_ROW, profile_counts
+from microplatform.core.profiler import profile_counts
 
 
 class PreprocessError(UserFacingError):
@@ -157,10 +158,10 @@ def cache_key(raw: pd.DataFrame, settings: PreprocessSettings) -> str:
 
 
 def _standardise(raw: pd.DataFrame) -> pd.DataFrame:
-    """Give MIPMLP exactly the names it expects: an 'ID' column and a 'taxonomy' row."""
-    raw = raw.rename(columns={raw.columns[0]: "ID"}).copy()
-    ids = raw["ID"].astype(str)
-    raw["ID"] = ids.where(ids.str.strip().str.lower() != TAXONOMY_ROW, TAXONOMY_ROW)
+    """Give MIPMLP exactly the names it expects: an ID column and a taxonomy row."""
+    raw = raw.rename(columns={raw.columns[0]: ID_COLUMN}).copy()
+    ids = raw[ID_COLUMN].astype(str)
+    raw[ID_COLUMN] = ids.where(ids.str.strip().str.lower() != TAXONOMY_ROW, TAXONOMY_ROW)
     return raw
 
 

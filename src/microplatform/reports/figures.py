@@ -25,7 +25,6 @@ import plotly.graph_objects as go
 from matplotlib.figure import Figure as MplFigure
 
 from microplatform.core.preprocessing import PreprocessSettings
-from microplatform.core.profiler import count_matrix
 
 # Shipped with plotly; the website serves it so interactive figures work offline.
 PLOTLY_JS = Path(plotly.__file__).parent / "package_data" / "plotly.min.js"
@@ -71,9 +70,8 @@ class ExportedFigure:
 
 # --- the figures for preprocessing ---------------------------------------------
 
-def preprocessing_figures(raw: pd.DataFrame, settings: PreprocessSettings) -> list[Figure]:
-    """Quality-check figures for the uploaded counts table."""
-    counts = count_matrix(raw)
+def preprocessing_figures(counts: pd.DataFrame, settings: PreprocessSettings) -> list[Figure]:
+    """Quality-check figures from the raw counts (samples × taxa, see ``Dataset.raw_counts``)."""
     return [_reads_per_sample(counts), _taxa_prevalence(counts, settings)]
 
 

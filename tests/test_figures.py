@@ -8,7 +8,7 @@ import pytest
 
 from microplatform import workflows
 from microplatform.core.preprocessing import CANONICAL
-from microplatform.core.profiler import read_table
+from microplatform.core.profiler import count_matrix, read_table
 from microplatform.examples import EXAMPLE_COUNTS
 from microplatform.reports.figures import (
     FORMATS,
@@ -22,7 +22,7 @@ from microplatform.reports.figures import (
 
 @pytest.fixture(scope="module")
 def figures():
-    return preprocessing_figures(read_table(EXAMPLE_COUNTS), CANONICAL)
+    return preprocessing_figures(count_matrix(read_table(EXAMPLE_COUNTS)), CANONICAL)
 
 
 @pytest.fixture(scope="module")

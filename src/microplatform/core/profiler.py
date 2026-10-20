@@ -17,10 +17,10 @@ from typing import IO, Literal
 
 import pandas as pd
 
+from microplatform.core.contract import ID_COLUMN, LABEL_COLUMN, RANK_SEPARATOR, TAXONOMY_ROW, LabelKind
 from microplatform.core.errors import UserFacingError
 
 RANKS = ("kingdom", "phylum", "class", "order", "family", "genus", "species")
-TAXONOMY_ROW = "taxonomy"
 
 # A numeric label with at most this many distinct integer values is treated
 # as categorical (e.g. 0/1/2 disease stages); anything else is continuous.
@@ -30,7 +30,6 @@ MAX_CATEGORIES = 10
 DEPTH_OUTLIER = 10
 
 Severity = Literal["error", "warning"]
-LabelKind = Literal["binary", "categorical", "continuous"]
 ValueKind = Literal["counts", "relative", "transformed"]
 
 
@@ -96,6 +95,8 @@ class LabelProfile:
     class_counts: dict[str, int]  # empty for continuous labels
     missing: list[str]  # samples with counts but no label
     issues: list[Issue] = field(default_factory=list)
+    # The labels aligned to the counts' sample IDs, named LABEL_COLUMN (contract form).
+    values: pd.Series | None = field(default=None, repr=False)
 
     @property
     def ok(self) -> bool:
@@ -152,11 +153,12 @@ def profile_counts(raw: pd.DataFrame) -> CountsProfile:
         )
 
     id_column = str(raw.columns[0])
-    if id_column != "ID":
+    if id_column != ID_COLUMN:
         issues.append(Issue(
             "warning",
-            f"The first column is named '{id_column}' instead of 'ID'. We read it as the sample IDs.",
-            "Rename the first column to 'ID' to silence this message.",
+            f"The first column is named '{id_column}' instead of '{ID_COLUMN}'. "
+            "We read it as the sample IDs.",
+            f"Rename the first column to '{ID_COLUMN}' to silence this message.",
         ))
 
     is_tax_row = _taxonomy_rows(raw)
@@ -165,8 +167,8 @@ def profile_counts(raw: pd.DataFrame) -> CountsProfile:
         issues.append(
             Issue(
                 "error",
-                "No 'taxonomy' row was found, so we cannot tell which bacterium each column is.",
-                "Add a last row whose first cell is 'taxonomy' and whose other cells hold each "
+                f"No '{TAXONOMY_ROW}' row was found, so we cannot tell which bacterium each column is.",
+                f"Add a last row whose first cell is '{TAXONOMY_ROW}' and whose other cells hold each "
                 "column's lineage, e.g. k__Bacteria;p__Firmicutes;c__Bacilli;…",
             )
         )
@@ -246,19 +248,19 @@ def profile_counts(raw: pd.DataFrame) -> CountsProfile:
 def profile_labels(tags: pd.DataFrame, sample_ids: list[str]) -> LabelProfile:
     """Describe a label table (index = sample ID) against the counts' sample IDs."""
     issues: list[Issue] = []
-    if "Tag" in tags.columns:
-        column = "Tag"
+    if LABEL_COLUMN in tags.columns:
+        column = LABEL_COLUMN
     elif tags.shape[1] == 1:
         column = str(tags.columns[0])
     elif tags.shape[1] == 0:
         raise ProfileError(
             "The labels file has no label column.",
-            "Use two columns: sample IDs first, then the label in a column named 'Tag'.",
+            f"Use two columns: sample IDs first, then the label in a column named '{LABEL_COLUMN}'.",
         )
     else:
         raise ProfileError(
-            "The labels file has several columns and none is named 'Tag'.",
-            "Rename the column holding the outcome to 'Tag'.",
+            f"The labels file has several columns and none is named '{LABEL_COLUMN}'.",
+            f"Rename the column holding the outcome to '{LABEL_COLUMN}'.",
         )
 
     labels = tags[column]
@@ -286,7 +288,7 @@ def profile_labels(tags: pd.DataFrame, sample_ids: list[str]) -> LabelProfile:
         issues.append(Issue(
             "error",
             "The label has only one value, so there is nothing to compare.",
-            "The 'Tag' column needs at least two different values, e.g. 0 and 1.",
+            f"The '{LABEL_COLUMN}' column needs at least two different values, e.g. 0 and 1.",
         ))
     elif class_counts and min(class_counts.values()) < 5:
         issues.append(Issue(
@@ -302,6 +304,7 @@ def profile_labels(tags: pd.DataFrame, sample_ids: list[str]) -> LabelProfile:
         class_counts=class_counts,
         missing=missing,
         issues=issues,
+        values=matched.rename(LABEL_COLUMN),
     )
 
 
@@ -331,7 +334,7 @@ def _taxonomy_rows(table: pd.DataFrame) -> pd.Series:
 
 def _taxonomy_depth(taxonomy: pd.Series) -> tuple[int, dict[str, float]]:
     """Return the deepest rank named for most taxa, and per-rank coverage."""
-    ranks = taxonomy.str.split(";").apply(lambda parts: [_strip_prefix(p) for p in parts])
+    ranks = taxonomy.str.split(RANK_SEPARATOR).apply(lambda parts: [_strip_prefix(p) for p in parts])
     coverage = {
         rank: float(ranks.apply(lambda p, i=i: len(p) > i and bool(p[i])).mean())
         for i, rank in enumerate(RANKS)

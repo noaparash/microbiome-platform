@@ -25,6 +25,7 @@ from typing import Literal
 
 import pandas as pd
 
+from microplatform.core.contract import ID_COLUMN
 from microplatform.core.preprocessing import PreprocessResult
 from microplatform.core.profiler import read_table
 
@@ -99,7 +100,7 @@ class Run:
         return pd.read_csv(self.processed_file, index_col=0, nrows=rows)
 
     def save_result(self, result: PreprocessResult) -> None:
-        table = result.table.rename_axis("ID")
+        table = result.table.rename_axis(ID_COLUMN)
         table.to_csv(self.processed_file)
         record = {
             **result.record(),
