@@ -31,3 +31,6 @@ Thumbs.db
 
 # Office temporary lock files
 ~$*
+
+# Presentations: kept in docs/ as reference, too large and changing to version
+*.pptx
