@@ -17,7 +17,7 @@ import pandas as pd
 from microplatform import runs
 from microplatform.core.contract import ID_COLUMN, Dataset, InputKind
 from microplatform.core.errors import UserFacingError
-from microplatform.core.inputs import InputError, Inputs
+from microplatform.core.inputs import InputError, Inputs, read_labels_upload
 from microplatform.core.preprocessing import CANONICAL, PreprocessResult, PreprocessSettings, preprocess
 from microplatform.core.profiler import (
     CountsProfile,
@@ -33,10 +33,10 @@ from microplatform.engines import ENGINES
 from microplatform.examples import EXAMPLE_COUNTS, EXAMPLE_TAGS
 from microplatform.reports import figures
 from microplatform.reports.bundle import build_bundle
-from microplatform.router.goals import GoalOption, default_goal, get_goal, goal_options
+from microplatform.router.goals import GoalOption, Recommendation, get_goal, goal_options, recommend
 
 __all__ = [
-    "RunView", "build_bundle", "build_dataset", "describe", "run_goal",
+    "RunView", "add_labels", "build_bundle", "build_dataset", "describe", "run_goal",
     "start_example_run", "start_run",
 ]
 
@@ -52,6 +52,7 @@ class RunView:
     issues: list[Issue]  # counts and label problems together
     available_inputs: frozenset[InputKind]
     goals: list[GoalOption]
+    recommendation: Recommendation
     default_goal: str
     settings: PreprocessSettings
     record: dict | None
@@ -63,19 +64,41 @@ class RunView:
         """True if the counts table is usable; label problems do not block preprocessing."""
         return self.profile.ok
 
+    @property
+    def step(self) -> int:
+        """Where the run is in the 4-step flow: 1 Upload, 2 Data check, 3 Plan, 4 Results."""
+        if self.record:
+            return 4
+        return 3 if self.ready else 2
 
-def start_run(root: Path, inputs: Inputs) -> runs.Run:
-    return runs.create(root, inputs.counts_name, inputs.counts, inputs.labels_name, inputs.labels)
+
+def start_run(root: Path, inputs: Inputs, requested_goal: str | None = None) -> runs.Run:
+    """Store the uploads as a new run; ``requested_goal`` is the question picked on the home page."""
+    run = runs.create(root, inputs.counts_name, inputs.counts, inputs.labels_name, inputs.labels)
+    _remember_request(run, requested_goal)
+    return run
 
 
-def start_example_run(root: Path) -> runs.Run:
-    return runs.create(
+def start_example_run(root: Path, requested_goal: str | None = None) -> runs.Run:
+    run = runs.create(
         root,
         "Example dataset (miMic authors)",
         read_table(EXAMPLE_COUNTS),
         EXAMPLE_TAGS.name,
         read_table(EXAMPLE_TAGS, index_col=0),
     )
+    _remember_request(run, requested_goal)
+    return run
+
+
+def add_labels(run: runs.Run, name: str, content: bytes) -> None:
+    """Add a labels file from the Plan step, without starting over."""
+    run.add_labels(name, read_labels_upload(name, content))
+
+
+def _remember_request(run: runs.Run, requested_goal: str | None) -> None:
+    if get_goal(requested_goal):
+        run.update_meta(requested_goal=requested_goal)
 
 
 def describe(run: runs.Run) -> RunView:
@@ -87,16 +110,19 @@ def describe(run: runs.Run) -> RunView:
     if label_profile is not None and label_profile.ok:
         available.add("labels")
     options = goal_options(frozenset(available))
+    meta = run.meta()
+    recommendation = recommend(options, meta.get("requested_goal"))
     record = run.record()
     return RunView(
         run=run,
-        meta=run.meta(),
+        meta=meta,
         profile=profile,
         labels=label_profile,
         issues=issues,
         available_inputs=frozenset(available),
         goals=options,
-        default_goal=default_goal(options),
+        recommendation=recommendation,
+        default_goal=recommendation.goal_id,
         settings=CANONICAL,
         record=record,
         preview=run.processed_preview() if record else None,

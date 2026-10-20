@@ -96,6 +96,11 @@ class Run:
             return None
         return json.loads(self.record_file.read_text(encoding="utf-8"))
 
+    def add_labels(self, name: str, labels: pd.DataFrame) -> None:
+        """Add (or replace) the labels file of an existing run."""
+        labels.to_csv(self.labels_file)
+        self.update_meta(labels_name=name)
+
     def processed_preview(self, rows: int = 5) -> pd.DataFrame:
         return pd.read_csv(self.processed_file, index_col=0, nrows=rows)
 

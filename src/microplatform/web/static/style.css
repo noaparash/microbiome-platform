@@ -118,16 +118,50 @@ code, pre { font-family: var(--mono); font-size: 0.875em; }
 .link { color: var(--accent); text-decoration: underline; }
 
 .example { text-align: center; margin-top: 1rem; }
+
+/* 4-step flow */
+.stepper { list-style: none; padding: 0; margin: 0 0 1.75rem; display: flex; gap: 0.5rem; counter-reset: step; }
+.step { flex: 1; display: flex; align-items: center; gap: 0.5rem; color: var(--muted); font-size: 0.9rem; min-width: 0; }
+.step:not(:last-child)::after { content: ""; flex: 1; height: 2px; background: var(--border); border-radius: 2px; min-width: 0.75rem; }
+.step.is-done:not(:last-child)::after { background: var(--accent); }
+.step-dot {
+  flex: none; display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 50%;
+  border: 2px solid var(--border); background: var(--surface); font-weight: 650; font-size: 0.8rem;
+}
+.step.is-done .step-dot { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.step.is-current { color: var(--text); font-weight: 600; }
+.step.is-current .step-dot { border-color: var(--accent); color: var(--accent); }
+.step-name { white-space: nowrap; }
+.step-label { display: block; font-size: 0.75rem; font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent-strong); }
+
+.questions { margin-bottom: 1.5rem; }
+.questions h2 { font-size: 1.1rem; }
+.optional { font-size: 0.85rem; font-weight: 400; margin-left: 0.4rem; }
+.question-grid { list-style: none; padding: 0; margin: 0.75rem 0 0; display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); }
+.question-card {
+  display: flex; flex-direction: column; justify-content: space-between; gap: 0.6rem; height: 100%;
+  padding: 0.9rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+  color: var(--text); text-decoration: none; transition: border-color 0.15s, background 0.15s;
+}
+.question-card:hover { border-color: var(--accent); }
+.question-card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.question-card.is-chosen { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.question-text { font-weight: 600; }
+.question-meta { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.question-tool { font-size: 0.8rem; font-weight: 600; color: var(--accent-strong); }
+.dropzone-needs strong { color: var(--text); }
+
+.recommendation { background: var(--accent-soft); border-radius: 10px; padding: 0.9rem 1.1rem; margin-bottom: 1.25rem; }
+.recommendation-title { margin-bottom: 0.4rem; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; }
+.goals-legend { font-weight: 600; margin-bottom: 0.5rem; padding: 0; }
+.dropzone-compact { margin-top: 1.25rem; }
+.dropzone-compact .dropzone-label { padding: 1.1rem 1rem; flex-direction: column; gap: 0.2rem; }
+.dropzone-compact .dropzone-title { font-size: 1rem; }
+.blocked { margin-top: 1.25rem; }
 .format { margin-top: 2rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .format summary { cursor: pointer; padding: 1rem 1.25rem; font-weight: 600; }
 .format-body { padding: 0 1.25rem 1.25rem; }
 .format pre { background: var(--surface-2); padding: 0.9rem 1rem; border-radius: 10px; overflow-x: auto; }
-
-.tools { margin-top: 3rem; }
-.tool-grid { list-style: none; padding: 0; margin: 1rem 0 0; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
-.tool-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.1rem; }
-.tool-card h3 { margin: 0.6rem 0 0.25rem; }
-.tool-card p { color: var(--muted); font-size: 0.9rem; margin: 0; }
 
 .chip { display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 0.15rem 0.55rem; border-radius: 999px; }
 .chip-available { background: var(--accent-soft); color: var(--accent-strong); }
@@ -236,6 +270,8 @@ code, pre { font-family: var(--mono); font-size: 0.875em; }
   .card { padding: 1.1rem; }
   .record-list div { flex-direction: column; gap: 0; }
   .results-actions, .results-head .btn { width: 100%; }
+  .step-name { display: none; }
+  .step.is-current .step-name { display: inline; }
   .goal { grid-template-columns: auto 1fr; }
   .goal-meta { grid-column: 2; justify-items: start; text-align: left; }
 }

@@ -1,8 +1,7 @@
 // Small progressive enhancements; every page also works without JavaScript.
 
 // Upload as soon as files are chosen or dropped: no extra "submit" click.
-const zone = document.getElementById("dropzone");
-if (zone) {
+for (const zone of document.querySelectorAll("form.dropzone")) {
   const input = zone.querySelector("input[type=file]");
   const submit = () => {
     if (input.files.length) {

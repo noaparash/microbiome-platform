@@ -54,6 +54,31 @@ def test_failure_is_recorded_with_its_fix(root):
     assert run.meta()["error"]["fix"]
 
 
+def test_the_requested_question_is_remembered(root):
+    run = workflows.start_example_run(root, requested_goal="differ")
+    assert run.meta()["requested_goal"] == "differ"
+    assert workflows.start_example_run(root, requested_goal="nonsense").meta().get("requested_goal") is None
+
+
+def test_labels_can_be_added_later(root):
+    counts = ("counts.csv", b"ID,asv0\ns1,4\ns2,5\ntaxonomy,k__Bacteria\n")
+    run = workflows.start_run(root, sort_uploads([counts]))
+    assert workflows.describe(run).available_inputs == {"counts"}
+    workflows.add_labels(run, "tags.csv", b"ID,Tag\ns1,0\ns2,1\n")
+    view = workflows.describe(run)
+    assert view.available_inputs == {"counts", "labels"}
+    assert view.meta["labels_name"] == "tags.csv"
+
+
+def test_steps_follow_the_run(root, tmp_path):
+    run = workflows.start_example_run(root)
+    assert workflows.describe(run).step == 3
+    workflows.run_goal(run, "preprocess", cache_dir=tmp_path / "cache")
+    assert workflows.describe(run).step == 4
+    bad = workflows.start_run(root, sort_uploads([("bad.csv", BAD_COUNTS)]))
+    assert workflows.describe(bad).step == 2
+
+
 def test_label_file_problem_does_not_block_preprocessing(root):
     labels = ("labels.csv", b"ID,a,b\nx,1,2\n")  # several columns, none named Tag
     counts = ("counts.csv", b"ID,asv0\ns1,4\ntaxonomy,k__Bacteria\n")

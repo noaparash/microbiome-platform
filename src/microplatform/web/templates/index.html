@@ -3,13 +3,38 @@
 <section class="hero">
   <h1>Understand your microbiome data</h1>
   <p class="lead">
-    Upload a table. We work out what's in it, prepare it with the lab's
-    published methods, and explain every step.
+    Upload a table. We work out what's in it, choose the right method from
+    the lab's published tools, and explain every step.
   </p>
 </section>
 
-<form class="dropzone" id="dropzone" action="{{ url_for('main.upload') }}"
+{% set current = 1 %}
+{% include "_stepper.html" %}
+
+<section class="questions" aria-labelledby="questions-heading">
+  <h2 id="questions-heading">What do you want to learn? <span class="muted optional">Optional — we can also suggest</span></h2>
+  <ul class="question-grid">
+    {% for goal in goals %}
+      <li>
+        <a class="question-card{% if chosen and chosen.id == goal.id %} is-chosen{% endif %}"
+           href="{{ url_for('main.index', goal=goal.id) }}#upload"
+           {% if chosen and chosen.id == goal.id %}aria-current="true"{% endif %}>
+          <span class="question-text">{{ goal.question }}</span>
+          <span class="question-meta">
+            <span class="question-tool">{{ goal.tool }}</span>
+            <span class="chip chip-{{ goal.status }}">
+              {{ {"available": "Available", "next": "Coming next", "planned": "Planned"}[goal.status] }}
+            </span>
+          </span>
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+
+<form class="dropzone" id="upload" action="{{ url_for('main.upload') }}"
       method="post" enctype="multipart/form-data">
+  {% if chosen %}<input type="hidden" name="goal" value="{{ chosen.id }}">{% endif %}
   <input class="file-input" type="file" name="files" id="files"
          accept=".csv,.tsv,.txt" multiple>
   <label for="files" class="dropzone-label">
@@ -17,31 +42,21 @@
       <path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
     </svg>
     <span class="dropzone-title">Drop your files here, or <span class="link">browse</span></span>
-    <span class="dropzone-hint">A counts table (required) and a labels file (optional), as CSV or TSV</span>
+    {% if chosen %}
+      <span class="dropzone-hint dropzone-needs">For “{{ chosen.question }}” upload <strong>{{ needs }}</strong>, as CSV or TSV</span>
+    {% else %}
+      <span class="dropzone-hint">A counts table (required) and a labels file (optional), as CSV or TSV</span>
+    {% endif %}
     <span class="dropzone-busy">Reading your files…</span>
   </label>
   <noscript><button class="btn" type="submit">Upload</button></noscript>
 </form>
 
 <form class="example" action="{{ url_for('main.example') }}" method="post">
+  {% if chosen %}<input type="hidden" name="goal" value="{{ chosen.id }}">{% endif %}
   <button class="btn-link" type="submit">No data at hand? Try the example dataset →</button>
 </form>
 
 {% set open_format = get_flashed_messages(category_filter=["error"]) %}
 {% include "_format_help.html" %}
-
-<section class="tools" aria-labelledby="tools-heading">
-  <h2 id="tools-heading">The tools behind it</h2>
-  <ul class="tool-grid">
-    {% for goal in goals %}
-      <li class="tool-card">
-        <span class="chip chip-{{ goal.status }}">
-          {{ {"available": "Available", "next": "Coming next", "planned": "Planned"}[goal.status] }}
-        </span>
-        <h3>{{ goal.tool }}</h3>
-        <p>{{ goal.title }}</p>
-      </li>
-    {% endfor %}
-  </ul>
-</section>
 {% endblock %}

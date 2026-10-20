@@ -26,7 +26,7 @@ from microplatform.core.errors import UserFacingError
 from microplatform.core.inputs import sort_uploads
 from microplatform.examples import TEMPLATES
 from microplatform.reports.figures import MEDIA_TYPES, PLOTLY_JS
-from microplatform.router.goals import GOALS
+from microplatform.router.goals import GOALS, get_goal, requirement_text
 
 bp = Blueprint("main", __name__)
 
@@ -36,24 +36,42 @@ bp.add_app_template_filter(short_feature_name, "short_taxon")
 
 @bp.get("/")
 def index():
-    return render_template("index.html", goals=GOALS)
+    chosen = get_goal(request.args.get("goal"))
+    return render_template(
+        "index.html", goals=GOALS, chosen=chosen,
+        needs=requirement_text(chosen) if chosen else None,
+    )
 
 
 @bp.post("/upload")
 def upload():
+    goal = request.form.get("goal") or None
     files = [(f.filename, f.read()) for f in request.files.getlist("files") if f and f.filename]
     try:
-        run = workflows.start_run(_runs_dir(), sort_uploads(files))
+        run = workflows.start_run(_runs_dir(), sort_uploads(files), requested_goal=goal)
     except UserFacingError as exc:
         _flash_error(exc)
-        return redirect(url_for(".index"))
+        return redirect(url_for(".index", goal=goal))
     return redirect(url_for(".analysis", run_id=run.id))
 
 
 @bp.post("/example")
 def example():
-    run = workflows.start_example_run(_runs_dir())
+    run = workflows.start_example_run(_runs_dir(), requested_goal=request.form.get("goal") or None)
     return redirect(url_for(".analysis", run_id=run.id))
+
+
+@bp.post("/runs/<run_id>/labels")
+def add_labels(run_id: str):
+    run = _get_run(run_id)
+    upload = request.files.get("file")
+    try:
+        if not upload or not upload.filename:
+            raise UserFacingError("No file was chosen.", "Choose a labels file to add.")
+        workflows.add_labels(run, upload.filename, upload.read())
+    except UserFacingError as exc:
+        _flash_error(exc)
+    return redirect(url_for(".analysis", run_id=run.id, _anchor="plan"))
 
 
 @bp.get("/templates/<name>")

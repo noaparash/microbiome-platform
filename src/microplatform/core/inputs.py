@@ -68,6 +68,17 @@ def sort_uploads(files: list[tuple[str, bytes]]) -> Inputs:
     return Inputs(counts[0], counts[1], *(labels or (None, None)))
 
 
+def read_labels_upload(name: str, content: bytes) -> pd.DataFrame:
+    """A labels file added later, from the Plan step (index = sample ID)."""
+    table = _read_upload(name, content)
+    if is_counts_table(table):
+        raise InputError(
+            f"'{name}' looks like a counts table (it has a '{TAXONOMY_ROW}' row), not a labels file.",
+            "Upload a labels file: sample IDs in the first column and the label in a second column.",
+        )
+    return table.set_index(table.columns[0])
+
+
 def _read_upload(name: str, content: bytes) -> pd.DataFrame:
     suffix = Path(name).suffix.lower()
     if suffix in EXCEL_SUFFIXES:

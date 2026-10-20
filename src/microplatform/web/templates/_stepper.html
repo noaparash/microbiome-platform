@@ -1,0 +1,10 @@
+<ol class="stepper" aria-label="Analysis progress">
+  {% for name in ["Upload", "Data check", "Plan", "Results"] %}
+    {% set n = loop.index %}
+    <li class="step {% if n < current %}is-done{% elif n == current %}is-current{% endif %}"
+        {% if n == current %}aria-current="step"{% endif %}>
+      <span class="step-dot" aria-hidden="true">{% if n < current %}✓{% else %}{{ n }}{% endif %}</span>
+      <span class="step-name">{{ name }}</span>
+    </li>
+  {% endfor %}
+</ol>

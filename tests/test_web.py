@@ -88,6 +88,46 @@ def test_upload_shows_profile_and_choices(client):
     assert re.search(r'value="preprocess"\s+checked', page)  # pre-selected: one click
 
 
+def test_home_is_entered_by_question(client):
+    page = client.get("/").get_data(as_text=True)
+    assert "What do you want to learn?" in page
+    assert "Which bacteria differ between my groups?" in page
+
+
+def test_choosing_a_question_adapts_the_upload(client):
+    page = client.get("/?goal=differ").get_data(as_text=True)
+    assert "a counts table and a labels file" in page
+    assert '<input type="hidden" name="goal" value="differ">' in page
+    page = client.get("/?goal=preprocess").get_data(as_text=True)
+    assert "upload <strong>a counts table</strong>" in page
+
+
+def test_plan_explains_the_recommendation(client):
+    data = {"goal": "differ", "files": [(io.BytesIO(EXAMPLE[0][1]), EXAMPLE[0][0])]}
+    url = client.post("/upload", data=data, content_type="multipart/form-data").headers["Location"]
+    page = client.get(url).get_data(as_text=True)
+    assert "Step 3" in page and "We recommend" in page
+    assert "Which bacteria differ between my groups?" in page  # the question they asked
+    assert "Add a labels file" in page and "Unlocks:" in page
+
+
+def test_labels_can_be_added_from_the_plan(client):
+    url = upload(client, EXAMPLE[0]).headers["Location"]
+    data = {"file": (io.BytesIO(EXAMPLE[1][1]), EXAMPLE[1][0])}
+    page = client.post(f"{url}/labels", data=data, content_type="multipart/form-data",
+                       follow_redirects=True).get_data(as_text=True)
+    assert "binary" in page and "with labels from example_tag.csv" in page
+    assert "Add a labels file" not in page  # nothing left to unlock with labels
+
+
+def test_adding_a_counts_table_as_labels_is_explained(client):
+    url = upload(client, EXAMPLE[0]).headers["Location"]
+    data = {"file": (io.BytesIO(EXAMPLE[0][1]), EXAMPLE[0][0])}
+    page = client.post(f"{url}/labels", data=data, content_type="multipart/form-data",
+                       follow_redirects=True).get_data(as_text=True)
+    assert "looks like a counts table" in page and "How to fix:" in page
+
+
 def test_example_button(client):
     response = client.post("/example")
     page = client.get(response.headers["Location"]).get_data(as_text=True)
@@ -119,7 +159,8 @@ def test_unavailable_goal_is_explained(client):
 
 def test_results_are_shown(client, processed_run):
     page = client.get(processed_run).get_data(as_text=True)
-    assert "Preprocessed with MIPMLP" in page
+    assert "Results: preprocessed with MIPMLP" in page
+    assert 'aria-current="step"' in page and "Step 4" in page
     assert "Grouped 263 taxa into" in page
     assert "Reproducibility record" in page and "sub PCA" in page
 
