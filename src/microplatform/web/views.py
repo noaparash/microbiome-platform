@@ -20,11 +20,12 @@ from flask import (
     url_for,
 )
 
-from microplatform import runs, workflows
-from microplatform.core.contract import short_feature_name
+from microplatform import CANONICAL, TOOLS, __version__, runs, workflows
+from microplatform.apidoc import api_reference
+from microplatform.core.contract import ALLOWED_VARIATIONS, short_feature_name
 from microplatform.core.errors import UserFacingError
 from microplatform.core.inputs import sort_uploads
-from microplatform.examples import TEMPLATES
+from microplatform.examples import DOWNLOADS, EXAMPLE_SOURCE
 from microplatform.reports.figures import MEDIA_TYPES, PLOTLY_JS
 from microplatform.router.goals import GOALS, get_goal, requirement_text
 
@@ -74,11 +75,35 @@ def add_labels(run_id: str):
     return redirect(url_for(".analysis", run_id=run.id, _anchor="plan"))
 
 
-@bp.get("/templates/<name>")
-def template_file(name: str):
-    if name not in TEMPLATES:
+@bp.get("/example")
+def example_page():
+    counts, labels = workflows.example_overview()
+    return render_template("example.html", counts=counts, labels=labels, source=EXAMPLE_SOURCE)
+
+
+@bp.get("/methods")
+def methods():
+    status = {goal.tool: goal.status for goal in GOALS}
+    return render_template("methods.html", tools=TOOLS, status=status, settings=CANONICAL,
+                           allowed=sorted(ALLOWED_VARIATIONS))
+
+
+@bp.get("/docs")
+def docs():
+    return render_template("docs.html", api=api_reference(), version=__version__)
+
+
+@bp.get("/about")
+def about():
+    return render_template("about.html", tools=TOOLS, version=__version__)
+
+
+@bp.get("/downloads/<name>")
+def download_file(name: str):
+    """Format templates and the example dataset."""
+    if name not in DOWNLOADS:
         abort(404)
-    return send_file(TEMPLATES[name], mimetype="text/csv", as_attachment=True, download_name=name)
+    return send_file(DOWNLOADS[name], mimetype="text/csv", as_attachment=True, download_name=name)
 
 
 @bp.get("/runs/<run_id>")

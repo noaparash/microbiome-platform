@@ -91,7 +91,11 @@ code, pre { font-family: var(--mono); font-size: 0.875em; }
 .brand-mark { width: 28px; height: 28px; fill: var(--accent); }
 .brand-mark circle:nth-child(2) { opacity: 0.6; }
 .brand-mark circle:nth-child(3) { opacity: 0.35; }
-.lab { color: var(--muted); font-size: 0.875rem; }
+.site-nav { display: flex; flex-wrap: wrap; gap: 0.25rem 1.1rem; font-size: 0.925rem; }
+.site-nav a { color: var(--muted); text-decoration: none; padding: 0.2rem 0; border-bottom: 2px solid transparent; }
+.site-nav a:hover { color: var(--text); }
+.site-nav a[aria-current="page"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.site-nav a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .site-footer { border-top: 1px solid var(--border); color: var(--muted); font-size: 0.875rem; padding-block: 1.25rem; }
 
 /* Home */
@@ -258,6 +262,26 @@ code, pre { font-family: var(--mono); font-size: 0.875em; }
 .figure figcaption { color: var(--muted); font-size: 0.875rem; margin-top: 0.5rem; }
 .downloads { font-size: 0.875rem; margin: 0.4rem 0 0; }
 
+/* Content pages: Example, Methods, Docs & API, About */
+.lead-left { color: var(--muted); font-size: 1.075rem; max-width: 44rem; }
+.section-title { margin: 2rem 0 1rem; }
+.method-steps { padding-left: 1.3rem; margin: 0 0 1rem; }
+.method-steps li { margin-bottom: 0.5rem; }
+.tool-head { display: flex; align-items: center; gap: 0.75rem; }
+.tool-head h3 { margin: 0; font-size: 1.15rem; }
+.tool-role { color: var(--muted); margin: 0.25rem 0 0.75rem; }
+.citation { font-size: 0.9rem; margin: 0.75rem 0 0; }
+.citations { padding-left: 1.2rem; }
+.citations li { margin-bottom: 0.5rem; font-size: 0.95rem; }
+.toc { font-size: 0.95rem; padding: 0.9rem 1.25rem; }
+pre.code { background: var(--surface-2); padding: 0.9rem 1rem; border-radius: 10px; overflow-x: auto; }
+.api { margin: 0; display: grid; gap: 0.9rem; }
+.api-entry dt code { font-size: 0.85rem; overflow-wrap: anywhere; }
+.api-entry dd { margin: 0.2rem 0 0; color: var(--muted); }
+.api-kind { font-size: 0.75rem; color: var(--accent-strong); font-weight: 600; margin-left: 0.4rem; }
+.version { text-align: center; font-size: 0.85rem; }
+.site-footer a { color: inherit; }
+
 .record { margin-top: 1.5rem; }
 .record summary { cursor: pointer; font-weight: 600; }
 .record-list { display: grid; gap: 0.25rem; margin: 0.75rem 0 0; }
@@ -266,7 +290,7 @@ code, pre { font-family: var(--mono); font-size: 0.875em; }
 .record-list dd { margin: 0; }
 
 @media (max-width: 560px) {
-  .lab { display: none; }
+  .header-inner { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
   .card { padding: 1.1rem; }
   .record-list div { flex-direction: column; gap: 0; }
   .results-actions, .results-head .btn { width: 100%; }

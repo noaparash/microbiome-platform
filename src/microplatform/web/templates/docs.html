@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Docs & API · Microbiome Platform{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Docs &amp; API</h1>
+  <p class="lead-left">Use the website, or the same analyses from Python: the website is a thin layer over the
+    <code>microplatform</code> package (version {{ version }}).</p>
+</header>
+
+<nav class="toc card" aria-label="On this page">
+  <a href="#website">Using the website</a> · <a href="#files">Your files</a> ·
+  <a href="#outputs">What you get</a> · <a href="#python">Using Python</a> · <a href="#api">API reference</a>
+</nav>
+
+<section class="card" id="website">
+  <h2>Using the website</h2>
+  <ol class="method-steps">
+    <li><strong>Upload.</strong> Optionally pick your question on the home page; the upload box then
+      says which files it needs. Drop the files: they are recognised automatically.</li>
+    <li><strong>Data check.</strong> See what was found. Errors say how to fix them; warnings
+      (like a sample with unusual depth) do not block the analysis.</li>
+    <li><strong>Plan.</strong> A task is recommended, with the reasons. Choose another if you like,
+      or add a missing labels file right there.</li>
+    <li><strong>Results.</strong> Summary, figures, the processed table and a reproducibility record.
+      Each run has its own link; bookmark it to come back.</li>
+  </ol>
+</section>
+
+<section class="card" id="files">
+  <h2>Your files</h2>
+  {% set open_format = true %}
+  {% include "_format_help.html" %}
+</section>
+
+<section class="card" id="outputs">
+  <h2>What you get</h2>
+  <ul class="facts">
+    <li>The processed table (CSV): one row per sample, one column per feature.</li>
+    <li>Every figure as PNG, SVG (editable text) and an interactive HTML that works offline,
+      each with the CSV of the exact data plotted.</li>
+    <li>“Download everything”: one ZIP with a README, the record of every setting and version,
+      the results, the figures and your input files.</li>
+  </ul>
+</section>
+
+<section class="card" id="python">
+  <h2>Using Python</h2>
+  <p>Install the package (a public release on PyPI is planned):</p>
+<pre class="code">python -m pip install -e .</pre>
+  <p>A whole analysis, without the website:</p>
+<pre class="code">import microplatform as mp
+
+view = mp.analyze("counts.csv", "labels.csv")
+print(view.recommendation.reasons)
+print(view.run.path)          # table, figures, record</pre>
+  <p>Or step by step:</p>
+<pre class="code">counts = mp.read_table("counts.csv")
+profile = mp.profile_counts(counts)
+print(profile.summary(), profile.issues)
+
+result = mp.preprocess(counts)            # MIPMLP with the paper's settings
+result.table.to_csv("processed.csv")
+print(result.record())                    # every setting and version used</pre>
+</section>
+
+<section class="card" id="api">
+  <h2>API reference</h2>
+  <p class="muted">Generated from the package itself, so it always matches the code.</p>
+  <dl class="api">
+    {% for entry in api %}
+      <div class="api-entry">
+        <dt><code>{{ entry.signature }}</code> <span class="api-kind">{{ entry.kind }}</span></dt>
+        <dd>{{ entry.summary }}</dd>
+      </div>
+    {% endfor %}
+  </dl>
+</section>
+{% endblock %}

@@ -67,13 +67,13 @@ def test_security_headers(client):
 
 @pytest.mark.parametrize("name", ["counts_template.csv", "labels_template.csv"])
 def test_templates_download(client, name):
-    response = client.get(f"/templates/{name}")
+    response = client.get(f"/downloads/{name}")
     assert response.status_code == 200 and response.mimetype == "text/csv"
     assert "attachment" in response.headers["Content-Disposition"]
 
 
 def test_unknown_template_is_404(client):
-    assert client.get("/templates/..%2Fviews.py").status_code == 404
+    assert client.get("/downloads/..%2Fviews.py").status_code == 404
 
 
 # --- upload and choice --------------------------------------------------------------

@@ -17,7 +17,7 @@ import pandas as pd
 from microplatform import runs
 from microplatform.core.contract import ID_COLUMN, Dataset, InputKind
 from microplatform.core.errors import UserFacingError
-from microplatform.core.inputs import InputError, Inputs, read_labels_upload
+from microplatform.core.inputs import InputError, Inputs, read_labels_upload, sort_uploads
 from microplatform.core.preprocessing import CANONICAL, PreprocessResult, PreprocessSettings, preprocess
 from microplatform.core.profiler import (
     CountsProfile,
@@ -36,7 +36,7 @@ from microplatform.reports.bundle import build_bundle
 from microplatform.router.goals import GoalOption, Recommendation, get_goal, goal_options, recommend
 
 __all__ = [
-    "RunView", "add_labels", "build_bundle", "build_dataset", "describe", "run_goal",
+    "RunView", "add_labels", "analyze", "build_bundle", "build_dataset", "describe", "run_goal",
     "start_example_run", "start_run",
 ]
 
@@ -91,6 +91,30 @@ def start_example_run(root: Path, requested_goal: str | None = None) -> runs.Run
     return run
 
 
+def analyze(
+    counts: str | Path,
+    labels: str | Path | None = None,
+    goal: str | None = None,
+    out_dir: str | Path = "microplatform-runs",
+    cache_dir: str | Path | None = None,
+) -> RunView:
+    """Run a whole analysis from files on disk, without the website.
+
+    ``goal`` defaults to the recommended task. All outputs (table, figures,
+    record) are written to a new folder inside ``out_dir``: ``view.run.path``.
+    """
+    paths = [Path(counts)] + ([Path(labels)] if labels else [])
+    run = start_run(Path(out_dir), sort_uploads([(p.name, p.read_bytes()) for p in paths]), goal)
+    run_goal(run, goal or describe(run).default_goal, Path(cache_dir) if cache_dir else None)
+    return describe(run)
+
+
+def example_overview() -> tuple[CountsProfile, LabelProfile]:
+    """The data check of the bundled example dataset, for the Example page."""
+    counts = profile_counts(read_table(EXAMPLE_COUNTS))
+    return counts, profile_labels(read_table(EXAMPLE_TAGS, index_col=0), counts.sample_ids)
+
+
 def add_labels(run: runs.Run, name: str, content: bytes) -> None:
     """Add a labels file from the Plan step, without starting over."""
     run.add_labels(name, read_labels_upload(name, content))
@@ -102,6 +126,7 @@ def _remember_request(run: runs.Run, requested_goal: str | None) -> None:
 
 
 def describe(run: runs.Run) -> RunView:
+    """Everything known about a run: data check, plan (recommendation and options) and results."""
     profile = profile_counts(run.counts())
     issues = list(profile.issues)
     label_profile = _profile_labels(run, profile.sample_ids, issues)

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Example dataset · Microbiome Platform{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Example dataset</h1>
+  <p class="lead-left">A small, real dataset to try the platform before using your own data.</p>
+</header>
+
+<section class="card">
+  <h2>What it is</h2>
+  <p>A balanced slice of the example data that the miMic authors publish with their tool
+    (<a href="{{ source }}">github.com/oshritshtossel/miMic</a>): 16S rRNA counts with a
+    taxonomy row, and a binary label for each sample.</p>
+  <dl class="stats">
+    <div><dt>Samples</dt><dd>{{ counts.n_samples }}</dd></div>
+    <div><dt>Taxa</dt><dd>{{ counts.n_taxa }}</dd></div>
+    <div><dt>Zeros</dt><dd>{{ "%.0f"|format(counts.zero_fraction * 100) }}%</dd></div>
+    <div><dt>Groups</dt><dd>{{ labels.class_counts | length }}</dd></div>
+  </dl>
+  <ul class="facts">
+    {% for line in counts.summary() + labels.summary() %}<li>{{ line }}</li>{% endfor %}
+  </ul>
+  {% if counts.issues %}
+    <h3>Worth knowing</h3>
+    <ul class="issues">
+      {% for issue in counts.issues %}
+        <li class="issue issue-{{ issue.level }}"><span class="issue-message">{{ issue.message }}</span></li>
+      {% endfor %}
+    </ul>
+    <p class="muted">The data check flags this on every upload, as it will for your own data.</p>
+  {% endif %}
+</section>
+
+<section class="card action">
+  <h2>Try it</h2>
+  <p>Runs the same 4 steps as your own data would: data check, plan, and results with figures
+    and a downloadable ZIP.</p>
+  <div class="templates">
+    <form action="{{ url_for('main.example') }}" method="post">
+      <button class="btn" type="submit">Analyse the example</button>
+    </form>
+    <a class="btn btn-secondary" href="{{ url_for('main.download_file', name='example_counts.csv') }}" download>Counts (CSV)</a>
+    <a class="btn btn-secondary" href="{{ url_for('main.download_file', name='example_tag.csv') }}" download>Labels (CSV)</a>
+  </div>
+</section>
+{% endblock %}

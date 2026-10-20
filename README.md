@@ -1,18 +1,17 @@
 # Microbiome Platform
 
-One web platform that combines five microbiome-analysis tools from
-Prof. Yoram Louzoun's lab. It works out which tool fits your data and your
-question, and asks you for as little as possible.
+The microbiome tools from Prof. Yoram Louzoun's lab (Bar-Ilan University)
+behind one interface. It checks your data, recommends the right tool,
+explains why, and asks you for as little as possible. It is a Python package
+(`microplatform`) first, with a thin Flask website on top.
 
-| Tool | What it answers |
-|---|---|
-| **MIPMLP** | Preprocessing: turns raw counts into a clean table every tool uses |
-| **iMic / gMic** | *What predicts my outcome?* |
-| **miMic** | *Which bacteria differ between my groups?* |
-| **GIMIC** | *How similar are my samples, and how do they group?* |
-| **LOCATE** | *How do my bacteria relate to my metabolites?* |
-
-> **Status:** early development (version 1: MIPMLP end-to-end).
+| Tool | What it answers | Status |
+|---|---|---|
+| **MIPMLP** | Preprocessing: the clean table every tool uses | Available |
+| **miMic** | *Which bacteria differ between my groups?* | Coming next |
+| **iMic** | *Can the microbiome predict my outcome?* | Planned |
+| **GIMIC** | *How do my samples group?* | Planned |
+| **LOCATE** | *How do my bacteria relate to my metabolites?* | Planned |
 
 ## Quick start (Windows, PowerShell)
 
@@ -23,36 +22,36 @@ python -m pip install -e ".[dev]"
 python -m pytest
 ```
 
-### Run the web app
+Run the website, then open http://127.0.0.1:5000:
 
 ```powershell
-.venv\Scripts\Activate.ps1
-flask --app microplatform.web run
+.venv\Scripts\flask.exe --app microplatform.web run
 ```
 
-Then open http://127.0.0.1:5000. Uploads, results and the preprocessing
-cache are stored in `instance/`, which is not tracked by git. Set
-`MICROPLATFORM_SECRET_KEY` (and optionally `MICROPLATFORM_INSTANCE`) when
-deploying.
+Or use it from Python:
 
-## Project layout
-
-```
-src/microplatform/
-  core/       dataset model, auto-profiler, MIPMLP preprocessing
-  engines/    one adapter per tool (all share one interface)
-  router/     picks tools from the data and the user's goal
-  reports/    unified results and reproducible reports
-  web/        Flask app (pages, templates, styles)
-  examples/   small example dataset (also used by the tests)
-tests/        automated tests
-docs/         documentation
+```python
+import microplatform as mp
+view = mp.analyze("counts.csv", "labels.csv")
 ```
 
-## Citing the underlying tools
+Uploads, results and the preprocessing cache are stored in `instance/`, which
+git does not track. When deploying, set `MICROPLATFORM_SECRET_KEY` (and
+optionally `MICROPLATFORM_INSTANCE`).
 
-- MIPMLP: Jasner et al., *Frontiers in Immunology* (2021)
-- iMic: Shtossel et al., *Gut Microbes* (2023)
-- miMic: Shtossel, Finkelstein & Louzoun, *Genome Biology* 25:113 (2024)
-- GIMIC: Shtossel & Louzoun, *Genome Biology* 26:350 (2025)
-- LOCATE: Shtossel et al., *Microbiome* 12:24 (2024)
+## Documentation
+
+- [User guide](docs/user-guide.md): the website, file formats, outputs
+- [Package guide](docs/package-guide.md): Python use, structure, adding a tool
+- [Tool inputs (Hebrew)](docs/tool-inputs.he.md): each tool's native input and adapter
+- The website's **Methods** and **Docs & API** pages
+
+## Citing
+
+Please cite the methods you use (the results ZIP lists them for each run):
+
+- MIPMLP: Jasner Y, et al. *Front Immunol* 2021;12:677870. doi:10.3389/fimmu.2021.677870
+- iMic: Shtossel O, et al. *Gut Microbes* 2023;15(1):2224474. doi:10.1080/19490976.2023.2224474
+- miMic: Shtossel O, Finkelstein S, Louzoun Y. *Genome Biol* 2024;25:113. doi:10.1186/s13059-024-03256-0
+- GIMIC: Shtossel O, Louzoun Y. *Genome Biol* 2025;26:350. doi:10.1186/s13059-025-03822-0
+- LOCATE: Shtossel O, et al. *Microbiome* 2024;12:24. doi:10.1186/s40168-023-01737-1

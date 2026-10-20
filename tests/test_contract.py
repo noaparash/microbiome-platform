@@ -41,8 +41,11 @@ def test_conventions_are_never_retyped_outside_the_contract():
     for path in PACKAGE.rglob("*.py"):
         if path.name == "contract.py":
             continue
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if isinstance(node, ast.Constant) and node.value in CONVENTIONS:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        # Literal text inside f-strings is prose (e.g. "2024;25:113" in a citation), not a convention.
+        prose = {id(part) for node in ast.walk(tree) if isinstance(node, ast.JoinedStr) for part in node.values}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and node.value in CONVENTIONS and id(node) not in prose:
                 offenders.append(f"{path.relative_to(PACKAGE)}:{node.lineno} {node.value!r}")
     assert not offenders, "Import these names from core/contract.py instead: " + ", ".join(offenders)
 

@@ -6,6 +6,7 @@ import io
 import json
 import zipfile
 
+from microplatform.references import get_tool
 from microplatform.runs import Run
 
 README = """\
@@ -31,7 +32,7 @@ Settings
 
 Please cite
 -----------
-MIPMLP: Jasner et al., Frontiers in Immunology (2021).
+{citations}
 """
 
 
@@ -44,6 +45,7 @@ def build_bundle(run: Run) -> bytes:
         zf.writestr("README.txt", README.format(
             run_id=run.id, counts_name=meta["counts_name"], created=meta["created"],
             settings=settings or "(not run yet)",
+            citations=_citations(record),
         ))
         if record:
             zf.writestr("record.json", json.dumps(record, indent=2))
@@ -57,3 +59,9 @@ def build_bundle(run: Run) -> bytes:
                 if path.suffix != ".json":  # JSON copies are only for the web page
                     zf.write(path, f"figures/{path.name}")
     return buffer.getvalue()
+
+
+def _citations(record: dict) -> str:
+    """Every tool used in the run (MIPMLP always, since every analysis starts with it)."""
+    used = ["MIPMLP"] + [t for t in record.get("tools", []) if t != "MIPMLP"]
+    return "\n".join(f"{name}: {get_tool(name).paper.citation}" for name in used)

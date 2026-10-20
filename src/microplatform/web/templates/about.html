@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}About · Microbiome Platform{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>About</h1>
+  <p class="lead-left">One place for the microbiome tools developed in Prof. Yoram Louzoun's lab at Bar-Ilan University.</p>
+</header>
+
+<section class="card">
+  <h2>Why this platform</h2>
+  <p>The lab has published five complementary tools: for preprocessing, prediction, differential
+    abundance, distances between samples, and microbiome–metabolome integration. Each has its own
+    package and input conventions. This platform puts them behind one interface that checks your data,
+    recommends the right tool, explains why, and returns publication-ready, reproducible results,
+    while asking you for as little as possible.</p>
+</section>
+
+<section class="card">
+  <h2>Your data</h2>
+  <p>Uploads and results are stored on the server that runs the platform, in a folder for each run,
+    and are not sent anywhere else. For sensitive or clinical data you can run the same analyses on your
+    own computer with the Python package (see <a href="{{ url_for('main.docs') }}#python">Docs &amp; API</a>).</p>
+</section>
+
+<section class="card">
+  <h2>How to cite</h2>
+  <p>Please cite the methods you used. The results ZIP lists them for each run.</p>
+  <ul class="citations">
+    {% for tool in tools %}
+      <li><strong>{{ tool.name }}:</strong> {{ tool.paper.citation }} <a href="{{ tool.paper.url }}">Paper</a></li>
+    {% endfor %}
+  </ul>
+  <p class="muted">A citation for the platform itself (with a DOI) will follow its first public release.</p>
+</section>
+
+<p class="muted version">microplatform {{ version }}</p>
+{% endblock %}

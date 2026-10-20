@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Methods · Microbiome Platform{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Methods</h1>
+  <p class="lead-left">The platform runs the lab's published tools, unchanged, behind one shared data pipeline.</p>
+</header>
+
+<section class="card">
+  <h2>How an analysis works</h2>
+  <ol class="method-steps">
+    <li><strong>Data check.</strong> Every upload is profiled: samples, taxa, taxonomy depth,
+      sparsity, read depth and label type. Problems are reported with a fix; outliers are flagged.</li>
+    <li><strong>One shared representation.</strong> The counts are preprocessed once with MIPMLP,
+      and every tool works from that same table, with the labels aligned to the same samples.
+      Tools may vary only {{ allowed | join(" and ") | replace("_", " ") }}; everything else is identical.</li>
+    <li><strong>The right tool.</strong> Each task declares the inputs it needs, and the plan
+      recommends a task and explains why.</li>
+    <li><strong>Faithful to the originals.</strong> Each tool runs the authors' own code, and every
+      tool added to the platform comes with a reproduction test: on the authors' example data, the
+      platform must give exactly the authors' result.</li>
+  </ol>
+
+  <h3>Preprocessing settings</h3>
+  <p>The MIPMLP paper's recommendation, recorded with every result:</p>
+  <dl class="record-list">
+    <div><dt>Taxonomic level</dt><dd>{{ {6: "genus", 7: "species"}.get(settings.taxonomy_level, settings.taxonomy_level) }}</dd></div>
+    <div><dt>Grouping</dt><dd>{{ settings.taxonomy_group }}</dd></div>
+    <div><dt>Scaling</dt><dd>{% if settings.normalization == "log" %}log10(count + {{ settings.epsilon }}){% else %}{{ settings.normalization }}{% endif %}</dd></div>
+    <div><dt>Z-scoring</dt><dd>{{ "none" if settings.z_scoring == "No" else settings.z_scoring }}</dd></div>
+    <div><dt>Rare taxa</dt><dd>dropped below {{ "%g"|format(settings.rare_bacteria_threshold * 100) }}% of samples</dd></div>
+  </dl>
+</section>
+
+<h2 class="section-title">The tools</h2>
+{% for tool in tools %}
+<section class="card tool" id="{{ tool.name | lower }}" aria-labelledby="tool-{{ loop.index }}">
+  <div class="tool-head">
+    <h3 id="tool-{{ loop.index }}">{{ tool.name }}</h3>
+    <span class="chip chip-{{ status[tool.name] }}">
+      {{ {"available": "Available", "next": "Coming next", "planned": "Planned"}[status[tool.name]] }}
+    </span>
+  </div>
+  <p class="tool-role">{{ tool.role }}</p>
+  <ul class="facts">{% for line in tool.method %}<li>{{ line }}</li>{% endfor %}</ul>
+  <p class="citation">{{ tool.paper.citation }}
+    <a href="{{ tool.paper.url }}">Paper</a> · <a href="{{ tool.code_url }}">Code</a>
+    <span class="muted">({{ tool.package }})</span></p>
+</section>
+{% endfor %}
+{% endblock %}
