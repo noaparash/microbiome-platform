@@ -17,6 +17,8 @@ from typing import IO, Literal
 
 import pandas as pd
 
+from microplatform.core.errors import UserFacingError
+
 RANKS = ("kingdom", "phylum", "class", "order", "family", "genus", "species")
 TAXONOMY_ROW = "taxonomy"
 
@@ -29,14 +31,15 @@ LabelKind = Literal["binary", "categorical", "continuous"]
 ValueKind = Literal["counts", "relative", "transformed"]
 
 
-class ProfileError(Exception):
-    """The file cannot be read as a table at all."""
+class ProfileError(UserFacingError):
+    """The file cannot be read as a table, or is missing required columns."""
 
 
 @dataclass(frozen=True)
 class Issue:
     level: Severity
     message: str
+    fix: str = ""  # how the user can fix it
 
 
 @dataclass
@@ -117,7 +120,11 @@ def read_table(source: str | IO, **kwargs) -> pd.DataFrame:
     try:
         return pd.read_csv(source, sep=_header_separator(source), **kwargs)
     except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError) as exc:
-        raise ProfileError(f"Could not read the file as a table: {exc}") from exc
+        raise ProfileError(
+            "The file could not be read as a table.",
+            "Save it as CSV (comma-separated) or TSV (tab-separated). "
+            "In Excel: File → Save As → CSV UTF-8.",
+        ) from exc
 
 
 def _header_separator(source: str | IO) -> str:
@@ -136,17 +143,29 @@ def profile_counts(raw: pd.DataFrame) -> CountsProfile:
     """Describe a counts table in the shared ``ID`` + ``taxonomy``-row format."""
     issues: list[Issue] = []
     if raw.shape[1] < 2 or raw.shape[0] < 1:
-        raise ProfileError("The table needs a sample-ID column and at least one taxon column.")
+        raise ProfileError(
+            "The table needs a sample-ID column and at least one bacteria column.",
+            "Put sample IDs in the first column and one bacterium per column after it.",
+        )
 
     id_column = str(raw.columns[0])
     if id_column != "ID":
-        issues.append(Issue("warning", f"First column is '{id_column}'; expected 'ID'."))
+        issues.append(Issue(
+            "warning",
+            f"The first column is named '{id_column}' instead of 'ID'. We read it as the sample IDs.",
+            "Rename the first column to 'ID' to silence this message.",
+        ))
 
     is_tax_row = _taxonomy_rows(raw)
     has_taxonomy = bool(is_tax_row.any())
     if not has_taxonomy:
         issues.append(
-            Issue("error", "No 'taxonomy' row found. The last row should be named 'taxonomy'.")
+            Issue(
+                "error",
+                "No 'taxonomy' row was found, so we cannot tell which bacterium each column is.",
+                "Add a last row whose first cell is 'taxonomy' and whose other cells hold each "
+                "column's lineage, e.g. k__Bacteria;p__Firmicutes;c__Bacilli;…",
+            )
         )
 
     taxonomy = raw.loc[is_tax_row].iloc[-1, 1:].astype(str) if has_taxonomy else None
@@ -154,20 +173,42 @@ def profile_counts(raw: pd.DataFrame) -> CountsProfile:
     sample_ids = body.iloc[:, 0].astype(str).tolist()
 
     values = body.iloc[:, 1:].apply(pd.to_numeric, errors="coerce")
-    bad = int(values.isna().sum().sum() - body.iloc[:, 1:].isna().sum().sum())
+    not_numbers = values.isna() & body.iloc[:, 1:].notna()
+    bad = int(not_numbers.to_numpy().sum())
     if bad:
-        issues.append(Issue("error", f"{bad} entries are not numbers."))
+        row, col = next(zip(*not_numbers.to_numpy().nonzero()))
+        example = f"sample '{sample_ids[row]}' contains '{body.iloc[row, col + 1]}'"
+        issues.append(Issue(
+            "error",
+            f"{bad} entries are not numbers (for example, {example}).",
+            "Every cell except the ID column and the taxonomy row must be a number. "
+            "Empty cells are fine; they are read as 0.",
+        ))
     values = values.fillna(0)
 
-    if len(sample_ids) != len(set(sample_ids)):
-        issues.append(Issue("error", "Some sample IDs appear more than once."))
+    duplicated = sorted({s for s in sample_ids if sample_ids.count(s) > 1})
+    if duplicated:
+        issues.append(Issue(
+            "error",
+            f"Some sample IDs appear more than once: {', '.join(duplicated[:3])}.",
+            "Give every sample a unique ID, or merge the duplicated rows.",
+        ))
     if len(sample_ids) < 10:
-        issues.append(Issue("warning", f"Only {len(sample_ids)} samples; results will be unreliable."))
+        issues.append(Issue(
+            "warning",
+            f"Only {len(sample_ids)} samples. Statistical results will be unreliable.",
+            "Add more samples if you can.",
+        ))
 
     reads = values.sum(axis=1)
     empty = int((reads == 0).sum())
     if empty:
-        issues.append(Issue("warning", f"{empty} samples have no reads at all."))
+        names = [s for s, r in zip(sample_ids, reads) if r == 0][:3]
+        issues.append(Issue(
+            "warning",
+            f"{empty} samples have no reads at all (e.g. {', '.join(names)}).",
+            "Check these samples' sequencing, or remove them.",
+        ))
 
     depth, coverage = _taxonomy_depth(taxonomy) if taxonomy is not None else (0, {r: 0.0 for r in RANKS})
 
@@ -195,9 +236,15 @@ def profile_labels(tags: pd.DataFrame, sample_ids: list[str]) -> LabelProfile:
     elif tags.shape[1] == 1:
         column = str(tags.columns[0])
     elif tags.shape[1] == 0:
-        raise ProfileError("Label file needs a sample-ID column and a label column.")
+        raise ProfileError(
+            "The labels file has no label column.",
+            "Use two columns: sample IDs first, then the label in a column named 'Tag'.",
+        )
     else:
-        raise ProfileError("Label file has several columns; name the label column 'Tag'.")
+        raise ProfileError(
+            "The labels file has several columns and none is named 'Tag'.",
+            "Rename the column holding the outcome to 'Tag'.",
+        )
 
     labels = tags[column]
     labels.index = labels.index.astype(str)
@@ -206,7 +253,13 @@ def profile_labels(tags: pd.DataFrame, sample_ids: list[str]) -> LabelProfile:
     matched = labels.reindex(sample_ids).dropna()
     missing = [s for s in sample_ids if s not in matched.index]
     if matched.empty:
-        issues.append(Issue("error", "No label matches a sample ID in the counts table."))
+        issues.append(Issue(
+            "error",
+            "None of the sample IDs in the labels file match the counts table "
+            f"(labels have e.g. '{labels.index[0] if len(labels) else '-'}', "
+            f"counts have e.g. '{sample_ids[0] if sample_ids else '-'}').",
+            "The first column of the labels file must hold the same sample IDs as the counts table.",
+        ))
 
     kind = _label_kind(matched)
     class_counts = (
@@ -215,9 +268,17 @@ def profile_labels(tags: pd.DataFrame, sample_ids: list[str]) -> LabelProfile:
         else {str(k): int(v) for k, v in matched.value_counts().sort_index().items()}
     )
     if kind != "continuous" and len(class_counts) < 2:
-        issues.append(Issue("error", "The label has only one value, so there is nothing to compare."))
+        issues.append(Issue(
+            "error",
+            "The label has only one value, so there is nothing to compare.",
+            "The 'Tag' column needs at least two different values, e.g. 0 and 1.",
+        ))
     elif class_counts and min(class_counts.values()) < 5:
-        issues.append(Issue("warning", "Some groups have fewer than 5 samples."))
+        issues.append(Issue(
+            "warning",
+            "Some groups have fewer than 5 samples, so differences will be hard to detect.",
+            "Add samples to the smaller groups if you can.",
+        ))
 
     return LabelProfile(
         column=column,

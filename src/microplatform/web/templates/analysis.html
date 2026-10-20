@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% set meta, profile, record = view.meta, view.profile, view.record %}
 {% block title %}{{ meta.counts_name }} · Microbiome Platform{% endblock %}
 {% block content %}
 <nav class="crumbs"><a href="{{ url_for('main.index') }}">← New analysis</a></nav>
@@ -20,40 +21,65 @@
   </dl>
   <ul class="facts">
     {% for line in profile.summary() %}<li>{{ line }}</li>{% endfor %}
-    {% if labels %}{% for line in labels.summary() %}<li>{{ line }}</li>{% endfor %}{% endif %}
+    {% if view.labels %}{% for line in view.labels.summary() %}<li>{{ line }}</li>{% endfor %}{% endif %}
   </ul>
 
-  {% set issues = profile.issues + (labels.issues if labels else []) %}
-  {% if issues or label_error %}
+  {% if view.issues %}
     <ul class="issues">
-      {% if label_error %}<li class="issue issue-error">{{ label_error }}</li>{% endif %}
-      {% for issue in issues %}<li class="issue issue-{{ issue.level }}">{{ issue.message }}</li>{% endfor %}
+      {% for issue in view.issues %}
+        <li class="issue issue-{{ issue.level }}">
+          <span class="issue-message">{{ issue.message }}</span>
+          {% if issue.fix %}<span class="issue-fix"><strong>How to fix:</strong> {{ issue.fix }}</span>{% endif %}
+        </li>
+      {% endfor %}
     </ul>
   {% endif %}
 </section>
 
 {% if not record %}
 <section class="card action" aria-labelledby="next-heading">
-  <h2 id="next-heading">Next step: preprocessing</h2>
-  {% if profile.ok %}
-    <p>MIPMLP turns raw counts into a clean table that every tool can use.
-      We apply the settings recommended in the MIPMLP paper:
-      {{ {6: "genus", 7: "species"}.get(settings.taxonomy_level) }} level,
-      {{ settings.taxonomy_group }} grouping and {{ settings.normalization }} scaling.</p>
-    <form method="post" action="{{ url_for('main.run_preprocess', run_id=run.id) }}"
-          data-busy="Preprocessing… this takes about 20 seconds">
-      <button class="btn" type="submit">Preprocess with MIPMLP</button>
+  {% if view.ready %}
+    <h2 id="next-heading">What would you like to do?</h2>
+    <form method="post" action="{{ url_for('main.run_goal', run_id=view.run.id) }}"
+          data-busy="Working… this takes about 20 seconds">
+      <fieldset class="goals">
+        <legend class="visually-hidden">Choose an analysis</legend>
+        {% for option in view.goals %}
+          <label class="goal{% if not option.enabled %} is-disabled{% endif %}">
+            <input type="radio" name="goal" value="{{ option.goal.id }}"
+                   {% if option.goal.id == view.default_goal %}checked{% endif %}
+                   {% if not option.enabled %}disabled{% endif %}>
+            <span class="goal-text">
+              <span class="goal-title">{{ option.goal.title }}</span>
+              <span class="goal-desc">{{ option.goal.description }}</span>
+            </span>
+            <span class="goal-meta">
+              <span class="goal-tool">{{ option.goal.tool }}</span>
+              {% if option.reason %}<span class="goal-reason">{{ option.reason }}</span>{% endif %}
+            </span>
+          </label>
+        {% endfor %}
+      </fieldset>
+      <p class="muted settings-note">Preprocessing uses the settings recommended in the MIPMLP paper:
+        {{ {6: "genus", 7: "species"}.get(view.settings.taxonomy_level) }} level,
+        {{ view.settings.taxonomy_group }} grouping and {{ view.settings.normalization }} scaling.</p>
+      <button class="btn" type="submit">Run</button>
     </form>
   {% else %}
-    <p>Please fix the problems above and upload the file again.</p>
-    <a class="btn" href="{{ url_for('main.index') }}">Upload again</a>
+    <h2 id="next-heading">This file needs fixing first</h2>
+    <p>Fix the problems marked in red above, then upload the file again.</p>
+    <p class="templates">
+      <a class="btn" href="{{ url_for('main.index') }}">Upload again</a>
+    </p>
+    {% set open_format = true %}
+    {% include "_format_help.html" %}
   {% endif %}
 </section>
 {% else %}
 <section class="card results" id="results" aria-labelledby="results-heading">
   <div class="results-head">
     <h2 id="results-heading">Preprocessed with MIPMLP</h2>
-    <a class="btn" href="{{ url_for('main.download', run_id=run.id) }}" download>Download table (CSV)</a>
+    <a class="btn" href="{{ url_for('main.download', run_id=view.run.id) }}" download>Download table (CSV)</a>
   </div>
   <dl class="stats">
     <div><dt>Samples</dt><dd>{{ record.samples }}</dd></div>
@@ -64,6 +90,7 @@
   <ul class="facts">{% for line in record.summary %}<li>{{ line }}</li>{% endfor %}</ul>
 
   <h3>Preview</h3>
+  {% set preview = view.preview %}
   <div class="table-scroll">
     <table class="data">
       <thead><tr><th scope="col">Sample</th>
@@ -89,6 +116,7 @@
         <div><dt>{{ key|replace("_", " ") }}</dt><dd><code>{{ value }}</code></dd></div>
       {% endfor %}
       <div><dt>Finished</dt><dd>{{ record.finished }}</dd></div>
+      <div><dt>Run ID</dt><dd><code>{{ view.run.id }}</code></dd></div>
     </dl>
   </details>
 </section>

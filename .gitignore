@@ -28,3 +28,6 @@ results/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Office temporary lock files
+~$*

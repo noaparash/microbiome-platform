@@ -27,32 +27,19 @@
   <button class="btn-link" type="submit">No data at hand? Try the example dataset →</button>
 </form>
 
-<details class="format">
-  <summary>What should my files look like?</summary>
-  <div class="format-body">
-    <p><strong>Counts table:</strong> one row per sample and one column per bacterium.
-      The first column holds sample IDs, and the <em>last row</em> is named
-      <code>taxonomy</code>.</p>
-<pre>ID,       ASV1,          ASV2,          …
-sample1,  120,           0,             …
-sample2,  37,            5,             …
-taxonomy, k__Bacteria;…, k__Bacteria;…, …</pre>
-    <p><strong>Labels (optional):</strong> sample IDs in the first column and
-      the outcome in a column named <code>Tag</code>, for example sick/healthy
-      or an age.</p>
-  </div>
-</details>
+{% set open_format = get_flashed_messages(category_filter=["error"]) %}
+{% include "_format_help.html" %}
 
 <section class="tools" aria-labelledby="tools-heading">
   <h2 id="tools-heading">The tools behind it</h2>
   <ul class="tool-grid">
-    {% for name, question, status in tools %}
+    {% for goal in goals %}
       <li class="tool-card">
-        <span class="chip chip-{{ status }}">
-          {{ {"available": "Available", "next": "Coming next", "planned": "Planned"}[status] }}
+        <span class="chip chip-{{ goal.status }}">
+          {{ {"available": "Available", "next": "Coming next", "planned": "Planned"}[goal.status] }}
         </span>
-        <h3>{{ name }}</h3>
-        <p>{{ question }}</p>
+        <h3>{{ goal.tool }}</h3>
+        <p>{{ goal.title }}</p>
       </li>
     {% endfor %}
   </ul>

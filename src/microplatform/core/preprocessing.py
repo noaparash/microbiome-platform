@@ -24,11 +24,12 @@ from typing import Literal
 
 import pandas as pd
 
+from microplatform.core.errors import UserFacingError
 from microplatform.core.profiler import TAXONOMY_ROW, profile_counts
 
 
-class PreprocessError(Exception):
-    """The data cannot be preprocessed; the message is meant for the user."""
+class PreprocessError(UserFacingError):
+    """The data cannot be preprocessed."""
 
 
 @dataclass(frozen=True)
@@ -109,9 +110,8 @@ def preprocess(
     """Run MIPMLP on a counts table in the shared format, using the cache if possible."""
     profile = profile_counts(raw)
     if not profile.ok:
-        raise PreprocessError(
-            " ".join(i.message for i in profile.issues if i.level == "error")
-        )
+        errors = [i for i in profile.issues if i.level == "error"]
+        raise PreprocessError(" ".join(i.message for i in errors), " ".join(i.fix for i in errors))
     raw = _standardise(raw)
 
     cache_file = None
@@ -127,10 +127,15 @@ def preprocess(
 
     if table.empty or table.shape[1] == 0:
         raise PreprocessError(
-            "Preprocessing left no bacteria. Check that the taxonomy row names real taxa."
+            "Preprocessing left no bacteria.",
+            "Check that the taxonomy row names real taxa (not just 'k__Bacteria') "
+            "and that most bacteria appear in more than 1% of samples.",
         )
     if table.isna().any().any():
-        raise PreprocessError("Preprocessing produced missing values; please report this dataset.")
+        raise PreprocessError(
+            "Preprocessing produced missing values.",
+            "This is a bug on our side. Please send this dataset to the lab.",
+        )
 
     if cache_file is not None:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
@@ -168,4 +173,7 @@ def _run_mipmlp(raw: pd.DataFrame, settings: PreprocessSettings) -> pd.DataFrame
         try:
             return MIPMLP.preprocess(raw, **settings.to_mipmlp_kwargs())
         except Exception as exc:  # MIPMLP raises bare errors; translate for the user
-            raise PreprocessError(f"MIPMLP could not process this table: {exc}") from exc
+            raise PreprocessError(
+                f"MIPMLP could not process this table ({exc}).",
+                "Check that the file matches the template. If it does, please send it to the lab.",
+            ) from exc

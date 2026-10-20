@@ -1,8 +1,11 @@
-"""On-disk storage for one analysis ("run"): its uploads and its results.
+"""On-disk storage for one analysis ("run"): its uploads, status and results.
 
-Each run is a folder named by a random 32-character ID:
+It lives in the package, not the web layer, so a background worker or a
+command-line tool can use the same runs. Each run is a folder named by a
+random 32-character ID, which is also the run's results link:
 
-    runs/<id>/meta.json        original file names, creation time
+    runs/<id>/meta.json        file names, creation time, goal, status
+                               (uploaded → running → done | failed) and any error
     runs/<id>/counts.csv       the uploaded counts table (shared format)
     runs/<id>/labels.csv       optional labels, sample ID as the first column
     runs/<id>/processed.csv    MIPMLP output, once preprocessing has run
@@ -17,6 +20,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
 
 import pandas as pd
 
@@ -24,6 +28,8 @@ from microplatform.core.preprocessing import PreprocessResult
 from microplatform.core.profiler import read_table
 
 _RUN_ID = re.compile(r"[0-9a-f]{32}")
+
+Status = Literal["uploaded", "running", "done", "failed"]
 
 
 @dataclass(frozen=True)
@@ -49,6 +55,17 @@ class Run:
 
     def meta(self) -> dict:
         return json.loads((self.path / "meta.json").read_text(encoding="utf-8"))
+
+    def update_meta(self, **changes) -> None:
+        meta = {**self.meta(), **changes}
+        (self.path / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+
+    @property
+    def status(self) -> Status:
+        return self.meta()["status"]
+
+    def set_status(self, status: Status, **details) -> None:
+        self.update_meta(status=status, updated=_now(), **details)
 
     def counts(self) -> pd.DataFrame:
         return read_table(self.counts_file)
@@ -90,7 +107,12 @@ def create(
     counts.to_csv(run.counts_file, index=False)
     if labels is not None:
         labels.to_csv(run.labels_file)
-    meta = {"counts_name": counts_name, "labels_name": labels_name, "created": _now()}
+    meta = {
+        "counts_name": counts_name,
+        "labels_name": labels_name,
+        "created": _now(),
+        "status": "uploaded",
+    }
     (run.path / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     return run
 

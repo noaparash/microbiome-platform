@@ -25,7 +25,17 @@
   <main class="wrap">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% for category, message in messages %}
-        <div class="alert alert-{{ category }}" role="alert">{{ message }}</div>
+        <div class="alert alert-{{ category }}" role="alert">
+          {% if message is mapping %}
+            <p class="alert-message">{{ message.message }}</p>
+            {% if message.fix %}<p class="alert-fix"><strong>How to fix:</strong> {{ message.fix }}</p>{% endif %}
+            <p class="alert-links">Download a template:
+              <a href="{{ url_for('main.template_file', name='counts_template.csv') }}">counts</a> ·
+              <a href="{{ url_for('main.template_file', name='labels_template.csv') }}">labels</a></p>
+          {% else %}
+            {{ message }}
+          {% endif %}
+        </div>
       {% endfor %}
     {% endwith %}
     {% block content %}{% endblock %}

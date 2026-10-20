@@ -1,0 +1,22 @@
+<details class="format" {% if open_format %}open{% endif %}>
+  <summary>What should my files look like?</summary>
+  <div class="format-body">
+    <p><strong>Counts table:</strong> one row per sample and one column per bacterium.
+      The first column holds sample IDs, and the <em>last row</em> is named
+      <code>taxonomy</code>.</p>
+<pre>ID,       ASV1,          ASV2,          …
+sample1,  120,           0,             …
+sample2,  37,            5,             …
+taxonomy, k__Bacteria;…, k__Bacteria;…, …</pre>
+    <p><strong>Labels (optional):</strong> sample IDs in the first column and
+      the outcome in a column named <code>Tag</code>, for example sick/healthy
+      or an age.</p>
+<pre>ID,      Tag
+sample1, 1
+sample2, 0</pre>
+    <p class="templates">
+      <a class="btn btn-secondary" href="{{ url_for('main.template_file', name='counts_template.csv') }}" download>Counts template (CSV)</a>
+      <a class="btn btn-secondary" href="{{ url_for('main.template_file', name='labels_template.csv') }}" download>Labels template (CSV)</a>
+    </p>
+  </div>
+</details>
