@@ -10,6 +10,9 @@ random 32-character ID, which is also the run's results link:
     runs/<id>/labels.csv       optional labels, sample ID as the first column
     runs/<id>/processed.csv    MIPMLP output, once preprocessing has run
     runs/<id>/figures/         each figure as PNG, SVG, HTML and JSON, plus its data CSV
+    runs/<id>/tables/          the engine's result tables (CSV)
+    runs/<id>/engine.json      what the engine found: tool, summary, settings, table names
+    runs/<id>/work/<tool>/     the tool's own scratch files (some tools write to the current folder)
     runs/<id>/record.json      reproducibility record and plain-language summary
 """
 
@@ -59,6 +62,33 @@ class Run:
     def figures_dir(self) -> Path:
         return self.path / "figures"
 
+    @property
+    def tables_dir(self) -> Path:
+        return self.path / "tables"
+
+    @property
+    def engine_file(self) -> Path:
+        return self.path / "engine.json"
+
+    def save_table(self, name: str, table: pd.DataFrame) -> None:
+        self.tables_dir.mkdir(parents=True, exist_ok=True)
+        table.to_csv(self.tables_dir / f"{name}.csv", index=False)
+
+    def table(self, name: str, rows: int | None = None) -> pd.DataFrame:
+        return pd.read_csv(self.tables_dir / f"{name}.csv", nrows=rows)
+
+    def table_file(self, name: str) -> Path | None:
+        """A result table by exact file name, or None (never anything outside the tables folder)."""
+        return _exact_file(self.tables_dir, name)
+
+    def save_engine_record(self, record: dict) -> None:
+        self.engine_file.write_text(json.dumps(record, indent=2, default=str), encoding="utf-8")
+
+    def engine_record(self) -> dict | None:
+        if not self.engine_file.exists():
+            return None
+        return json.loads(self.engine_file.read_text(encoding="utf-8"))
+
     def figure_file(self, name: str) -> Path | None:
         """A file inside this run's figures folder, or None (never anything outside it).
 
@@ -66,10 +96,7 @@ class Run:
         name and checking that it exists is not enough: Windows ignores case and
         trailing dots, so 'figures.json..' would open 'figures.json'.
         """
-        if not self.figures_dir.is_dir():
-            return None
-        existing = {p.name: p for p in self.figures_dir.iterdir() if p.is_file()}
-        return existing.get(name)
+        return _exact_file(self.figures_dir, name)
 
     def meta(self) -> dict:
         return json.loads((self.path / "meta.json").read_text(encoding="utf-8"))
@@ -146,6 +173,13 @@ def load(root: Path, run_id: str) -> Run | None:
         return None
     run = Run(run_id, Path(root) / run_id)
     return run if (run.path / "meta.json").exists() else None
+
+
+def _exact_file(folder: Path, name: str) -> Path | None:
+    """Only exact names of files that exist (Windows ignores case and trailing dots)."""
+    if not folder.is_dir():
+        return None
+    return {p.name: p for p in folder.iterdir() if p.is_file()}.get(name)
 
 
 def _now() -> str:

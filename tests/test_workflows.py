@@ -20,7 +20,7 @@ def test_new_run_is_uploaded_and_ready(root):
     view = workflows.describe(run)
     assert run.status == "uploaded"
     assert view.ready and view.record is None
-    assert view.default_goal == "preprocess"
+    assert view.default_goal == "differ"  # binary labels: miMic is recommended
     assert view.labels.kind == "binary"
 
 
@@ -38,7 +38,7 @@ def test_preprocess_only_end_to_end(root, tmp_path):
 def test_unavailable_goal_is_refused(root):
     run = workflows.start_example_run(root)
     with pytest.raises(InputError, match="cannot run") as info:
-        workflows.run_goal(run, "differ")
+        workflows.run_goal(run, "predict")
     assert info.value.fix == "Coming next."
     assert run.status == "uploaded"
 

@@ -142,6 +142,15 @@ def figure_file(run_id: str, name: str):
                      as_attachment=request.args.get("download") == "1")
 
 
+@bp.get("/runs/<run_id>/tables/<name>")
+def table_file(run_id: str, name: str):
+    path = _get_run(run_id).table_file(name)
+    if path is None:
+        abort(404)
+    return send_file(path, mimetype="text/csv", as_attachment=True,
+                     download_name=f"{_stem(_get_run(run_id))}_{name}")
+
+
 @bp.get("/runs/<run_id>/bundle")
 def bundle(run_id: str):
     run = _get_run(run_id)

@@ -13,21 +13,24 @@ README = """\
 Microbiome Platform results
 ===========================
 
-Run ID:  {run_id}
-Input:   {counts_name}
-Created: {created}
+Run ID:   {run_id}
+Input:    {counts_name}
+Created:  {created}
+Analysis: {analysis}
 
-Contents
+{findings}Contents
 --------
 results/processed_table.csv   MIPMLP output: one row per sample, one column per feature
-record.json                   every setting and version used, to reproduce this run
+results/<table>.csv           the analysis' result tables (e.g. significant taxa), if any
+record.json                   preprocessing settings and version, to reproduce this run
+analysis.json                 the analysis tool's version, settings and findings, if any
 figures/<name>.png / .svg     figures (SVG text stays editable)
 figures/<name>.html           interactive figures; open them in any browser, works offline
 figures/<name>.csv            the exact data behind each figure
 inputs/                       the files you uploaded
 
-Settings
---------
+Preprocessing settings
+----------------------
 {settings}
 
 Please cite
@@ -37,20 +40,28 @@ Please cite
 
 
 def build_bundle(run: Run) -> bytes:
-    meta, record = run.meta(), run.record() or {}
+    meta, record, engine = run.meta(), run.record() or {}, run.engine_record()
     settings = "\n".join(f"{k}: {v}" for k, v in record.get("settings", {}).items())
+    findings = ""
+    if engine and engine["summary"]:
+        findings = "Findings\n--------\n" + "\n".join(f"- {line}" for line in engine["summary"]) + "\n\n"
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("README.txt", README.format(
             run_id=run.id, counts_name=meta["counts_name"], created=meta["created"],
-            settings=settings or "(not run yet)",
-            citations=_citations(record),
+            analysis=engine["tool"] if engine else "preprocessing only",
+            findings=findings, settings=settings or "(not run yet)", citations=_citations(engine),
         ))
         if record:
             zf.writestr("record.json", json.dumps(record, indent=2))
+        if engine:
+            zf.writestr("analysis.json", json.dumps(engine, indent=2, default=str))
         if run.processed_file.exists():
             zf.write(run.processed_file, "results/processed_table.csv")
+        if run.tables_dir.exists():
+            for path in sorted(run.tables_dir.glob("*.csv")):
+                zf.write(path, f"results/{path.name}")
         zf.write(run.counts_file, "inputs/counts.csv")
         if run.labels_file.exists():
             zf.write(run.labels_file, "inputs/labels.csv")
@@ -61,7 +72,7 @@ def build_bundle(run: Run) -> bytes:
     return buffer.getvalue()
 
 
-def _citations(record: dict) -> str:
+def _citations(engine: dict | None) -> str:
     """Every tool used in the run (MIPMLP always, since every analysis starts with it)."""
-    used = ["MIPMLP"] + [t for t in record.get("tools", []) if t != "MIPMLP"]
+    used = ["MIPMLP"] + ([engine["tool"]] if engine and engine["tool"] != "MIPMLP" else [])
     return "\n".join(f"{name}: {get_tool(name).paper.citation}" for name in used)

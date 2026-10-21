@@ -14,6 +14,9 @@ dependencies = [
     "MIPMLP>=1.2.19",
     "matplotlib>=3.9",  # static figures (PNG, SVG)
     "plotly>=6.0",      # interactive figures
+    "mimic-da==1.0.1",  # miMic; exact version: its reproduction test pins the behaviour
+    # ete3 (pulled in by mimic-da) imports `cgi`, which Python 3.13 removed; this restores it.
+    "legacy-cgi>=2.6; python_version >= '3.13'",
 ]
 
 [project.optional-dependencies]

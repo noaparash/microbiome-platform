@@ -85,7 +85,13 @@ def test_upload_shows_profile_and_choices(client):
     assert "40 samples and 263 bacterial taxa" in page
     assert "binary" in page
     assert "Just preprocess (MIPMLP only)" in page
-    assert re.search(r'value="preprocess"\s+checked', page)  # pre-selected: one click
+    assert re.search(r'value="differ"\s+checked', page)  # binary labels: miMic pre-selected, one click
+
+
+def test_counts_only_preselects_preprocessing(client):
+    page = client.get(upload(client, EXAMPLE[0]).headers["Location"]).get_data(as_text=True)
+    assert re.search(r'value="preprocess"\s+checked', page)
+    assert "Unlocks: Find bacteria that differ between groups" in page
 
 
 def test_home_is_entered_by_question(client):
@@ -151,15 +157,31 @@ def test_bad_counts_show_fix_and_block_running(client):
 
 def test_unavailable_goal_is_explained(client):
     url = upload(client, *EXAMPLE).headers["Location"]
-    page = client.post(f"{url}/run", data={"goal": "differ"}, follow_redirects=True).get_data(as_text=True)
+    page = client.post(f"{url}/run", data={"goal": "predict"}, follow_redirects=True).get_data(as_text=True)
     assert "cannot run on this data yet" in page
+
+
+def test_mimic_results_page(client):
+    url = upload(client, *EXAMPLE).headers["Location"]
+    page = client.post(f"{url}/run", data={"goal": "differ"}, follow_redirects=True).get_data(as_text=True)
+    assert "Results: Find bacteria that differ between groups (miMic)" in page
+    assert "a-priori test" in page and "Most significant taxa" in page
+    assert "Findings" in page and "Data quality" in page and "Preprocessing (MIPMLP)" in page
+    assert "mimic-da" in page  # in the reproducibility record
+    response = client.get(f"{url}/tables/significant_taxa.csv")
+    assert response.status_code == 200 and response.mimetype == "text/csv"
+    table = pd.read_csv(io.BytesIO(response.data))
+    assert list(table.columns) == ["taxon", "name", "statistic", "p", "direction", "found_by"]
+    assert (table["p"] < 0.05).all()
+    assert client.get(f"{url}/tables/..%2Fmeta.json").status_code == 404
+    assert client.get(f"{url}/tables/significant_taxa.csv..").status_code == 404
 
 
 # --- results ---------------------------------------------------------------------
 
 def test_results_are_shown(client, processed_run):
     page = client.get(processed_run).get_data(as_text=True)
-    assert "Results: preprocessed with MIPMLP" in page
+    assert "Results: Preprocessed with MIPMLP" in page
     assert 'aria-current="step"' in page and "Step 4" in page
     assert "Grouped 263 taxa into" in page
     assert "Reproducibility record" in page and "sub PCA" in page

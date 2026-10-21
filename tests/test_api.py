@@ -25,7 +25,10 @@ def test_analyze_runs_a_whole_analysis_without_the_website(tmp_path):
     assert view.run.status == "done"
     assert view.record["output_features"] > 0
     assert (view.run.path / "processed.csv").exists()
-    assert {f.name for f in view.figures} == {"reads_per_sample", "taxa_prevalence"}
+    # With labels, the recommended task is miMic; data-quality figures come with every run.
+    assert view.engine["tool"] == "miMic"
+    assert {f.name for f in view.figures} == {"reads_per_sample", "taxa_prevalence",
+                                               "mimic_significant_taxa", "mimic_apriori_test"}
 
 
 def test_every_goal_has_a_tool_reference():

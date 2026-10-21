@@ -35,8 +35,8 @@ terminal.
 | Task | Tool | Files |
 |---|---|---|
 | Just preprocess | MIPMLP | counts table |
-| Find bacteria that differ between groups | miMic *(coming next)* | counts + labels |
-| Predict the outcome | iMic *(planned)* | counts + labels |
+| Find bacteria that differ between groups | miMic | counts + labels (two groups, or a continuous label) |
+| Predict the outcome | iMic *(coming next)* | counts + labels |
 | See how samples group | GIMIC *(planned)* | counts |
 | Link bacteria to metabolites | LOCATE *(planned)* | counts + metabolite table |
 

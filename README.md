@@ -8,8 +8,8 @@ explains why, and asks you for as little as possible. It is a Python package
 | Tool | What it answers | Status |
 |---|---|---|
 | **MIPMLP** | Preprocessing: the clean table every tool uses | Available |
-| **miMic** | *Which bacteria differ between my groups?* | Coming next |
-| **iMic** | *Can the microbiome predict my outcome?* | Planned |
+| **miMic** | *Which bacteria differ between my groups?* | Available |
+| **iMic** | *Can the microbiome predict my outcome?* | Coming next |
 | **GIMIC** | *How do my samples group?* | Planned |
 | **LOCATE** | *How do my bacteria relate to my metabolites?* | Planned |
 

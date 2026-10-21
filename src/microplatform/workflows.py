@@ -35,6 +35,8 @@ from microplatform.reports import figures
 from microplatform.reports.bundle import build_bundle
 from microplatform.router.goals import GoalOption, Recommendation, get_goal, goal_options, recommend
 
+TABLE_PREVIEW_ROWS = 15  # rows of each result table shown on the page; the CSV has all
+
 __all__ = [
     "RunView", "add_labels", "analyze", "build_bundle", "build_dataset", "describe", "run_goal",
     "start_example_run", "start_run",
@@ -55,14 +57,31 @@ class RunView:
     recommendation: Recommendation
     default_goal: str
     settings: PreprocessSettings
-    record: dict | None
+    record: dict | None  # preprocessing record
     preview: pd.DataFrame | None
     figures: list[figures.ExportedFigure]
+    engine: dict | None = None  # what the goal's engine found: tool, summary, record, tables
+    tables: dict[str, pd.DataFrame] | None = None  # the engine's tables (first rows, for the page)
 
     @property
     def ready(self) -> bool:
         """True if the counts table is usable; label problems do not block preprocessing."""
         return self.profile.ok
+
+    @property
+    def result_title(self) -> str:
+        """'Find bacteria that differ between groups (miMic)', or the preprocessing title."""
+        if self.engine and self.engine["tool"] != "MIPMLP":
+            return f"{get_goal(self.engine['goal']).title} ({self.engine['tool']})"
+        return "Preprocessed with MIPMLP"
+
+    @property
+    def findings(self) -> list[figures.ExportedFigure]:
+        return [f for f in self.figures if f.section == "findings"]
+
+    @property
+    def quality_figures(self) -> list[figures.ExportedFigure]:
+        return [f for f in self.figures if f.section == "quality"]
 
     @property
     def step(self) -> int:
@@ -132,12 +151,14 @@ def describe(run: runs.Run) -> RunView:
     label_profile = _profile_labels(run, profile.sample_ids, issues)
 
     available: set[InputKind] = {"counts"}
-    if label_profile is not None and label_profile.ok:
+    usable_labels = label_profile is not None and label_profile.ok
+    if usable_labels:
         available.add("labels")
-    options = goal_options(frozenset(available))
+    options = goal_options(frozenset(available), label_profile.kind if usable_labels else None)
     meta = run.meta()
     recommendation = recommend(options, meta.get("requested_goal"))
     record = run.record()
+    engine = run.engine_record()
     return RunView(
         run=run,
         meta=meta,
@@ -152,6 +173,8 @@ def describe(run: runs.Run) -> RunView:
         record=record,
         preview=run.processed_preview() if record else None,
         figures=figures.load_manifest(run.figures_dir),
+        engine=engine,
+        tables={name: run.table(name, rows=TABLE_PREVIEW_ROWS) for name in engine["tables"]} if engine else None,
     )
 
 
@@ -194,11 +217,27 @@ def run_goal(run: runs.Run, goal_id: str, cache_dir: Path | None = None) -> None
     try:
         dataset, result = build_dataset(run, engine.preprocessing, cache_dir)
         run.save_result(result)  # the shared representation is kept for every run
-        engine.run(dataset, run.figures_dir)
+        figures.export(figures.preprocessing_figures(dataset.raw_counts, dataset.settings), run.figures_dir)
+        found = engine.run(dataset, run.path / "work" / engine.name.lower())
+        _save_engine_result(run, engine, found)
     except UserFacingError as exc:
         run.set_status("failed", error={"message": exc.message, "fix": exc.fix})
         raise
     run.set_status("done")
+
+
+def _save_engine_result(run: runs.Run, engine, found) -> None:
+    """Store what an engine returned: tables as CSV, figures in every format, and its record."""
+    for name, table in found.tables.items():
+        run.save_table(name, table)
+    figures.export(found.figures, run.figures_dir)
+    run.save_engine_record({
+        "tool": engine.name,
+        "goal": engine.goal,
+        "summary": found.summary,
+        "record": found.record,
+        "tables": list(found.tables),
+    })
 
 
 def _profile_labels(run: runs.Run, sample_ids: list[str], issues: list[Issue]) -> LabelProfile | None:

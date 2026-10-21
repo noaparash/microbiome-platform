@@ -5,9 +5,10 @@ To add a tool, write its engine in a new file and register it here.
 """
 
 from microplatform.engines.base import Engine, EngineResult
+from microplatform.engines.mimic import MimicEngine
 from microplatform.engines.mipmlp import MipmlpEngine
 
 # goal id → engine
-ENGINES: dict[str, Engine] = {engine.goal: engine for engine in (MipmlpEngine(),)}
+ENGINES: dict[str, Engine] = {engine.goal: engine for engine in (MipmlpEngine(), MimicEngine())}
 
 __all__ = ["ENGINES", "Engine", "EngineResult"]

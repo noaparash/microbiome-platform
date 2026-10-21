@@ -2,12 +2,12 @@
 
 ``requires`` is how the upload adapts to the task: "Just preprocess" needs
 only a counts table; miMic and iMic also need a labels file; LOCATE needs a
-metabolite table. A task whose inputs are missing says what to add.
+metabolite table. ``label_kinds`` limits a task to the label types its tool
+handles. A task that cannot run says why, and what to add.
 
-``recommend`` picks the pre-selected task and explains why in plain language.
-Today it prefers what the user asked for when it can run, then the first
-runnable task. Data-driven rules (labels → miMic, metabolites → LOCATE, …)
-are added together with those engines.
+``recommend`` picks the pre-selected task and explains why in plain language:
+what the user asked for if it can run; otherwise miMic when there are usable
+labels; otherwise preprocessing.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from microplatform.core.contract import INPUT_KINDS, INPUT_NAMES, InputKind
+from microplatform.core.contract import INPUT_KINDS, INPUT_NAMES, InputKind, LabelKind
 
 Status = Literal["available", "next", "planned"]
 
@@ -25,6 +25,8 @@ COUNTS_AND_METABOLITES: frozenset[InputKind] = frozenset({"counts", "metabolites
 
 # Inputs that can already be added to an existing run from the Plan step.
 ADDABLE: frozenset[InputKind] = frozenset({"labels"})
+
+LABEL_WORDS = {"binary": "two groups", "categorical": "three or more groups", "continuous": "a continuous label"}
 
 
 @dataclass(frozen=True)
@@ -36,6 +38,8 @@ class Goal:
     tool: str
     status: Status
     requires: frozenset[InputKind]
+    label_kinds: frozenset[LabelKind] | None = None  # None: any label type
+    unsupported_note: str = ""  # why other label types cannot run (shown to the user)
 
 
 GOALS: tuple[Goal, ...] = (
@@ -46,11 +50,14 @@ GOALS: tuple[Goal, ...] = (
     Goal("differ", "Find bacteria that differ between groups",
          "Which bacteria differ between my groups?",
          "Which taxa are linked to the label, tested along the taxonomy tree.",
-         "miMic", "next", COUNTS_AND_LABELS),
+         "miMic", "available", COUNTS_AND_LABELS,
+         label_kinds=frozenset({"binary", "continuous"}),
+         unsupported_note="the published miMic code fails on three or more groups; "
+                          "combine them into two, or use a continuous label"),
     Goal("predict", "Predict the outcome from the microbiome",
          "Can the microbiome predict my outcome?",
          "A neural network on tree-ordered images of each sample.",
-         "iMic", "planned", COUNTS_AND_LABELS),
+         "iMic", "next", COUNTS_AND_LABELS),
     Goal("group", "See how samples group",
          "How do my samples group together?",
          "Distances between samples, a map of them, and clusters.",
@@ -86,8 +93,8 @@ def requirement_text(goal: Goal) -> str:
     return " and ".join(INPUT_NAMES[k] for k in INPUT_KINDS if k in goal.requires)
 
 
-def goal_options(available: frozenset[InputKind]) -> list[GoalOption]:
-    """Each goal, enabled or not, given which inputs the user has provided."""
+def goal_options(available: frozenset[InputKind], label_kind: LabelKind | None = None) -> list[GoalOption]:
+    """Each goal, enabled or not, given the inputs provided and the label type."""
     options = []
     for goal in GOALS:
         missing = tuple(k for k in INPUT_KINDS if k in goal.requires - available)
@@ -97,6 +104,9 @@ def goal_options(available: frozenset[InputKind]) -> list[GoalOption]:
             options.append(GoalOption(goal, False, reason, missing))
         elif missing:
             options.append(GoalOption(goal, False, needs, missing))
+        elif "labels" in goal.requires and goal.label_kinds and label_kind not in goal.label_kinds:
+            reason = f"Your labels have {LABEL_WORDS.get(label_kind, 'an unsupported type')}: {goal.unsupported_note}."
+            options.append(GoalOption(goal, False, reason[0].upper() + reason[1:]))
         else:
             options.append(GoalOption(goal, True))
     return options
@@ -117,19 +127,28 @@ def recommend(options: list[GoalOption], requested: str | None = None) -> Recomm
         chosen = asked.goal.id
         reasons.append(f"You asked: “{asked.goal.question}” — your data has everything this needs.")
     else:
-        chosen = default_goal(options)
         if asked:
             if asked.goal.status != "available":
                 detail = f"{asked.goal.tool}, the tool that answers it, is not in the platform yet"
-            else:
+            elif asked.missing:
                 detail = f"this needs {' and '.join(INPUT_NAMES[k] for k in asked.missing)}"
-            reasons.append(f"You asked: “{asked.goal.question}” — {detail}, so we start with what can run now.")
+            else:
+                detail = asked.reason.rstrip(".")[0].lower() + asked.reason.rstrip(".")[1:]
+            reasons.append(f"You asked: “{asked.goal.question}” — {detail}, so we suggest what can run now.")
+        if by_id["differ"].enabled:
+            chosen = "differ"
+            reasons.append("Your data has labels, so miMic can test which bacteria differ, "
+                           "along the taxonomy tree.")
+        else:
+            chosen = default_goal(options)
     if chosen == "preprocess":
         reasons.append("Preprocessing with MIPMLP is the first step of every analysis, and it can run now.")
+    else:
+        reasons.append("Every analysis starts with MIPMLP preprocessing; the cleaned table is included in the results.")
 
     unlock: dict[InputKind, list[str]] = {}
     for option in options:
         for kind in option.missing:
-            if kind in ADDABLE:
+            if kind in ADDABLE and option.goal.status == "available":
                 unlock.setdefault(kind, []).append(option.goal.title)
     return Recommendation(chosen, reasons, unlock)

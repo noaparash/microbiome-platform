@@ -31,12 +31,13 @@ for (const zone of document.querySelectorAll("form.dropzone")) {
 // Interactive figures: load the locally served plotly.js only when a page has
 // figures, and swap each static PNG for its interactive version. If anything
 // fails, the PNG simply stays.
+// A page can have several figure grids (e.g. findings and data quality); load plotly once for all.
 const figureGrid = document.querySelector("[data-plotly]");
 if (figureGrid) {
   const script = document.createElement("script");
   script.src = figureGrid.dataset.plotly;
   script.onload = () => {
-    for (const el of figureGrid.querySelectorAll("[data-plot]")) {
+    for (const el of document.querySelectorAll("[data-plotly] [data-plot]")) {
       fetch(el.dataset.plot)
         .then((response) => response.json())
         .then((fig) => {

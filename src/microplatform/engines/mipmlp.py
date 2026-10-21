@@ -1,7 +1,8 @@
 """MIPMLP as an engine: the goal "Just preprocess".
 
-The preprocessing itself happens before any engine runs, because every
-engine needs it. This engine adds the quality-check figures.
+The preprocessing itself, and its data-quality figures, happen in the workflow
+before any engine runs, because every engine needs them. So this engine only
+has to say what the user gets.
 """
 
 from __future__ import annotations
@@ -10,7 +11,6 @@ from pathlib import Path
 
 from microplatform.core.contract import Dataset
 from microplatform.engines.base import Engine, EngineResult
-from microplatform.reports import figures
 
 
 class MipmlpEngine(Engine):
@@ -18,6 +18,6 @@ class MipmlpEngine(Engine):
     goal = "preprocess"
     requires = frozenset({"counts"})
 
-    def run(self, data: Dataset, out_dir: Path) -> EngineResult:
-        exported = figures.export(figures.preprocessing_figures(data.raw_counts, data.settings), out_dir)
-        return EngineResult(figures=exported)
+    def run(self, data: Dataset, work_dir: Path) -> EngineResult:
+        rows, cols = data.features.shape
+        return EngineResult(summary=[f"The cleaned table has {rows} samples and {cols} features, ready to download."])

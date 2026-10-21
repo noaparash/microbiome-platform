@@ -26,7 +26,8 @@ from microplatform.core.contract import (
 )
 from microplatform.core.inputs import sort_uploads
 from microplatform.core.preprocessing import CANONICAL
-from microplatform.engines import ENGINES, Engine
+from microplatform.engines import ENGINES, Engine, EngineResult
+from microplatform.reports.figures import Figure
 from microplatform.examples import EXAMPLE_COUNTS
 from microplatform.router.goals import GOALS, get_goal
 
@@ -106,7 +107,11 @@ def test_example_dataset_meets_the_contract(dataset):
 def test_every_engine_runs_on_the_same_representation(engine, run, cache, tmp_path):
     data = workflows.build_dataset(run, engine.preprocessing, cache)[0]
     assert data.validate() is data
-    engine.run(data, tmp_path)
+    result = engine.run(data, tmp_path)
+    # Engines return their findings in the shared forms; the workflow stores them.
+    assert isinstance(result, EngineResult) and all(isinstance(s, str) for s in result.summary)
+    assert all(isinstance(f, Figure) for f in result.figures)
+    assert all(isinstance(t, pd.DataFrame) for t in result.tables.values())
 
 
 def test_a_differently_named_label_column_is_normalised(tmp_path):
