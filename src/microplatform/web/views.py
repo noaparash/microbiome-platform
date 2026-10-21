@@ -6,6 +6,7 @@ No business logic lives here (see "Package-first" in CLAUDE.md).
 from __future__ import annotations
 
 import io
+import os
 from pathlib import Path
 
 from flask import (
@@ -20,7 +21,7 @@ from flask import (
     url_for,
 )
 
-from microplatform import CANONICAL, TOOLS, __version__, runs, workflows
+from microplatform import CANONICAL, TOOLS, __version__, jobs, runs, workflows
 from microplatform.apidoc import api_reference
 from microplatform.core.contract import ALLOWED_VARIATIONS, short_feature_name
 from microplatform.core.errors import UserFacingError
@@ -108,17 +109,23 @@ def download_file(name: str):
 
 @bp.get("/runs/<run_id>")
 def analysis(run_id: str):
-    return render_template("analysis.html", view=workflows.describe(_get_run(run_id)))
+    return render_template("analysis.html", view=workflows.describe(_get_run(run_id)),
+                           email_enabled=_notifier() is not None)
 
 
 @bp.post("/runs/<run_id>/run")
 def run_goal(run_id: str):
+    """Queue the chosen goal; the page then follows the run until its results are ready."""
     run = _get_run(run_id)
     try:
-        workflows.run_goal(run, request.form.get("goal", ""), current_app.config["CACHE_DIR"])
+        jobs.submit(run, request.form.get("goal", ""), email=request.form.get("email"),
+                    results_url=_public_url(url_for(".analysis", run_id=run.id)),
+                    email_enabled=_notifier() is not None)
     except UserFacingError as exc:
         _flash_error(exc)
-        return redirect(url_for(".analysis", run_id=run.id))
+        return redirect(url_for(".analysis", run_id=run.id, _anchor="plan"))
+    if current_app.config["JOBS"] == "inline":
+        jobs.run_now(run, current_app.config["CACHE_DIR"], _notifier())
     return redirect(url_for(".analysis", run_id=run.id, _anchor="results"))
 
 
@@ -179,6 +186,16 @@ def _get_run(run_id: str) -> runs.Run:
     if run is None:
         abort(404)
     return run
+
+
+def _notifier():
+    return current_app.extensions.get("microplatform.notifier")
+
+
+def _public_url(path: str) -> str:
+    """The run's results link as users will open it (behind a proxy, set MICROPLATFORM_PUBLIC_URL)."""
+    base = current_app.config.get("PUBLIC_URL") or os.environ.get("MICROPLATFORM_PUBLIC_URL") or request.host_url
+    return base.rstrip("/") + path
 
 
 def _flash_error(exc: UserFacingError) -> None:

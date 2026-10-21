@@ -10,6 +10,7 @@ Every goal runs the same way: build the one canonical ``Dataset`` (see
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -84,9 +85,38 @@ class RunView:
         return [f for f in self.figures if f.section == "quality"]
 
     @property
+    def status(self) -> str:
+        return self.meta.get("status", "uploaded")
+
+    @property
+    def in_progress(self) -> bool:
+        """Queued or running in the background: the page should wait and refresh."""
+        return self.status in ("queued", "running")
+
+    @property
+    def error(self) -> dict | None:
+        return self.meta.get("error") if self.status == "failed" else None
+
+    @property
+    def show_plan(self) -> bool:
+        return self.ready and self.status in ("uploaded", "failed")
+
+    @property
+    def show_results(self) -> bool:
+        return self.status == "done" and bool(self.record)
+
+    @property
+    def elapsed_seconds(self) -> int | None:
+        """Seconds since the run was queued, while it is in progress."""
+        if not self.in_progress or "queued" not in self.meta:
+            return None
+        started = datetime.fromisoformat(self.meta["queued"])
+        return max(0, int((datetime.now(timezone.utc) - started).total_seconds()))
+
+    @property
     def step(self) -> int:
         """Where the run is in the 4-step flow: 1 Upload, 2 Data check, 3 Plan, 4 Results."""
-        if self.record:
+        if self.in_progress or self.show_results:
             return 4
         return 3 if self.ready else 2
 
@@ -204,14 +234,7 @@ def run_goal(run: runs.Run, goal_id: str, cache_dir: Path | None = None) -> None
 
     Raises ``UserFacingError`` with a message and a fix if it cannot run.
     """
-    goal = get_goal(goal_id)
-    option = next((o for o in describe(run).goals if goal and o.goal.id == goal.id), None)
-    if option is None or not option.enabled or goal_id not in ENGINES:
-        raise InputError(
-            f"'{goal.title if goal else goal_id}' cannot run on this data yet.",
-            option.reason if option else "Choose one of the listed options.",
-        )
-    engine = ENGINES[goal_id]
+    engine = check_goal(run, goal_id)
 
     run.set_status("running", goal=goal_id, error=None)
     try:
@@ -224,6 +247,18 @@ def run_goal(run: runs.Run, goal_id: str, cache_dir: Path | None = None) -> None
         run.set_status("failed", error={"message": exc.message, "fix": exc.fix})
         raise
     run.set_status("done")
+
+
+def check_goal(run: runs.Run, goal_id: str):
+    """The engine for ``goal_id``, or ``InputError`` (with the reason) if it cannot run on this run's data."""
+    goal = get_goal(goal_id)
+    option = next((o for o in describe(run).goals if goal and o.goal.id == goal.id), None)
+    if option is None or not option.enabled or goal_id not in ENGINES:
+        raise InputError(
+            f"'{goal.title if goal else goal_id}' cannot run on this data yet.",
+            option.reason if option else "Choose one of the listed options.",
+        )
+    return ENGINES[goal_id]
 
 
 def _save_engine_result(run: runs.Run, engine, found) -> None:

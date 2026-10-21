@@ -39,6 +39,23 @@ Uploads, results and the preprocessing cache are stored in `instance/`, which
 git does not track. When deploying, set `MICROPLATFORM_SECRET_KEY` (and
 optionally `MICROPLATFORM_INSTANCE`).
 
+### Background runs and email
+
+Analyses run in the background: the page shows "Running…", updates itself, and
+each run's link can be bookmarked. By default a worker runs inside the website.
+On a server, run it as its own process so long runs survive website restarts:
+
+```powershell
+$env:MICROPLATFORM_JOBS = "external"        # the website only queues
+.venv\Scripts\python.exe -m microplatform.worker --instance instance
+```
+
+Email when a run finishes is **off** until the mail-server settings are given
+(`MICROPLATFORM_SMTP_HOST`, `MICROPLATFORM_SMTP_SENDER`, and optionally `_PORT`,
+`_USER`, `_PASSWORD`, `_TLS`; see `src/microplatform/notify.py`). An email holds
+only the results link, never data, and the address is deleted once it is sent.
+Behind a proxy, set `MICROPLATFORM_PUBLIC_URL` so the links are right.
+
 ## Documentation
 
 - [User guide](docs/user-guide.md): the website, file formats, outputs

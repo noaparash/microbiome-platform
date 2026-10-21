@@ -27,8 +27,12 @@ terminal.
 3. **Plan.** A task is recommended, with the reasons. You can choose
    another. If a task needs a file you have not uploaded, it says which one,
    and you can add a labels file right there.
-4. **Results.** A summary, figures, the processed table and a record of every
-   setting used. Each analysis has its own link: bookmark it to come back.
+4. **Results.** After you click Run, the analysis runs on the server and the
+   page shows "Running…". You can close the page: it updates by itself, and
+   the link shown there brings you back to the results at any time. When it is
+   done you get a summary, figures, the processed table and a record of every
+   setting used. (If the lab has switched email on, you can also leave your
+   address to receive the link; it is deleted once the email is sent.)
 
 ## Which files each task needs
 

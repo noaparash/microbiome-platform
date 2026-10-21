@@ -1,7 +1,11 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
 {% set meta, profile, record, rec = view.meta, view.profile, view.record, view.recommendation %}
-{% block title %}{{ meta.counts_name }} · Microbiome Platform{% endblock %}
+{% block title %}{% if view.in_progress %}Running… · {% endif %}{{ meta.counts_name }} · Microbiome Platform{% endblock %}
+{% block head_extra %}
+  {# While the run is in the background, the page checks again every few seconds (no JavaScript needed). #}
+  {% if view.in_progress %}<meta http-equiv="refresh" content="4">{% endif %}
+{% endblock %}
 {% block content %}
 <nav class="crumbs"><a href="{{ url_for('main.index') }}">← New analysis</a></nav>
 
@@ -51,8 +55,18 @@
   {% endif %}
 </section>
 
+{# ── A run that did not finish ───────────────────────────────────────── #}
+{% if view.error %}
+<section class="card run-failed" role="alert" aria-labelledby="failed-heading">
+  <h2 id="failed-heading">The analysis did not finish</h2>
+  <p class="alert-message">{{ view.error.message }}</p>
+  {% if view.error.fix %}<p><strong>How to fix:</strong> {{ view.error.fix }}</p>{% endif %}
+  <p class="muted">You can choose a task and click Run again below.</p>
+</section>
+{% endif %}
+
 {# ── Step 3: Plan ──────────────────────────────────────────────────── #}
-{% if view.ready and not record %}
+{% if view.show_plan %}
 <section class="card action" id="plan" aria-labelledby="plan-heading">
   <h2 id="plan-heading"><span class="step-label">Step 3</span> Plan</h2>
 
@@ -65,7 +79,7 @@
   </div>
 
   <form method="post" action="{{ url_for('main.run_goal', run_id=view.run.id) }}"
-        data-busy="Working… this takes about 20 seconds">
+        data-busy="Starting…">
     <fieldset class="goals">
       <legend class="goals-legend">Or choose another task</legend>
       {% for option in view.goals %}
@@ -87,6 +101,13 @@
     <p class="muted settings-note">Preprocessing uses the settings recommended in the MIPMLP paper:
       {{ {6: "genus", 7: "species"}.get(view.settings.taxonomy_level) }} level,
       {{ view.settings.taxonomy_group }} grouping and {{ view.settings.normalization }} scaling.</p>
+    {% if email_enabled %}
+      <div class="email-field">
+        <label for="notify-email">Email me when it is ready <span class="muted">(optional)</span></label>
+        <input type="email" id="notify-email" name="email" autocomplete="email" placeholder="name@example.com">
+        <p class="muted field-hint">We send only the results link, never data, and delete your address once it is sent.</p>
+      </div>
+    {% endif %}
     <button class="btn" type="submit">Run</button>
   </form>
 
@@ -106,8 +127,28 @@
 </section>
 {% endif %}
 
+{# ── Step 4 in progress: running in the background ─────────────────────── #}
+{% if view.in_progress %}
+<section class="card running" id="results" aria-labelledby="running-heading" aria-live="polite">
+  <div class="running-head">
+    <span class="spinner" aria-hidden="true"></span>
+    <div>
+      <h2 id="running-heading"><span class="step-label">Step 4</span>
+        {{ "Running" if view.status == "running" else "Waiting to start" }}…</h2>
+      <p class="muted">{% set goal = view.goals | selectattr("goal.id", "equalto", meta.goal) | first %}
+        {{ goal.goal.title if goal else meta.goal }}{% if view.elapsed_seconds is not none %} ·
+        {{ view.elapsed_seconds // 60 }} min {{ view.elapsed_seconds % 60 }} s so far{% endif %}</p>
+    </div>
+  </div>
+  <p><strong>You can close this page.</strong> The analysis runs on the server; this page updates by itself.
+    To come back later, keep this link:</p>
+  <p class="results-link"><code>{{ meta.results_url or request.url }}</code></p>
+  {% if meta.notify %}<p class="muted">We will email the link to {{ meta.notify }} when it finishes.</p>{% endif %}
+</section>
+{% endif %}
+
 {# ── Step 4: Results ───────────────────────────────────────────────── #}
-{% if record %}
+{% if view.show_results %}
 {% from "_figures.html" import figure_grid, result_table %}
 <section class="card results" id="results" aria-labelledby="results-heading">
   <div class="results-head">

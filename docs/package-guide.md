@@ -48,7 +48,10 @@ src/microplatform/
   reports/              figures (PNG/SVG/HTML + CSV) and the results ZIP
   references.py         the tools and their citations (one source)
   runs.py               one folder per analysis
-  workflows.py          end-to-end workflows (used by the website and by mp.analyze)
+  workflows.py          end-to-end workflows (used by the website, the worker and mp.analyze)
+  jobs.py               background runs: submit → queued → a worker claims (worker.lock) → done/failed
+  worker.py             python -m microplatform.worker: the worker as its own process
+  notify.py             optional email with the results link (off without SMTP settings)
   web/                  thin Flask layer: routes and templates only
 ```
 

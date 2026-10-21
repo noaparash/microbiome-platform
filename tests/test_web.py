@@ -26,6 +26,7 @@ def client(tmp_path_factory):
     instance = tmp_path_factory.mktemp("instance")
     app = create_app({
         "TESTING": True,
+        "JOBS": "inline",  # run immediately; the background path has its own tests
         "RUNS_DIR": instance / "runs",
         "CACHE_DIR": instance / "cache",
     })

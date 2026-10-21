@@ -300,6 +300,26 @@ code, pre { font-family: var(--mono); font-size: 0.875em; }
 .dropzone-compact .dropzone-title { font-size: 1rem; }
 .blocked { margin-top: 1.25rem; }
 
+/* ── Background runs ───────────────────────────────────────────────── */
+.running { border-color: var(--accent); border-top-width: 3px; }
+.running-head { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+.running-head h2 { margin-bottom: 0.15rem; }
+.running-head p { margin: 0; }
+.spinner {
+  flex: none; width: 2.25rem; height: 2.25rem; border-radius: 50%;
+  border: 3px solid var(--accent-soft); border-top-color: var(--accent);
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.results-link code { display: block; padding: 0.6rem 0.8rem; background: var(--surface-2); border-radius: 8px; overflow-wrap: anywhere; user-select: all; }
+.run-failed { border-color: var(--error); border-top-width: 3px; }
+.run-failed .alert-message { color: var(--error); }
+.email-field { display: grid; gap: 0.3rem; margin: 0 0 1rem; max-width: 28rem; }
+.email-field label { font-weight: 600; }
+.email-field input { font: inherit; padding: 0.55rem 0.75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+.email-field input:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+.field-hint { font-size: 0.85rem; margin: 0; }
+
 /* ── Results ─────────────────────────────────────────────────────────── */
 .results-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
 .figures { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); }
@@ -380,5 +400,6 @@ pre.code { background: var(--surface-2); padding: 0.9rem 1rem; border-radius: 10
    element: plotly positions its SVG titles and labels with transforms. */
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
+  .spinner { animation-duration: 3s; }
   .question-card:hover { transform: none; }
 }

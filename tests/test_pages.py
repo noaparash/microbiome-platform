@@ -21,7 +21,7 @@ PAGES = {
 @pytest.fixture(scope="module")
 def client(tmp_path_factory):
     instance = tmp_path_factory.mktemp("instance")
-    return create_app({"TESTING": True, "RUNS_DIR": instance / "runs",
+    return create_app({"TESTING": True, "JOBS": "inline", "RUNS_DIR": instance / "runs",
                        "CACHE_DIR": instance / "cache"}).test_client()
 
 

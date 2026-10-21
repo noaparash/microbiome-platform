@@ -5,7 +5,8 @@ command-line tool can use the same runs. Each run is a folder named by a
 random 32-character ID, which is also the run's results link:
 
     runs/<id>/meta.json        file names, creation time, goal, status
-                               (uploaded → running → done | failed) and any error
+                               (uploaded → queued → running → done | failed) and any error
+    runs/<id>/worker.lock      present while a background worker owns the run (see jobs.py)
     runs/<id>/counts.csv       the uploaded counts table (shared format)
     runs/<id>/labels.csv       optional labels, sample ID as the first column
     runs/<id>/processed.csv    MIPMLP output, once preprocessing has run
@@ -20,6 +21,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -34,7 +36,7 @@ from microplatform.core.profiler import read_table
 
 _RUN_ID = re.compile(r"[0-9a-f]{32}")
 
-Status = Literal["uploaded", "running", "done", "failed"]
+Status = Literal["uploaded", "queued", "running", "done", "failed"]
 
 
 @dataclass(frozen=True)
@@ -69,6 +71,17 @@ class Run:
     @property
     def engine_file(self) -> Path:
         return self.path / "engine.json"
+
+    @property
+    def lock_file(self) -> Path:
+        return self.path / "worker.lock"
+
+    def clear_results(self) -> None:
+        """Remove the outputs of an earlier attempt, so a new run starts clean (inputs are kept)."""
+        for file in (self.processed_file, self.record_file, self.engine_file):
+            file.unlink(missing_ok=True)
+        for folder in (self.tables_dir, self.figures_dir, self.path / "work"):
+            shutil.rmtree(folder, ignore_errors=True)
 
     def save_table(self, name: str, table: pd.DataFrame) -> None:
         self.tables_dir.mkdir(parents=True, exist_ok=True)
