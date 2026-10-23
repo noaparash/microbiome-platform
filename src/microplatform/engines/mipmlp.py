@@ -18,6 +18,6 @@ class MipmlpEngine(Engine):
     goal = "preprocess"
     requires = frozenset({"counts"})
 
-    def run(self, data: Dataset, work_dir: Path) -> EngineResult:
+    def run(self, data: Dataset, work_dir: Path, choices: dict[str, str] | None = None) -> EngineResult:
         rows, cols = data.features.shape
         return EngineResult(summary=[f"The cleaned table has {rows} samples and {cols} features, ready to download."])

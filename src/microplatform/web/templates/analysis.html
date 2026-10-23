@@ -101,6 +101,31 @@
     <p class="muted settings-note">Preprocessing uses the settings recommended in the MIPMLP paper:
       {{ {6: "genus", 7: "species"}.get(view.settings.taxonomy_level) }} level,
       {{ view.settings.taxonomy_group }} grouping and {{ view.settings.normalization }} scaling.</p>
+
+    {# Advanced settings: closed by default; the defaults are the recommended choices. #}
+    {% set enabled_ids = view.goals | selectattr("enabled") | map(attribute="goal.id") | list %}
+    {% set advanced = view.options.items() | selectattr("0", "in", enabled_ids) | list %}
+    {% if advanced %}
+      <details class="advanced">
+        <summary>Advanced settings <span class="muted">(optional — the defaults are recommended)</span></summary>
+        {% for goal_id, options in advanced %}
+          {% set goal = view.goals | selectattr("goal.id", "equalto", goal_id) | first %}
+          {% for option in options %}
+            <fieldset class="option">
+              <legend>{{ goal.goal.tool }}: {{ option.label }}</legend>
+              {% for value, description in option.values.items() %}
+                <label class="option-choice">
+                  <input type="radio" name="{{ goal_id }}:{{ option.name }}" value="{{ value }}"
+                         {% if value == option.default %}checked{% endif %}>
+                  <span><strong>{{ value }}</strong>{% if value == option.default %} (default){% endif %} — {{ description }}</span>
+                </label>
+              {% endfor %}
+            </fieldset>
+          {% endfor %}
+        {% endfor %}
+      </details>
+    {% endif %}
+
     {% if email_enabled %}
       <div class="email-field">
         <label for="notify-email">Email me when it is ready <span class="muted">(optional)</span></label>
@@ -161,6 +186,10 @@
   {% if view.engine and view.engine.tool != "MIPMLP" %}
     {% set engine = view.engine %}
     <ul class="facts findings">{% for line in engine.summary %}<li>{{ line }}</li>{% endfor %}</ul>
+    {% if view.representation_note %}
+      <p class="representation-note"><strong>Different table:</strong> {{ view.representation_note }}
+        Results from other tools on this data use the shared table.</p>
+    {% endif %}
 
     {% if view.findings %}
       <h3>Findings</h3>

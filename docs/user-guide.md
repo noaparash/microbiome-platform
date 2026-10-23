@@ -40,8 +40,8 @@ terminal.
 |---|---|---|
 | Just preprocess | MIPMLP | counts table |
 | Find bacteria that differ between groups | miMic | counts + labels (two groups, or a continuous label) |
-| Predict the outcome | iMic *(coming next)* | counts + labels |
-| See how samples group | GIMIC *(planned)* | counts |
+| Predict the outcome | iMic *(on hold: waiting for the lab's code)* | counts + labels |
+| See how samples group | GIMIC | counts (labels optional, for colouring) |
 | Link bacteria to metabolites | LOCATE *(planned)* | counts + metabolite table |
 
 ## File formats

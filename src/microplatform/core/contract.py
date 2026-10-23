@@ -51,6 +51,14 @@ INPUT_NAMES: dict[InputKind, str] = {
 # are the same for every tool, so all tools see the same kind of numbers.
 ALLOWED_VARIATIONS = frozenset({"taxonomy_level", "z_scoring"})
 
+# Declared, contained exceptions: (engine → field → the only other values it may use).
+# Every exception says why, and is shown on that engine's results page.
+ENGINE_EXCEPTIONS: dict[str, dict[str, tuple]] = {
+    # The lab (Oshrit, 2026-10-22) wants GIMIC selectable in both groupings: "sub PCA" is the
+    # shared table and the paper's method; "mean" is how GIMIC's published example runs.
+    "GIMIC": {"taxonomy_group": ("mean",)},
+}
+
 LabelKind = Literal["binary", "categorical", "continuous"]
 
 
@@ -64,12 +72,25 @@ class ContractError(Exception):
     """Internal bug: data that breaks the contract reached an engine."""
 
 
-def check_settings(settings: PreprocessSettings) -> None:
+def check_settings(settings: PreprocessSettings, engine: str | None = None) -> None:
+    """Raise ``ContractError`` unless ``settings`` differ from CANONICAL only as allowed.
+
+    Every engine may vary ``ALLOWED_VARIATIONS``; ``engine`` may also use its
+    declared ``ENGINE_EXCEPTIONS`` (only the listed values).
+    """
     from microplatform.core.preprocessing import CANONICAL
 
-    changed = {f.name for f in fields(settings) if getattr(settings, f.name) != getattr(CANONICAL, f.name)}
-    if not changed <= ALLOWED_VARIATIONS:
-        raise ContractError(f"Preprocessing may only vary {sorted(ALLOWED_VARIATIONS)}; got {sorted(changed)}.")
+    exceptions = ENGINE_EXCEPTIONS.get(engine or "", {})
+    for f in fields(settings):
+        value = getattr(settings, f.name)
+        if value == getattr(CANONICAL, f.name) or f.name in ALLOWED_VARIATIONS:
+            continue
+        if value in exceptions.get(f.name, ()):
+            continue
+        raise ContractError(
+            f"Preprocessing may only vary {sorted(ALLOWED_VARIATIONS)}"
+            f"{f' (and, for {engine}, {exceptions})' if exceptions else ''}; got {f.name}={value!r}."
+        )
 
 
 # --- 4. The canonical representation -----------------------------------------------
@@ -89,6 +110,8 @@ class Dataset:
     label_kind   binary / categorical / continuous, set whenever labels are set.
     metabolites  optional (planned, for LOCATE): samples × metabolites, indexed by
                  sample IDs that all appear in ``features``.
+    engine       the engine it was built for; only that engine's declared
+                 ``ENGINE_EXCEPTIONS`` may apply to ``settings``.
     """
 
     features: pd.DataFrame
@@ -97,6 +120,7 @@ class Dataset:
     labels: pd.Series | None = None
     label_kind: LabelKind | None = None
     metabolites: pd.DataFrame | None = None
+    engine: str | None = None  # built for this engine: its declared exceptions apply
 
     @property
     def available_inputs(self) -> frozenset[InputKind]:
@@ -117,7 +141,7 @@ class Dataset:
         _require(all(pd.api.types.is_float_dtype(t) for t in f.dtypes), "features must be floats")
         _require(bool(np.isfinite(f.to_numpy()).all()), "features must have no missing or infinite values")
         _require(set(f.index) <= set(self.raw_counts.index), "every feature row must come from the counts")
-        check_settings(self.settings)
+        check_settings(self.settings, self.engine)
 
         if self.labels is not None:
             _require(self.labels.name == LABEL_COLUMN, f"labels must be named '{LABEL_COLUMN}'")

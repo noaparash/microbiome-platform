@@ -122,7 +122,7 @@ def read_table(source: str | IO, **kwargs) -> pd.DataFrame:
     taxonomy strings are full of ';', which fools it.
     """
     try:
-        return pd.read_csv(source, sep=_header_separator(source), **kwargs)
+        return pd.read_csv(source, sep=_header_separator(source), float_precision="round_trip", **kwargs)
     except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError) as exc:
         raise ProfileError(
             "The file could not be read as a table.",

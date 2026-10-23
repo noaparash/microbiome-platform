@@ -98,7 +98,7 @@ def test_an_invalid_email_is_explained_on_the_page(tmp_path):
 
 
 class _UserProblem(MipmlpEngine):
-    def run(self, data, work_dir):
+    def run(self, data, work_dir, choices=None):
         raise UserFacingError("Your data broke the tool.", "Try other data.")
 
 
@@ -117,3 +117,30 @@ def test_a_failed_run_shows_why_and_offers_run_again(tmp_path, monkeypatch):
 def test_an_unknown_jobs_mode_is_rejected(tmp_path, bad):
     with pytest.raises(ValueError, match="JOBS"):
         make_client(tmp_path, JOBS=bad)
+
+
+# --- advanced settings in the Plan step (GIMIC grouping) ----------------------------------
+
+def test_advanced_settings_offer_the_gimic_grouping_closed_by_default(tmp_path):
+    _, client = make_client(tmp_path, JOBS="inline")
+    page = client.get(upload_counts(client)).get_data(as_text=True)
+    assert '<details class="advanced">' in page and '<details class="advanced" open' not in page
+    assert re.search(r'name="group:grouping" value="sub PCA"\s+checked', page)  # the default
+    assert 'value="mean"' in page and "published example" in page
+
+
+def test_choosing_mean_is_used_and_labelled(tmp_path):
+    _, client = make_client(tmp_path, JOBS="inline")
+    url = upload_counts(client)
+    page = client.post(f"{url}/run", data={"goal": "group", "group:grouping": "mean"},
+                       follow_redirects=True).get_data(as_text=True)
+    assert "Results: See how samples group (GIMIC)" in page
+    assert "Different table:" in page and "taxonomy group &#39;mean&#39;" in page
+
+
+def test_an_invalid_choice_is_explained(tmp_path):
+    _, client = make_client(tmp_path, JOBS="inline")
+    url = upload_counts(client)
+    page = client.post(f"{url}/run", data={"goal": "group", "group:grouping": "sum"},
+                       follow_redirects=True).get_data(as_text=True)
+    assert "is not a choice" in page and "How to fix:" in page

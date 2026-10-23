@@ -85,3 +85,11 @@ def test_label_file_problem_does_not_block_preprocessing(root):
     view = workflows.describe(workflows.start_run(root, sort_uploads([counts, labels])))
     assert view.ready
     assert any("Tag" in issue.message for issue in view.issues)
+
+
+def test_saved_tables_read_back_to_the_last_digit(root):
+    """Exact reproduction tests rely on this; pandas' default CSV reader can be off in the last digit."""
+    run = workflows.start_example_run(root)
+    awkward = pd.DataFrame({"x": [1.8216874067690807, 0.1 + 0.2, 1 / 3, 2.5e-300, 1.4808027872389389]})
+    run.save_table("awkward", awkward)
+    pd.testing.assert_frame_equal(run.table("awkward"), awkward, check_exact=True)

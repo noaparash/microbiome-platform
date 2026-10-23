@@ -9,7 +9,7 @@ Every goal runs the same way: build the one canonical ``Dataset`` (see
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -63,6 +63,7 @@ class RunView:
     figures: list[figures.ExportedFigure]
     engine: dict | None = None  # what the goal's engine found: tool, summary, record, tables
     tables: dict[str, pd.DataFrame] | None = None  # the engine's tables (first rows, for the page)
+    options: dict | None = None  # goal id → the engine's advanced settings (EngineOption)
 
     @property
     def ready(self) -> bool:
@@ -75,6 +76,17 @@ class RunView:
         if self.engine and self.engine["tool"] != "MIPMLP":
             return f"{get_goal(self.engine['goal']).title} ({self.engine['tool']})"
         return "Preprocessed with MIPMLP"
+
+    @property
+    def representation_note(self) -> str | None:
+        """Plain words for any way this run's table differs from the shared table (None if it doesn't)."""
+        if not self.record:
+            return None
+        shared = asdict(CANONICAL)
+        used = self.record.get("settings", {})
+        diffs = [f"{key.replace('_', ' ')} '{used[key]}' (the shared table uses '{shared[key]}')"
+                 for key in shared if key in used and used[key] != shared[key]]
+        return f"This analysis used {'; '.join(diffs)}." if diffs else None
 
     @property
     def findings(self) -> list[figures.ExportedFigure]:
@@ -146,15 +158,17 @@ def analyze(
     goal: str | None = None,
     out_dir: str | Path = "microplatform-runs",
     cache_dir: str | Path | None = None,
+    options: dict | None = None,
 ) -> RunView:
     """Run a whole analysis from files on disk, without the website.
 
-    ``goal`` defaults to the recommended task. All outputs (table, figures,
-    record) are written to a new folder inside ``out_dir``: ``view.run.path``.
+    ``goal`` defaults to the recommended task; ``options`` are its advanced settings,
+    e.g. ``{"grouping": "mean"}`` for GIMIC. All outputs (table, figures, record) are
+    written to a new folder inside ``out_dir``: ``view.run.path``.
     """
     paths = [Path(counts)] + ([Path(labels)] if labels else [])
     run = start_run(Path(out_dir), sort_uploads([(p.name, p.read_bytes()) for p in paths]), goal)
-    run_goal(run, goal or describe(run).default_goal, Path(cache_dir) if cache_dir else None)
+    run_goal(run, goal or describe(run).default_goal, Path(cache_dir) if cache_dir else None, options)
     return describe(run)
 
 
@@ -205,13 +219,18 @@ def describe(run: runs.Run) -> RunView:
         figures=figures.load_manifest(run.figures_dir),
         engine=engine,
         tables={name: run.table(name, rows=TABLE_PREVIEW_ROWS) for name in engine["tables"]} if engine else None,
+        options={goal: e.options for goal, e in ENGINES.items() if e.options},
     )
 
 
 def build_dataset(
-    run: runs.Run, settings: PreprocessSettings = CANONICAL, cache_dir: Path | None = None
+    run: runs.Run, settings: PreprocessSettings = CANONICAL, cache_dir: Path | None = None,
+    engine: str | None = None,
 ) -> tuple[Dataset, PreprocessResult]:
-    """The one canonical representation every engine consumes, validated against the contract."""
+    """The one canonical representation every engine consumes, validated against the contract.
+
+    ``engine`` names the engine it is for, so only that engine's declared exceptions apply.
+    """
     raw = run.counts()
     result = preprocess(raw, settings, cache_dir=cache_dir)
     features = result.table.rename_axis(ID_COLUMN)
@@ -225,24 +244,27 @@ def build_dataset(
         raw_counts=count_matrix(raw),
         labels=label_profile.values if usable else None,
         label_kind=label_profile.kind if usable else None,
+        engine=engine,
     )
     return dataset.validate(), result
 
 
-def run_goal(run: runs.Run, goal_id: str, cache_dir: Path | None = None) -> None:
+def run_goal(run: runs.Run, goal_id: str, cache_dir: Path | None = None, choices: dict | None = None) -> None:
     """Run the chosen goal and store its outputs in the run folder.
 
+    ``choices`` are the engine's advanced settings (defaults when not given).
     Raises ``UserFacingError`` with a message and a fix if it cannot run.
     """
     engine = check_goal(run, goal_id)
+    choices = engine.resolve(choices)
 
-    run.set_status("running", goal=goal_id, error=None)
+    run.set_status("running", goal=goal_id, error=None, choices=choices)
     try:
-        dataset, result = build_dataset(run, engine.preprocessing, cache_dir)
-        run.save_result(result)  # the shared representation is kept for every run
+        dataset, result = build_dataset(run, engine.settings_for(choices), cache_dir, engine.name)
+        run.save_result(result)  # the representation this engine used is kept for every run
         figures.export(figures.preprocessing_figures(dataset.raw_counts, dataset.settings), run.figures_dir)
-        found = engine.run(dataset, run.path / "work" / engine.name.lower())
-        _save_engine_result(run, engine, found)
+        found = engine.run(dataset, run.path / "work" / engine.name.lower(), choices)
+        _save_engine_result(run, engine, found, choices)
     except UserFacingError as exc:
         run.set_status("failed", error={"message": exc.message, "fix": exc.fix})
         raise
@@ -261,7 +283,7 @@ def check_goal(run: runs.Run, goal_id: str):
     return ENGINES[goal_id]
 
 
-def _save_engine_result(run: runs.Run, engine, found) -> None:
+def _save_engine_result(run: runs.Run, engine, found, choices: dict) -> None:
     """Store what an engine returned: tables as CSV, figures in every format, and its record."""
     for name, table in found.tables.items():
         run.save_table(name, table)
@@ -269,6 +291,7 @@ def _save_engine_result(run: runs.Run, engine, found) -> None:
     run.save_engine_record({
         "tool": engine.name,
         "goal": engine.goal,
+        "choices": choices,
         "summary": found.summary,
         "record": found.record,
         "tables": list(found.tables),

@@ -122,12 +122,12 @@ def test_worker_processes_the_oldest_queued_run(root, new_run, cache):
 
 
 class _UserProblem(MipmlpEngine):
-    def run(self, data, work_dir):
+    def run(self, data, work_dir, choices=None):
         raise UserFacingError("Your data broke the tool.", "Try other data.")
 
 
 class _Bug(MipmlpEngine):
-    def run(self, data, work_dir):
+    def run(self, data, work_dir, choices=None):
         raise RuntimeError("a bug in our code")
 
 
@@ -187,9 +187,9 @@ def test_live_and_waiting_runs_are_left_alone(root, new_run):
 
 
 class _Slow(MipmlpEngine):
-    def run(self, data, work_dir):
+    def run(self, data, work_dir, choices=None):
         time.sleep(1.5)
-        return super().run(data, work_dir)
+        return super().run(data, work_dir, choices)
 
 
 def test_the_heartbeat_is_refreshed_while_working(root, new_run, cache, monkeypatch):

@@ -61,7 +61,7 @@ GOALS: tuple[Goal, ...] = (
     Goal("group", "See how samples group",
          "How do my samples group together?",
          "Distances between samples, a map of them, and clusters.",
-         "GIMIC", "planned", COUNTS),
+         "GIMIC", "available", COUNTS),
     Goal("metabolites", "Link bacteria to metabolites",
          "How do my bacteria relate to my metabolites?",
          "Predict metabolite levels and find a shared representation.",

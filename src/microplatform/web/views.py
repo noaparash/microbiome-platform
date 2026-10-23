@@ -117,10 +117,13 @@ def analysis(run_id: str):
 def run_goal(run_id: str):
     """Queue the chosen goal; the page then follows the run until its results are ready."""
     run = _get_run(run_id)
+    goal = request.form.get("goal", "")
+    # Advanced settings arrive as "<goal>:<option>" fields; the package validates them.
+    choices = {key.split(":", 1)[1]: value for key, value in request.form.items() if key.startswith(f"{goal}:")}
     try:
-        jobs.submit(run, request.form.get("goal", ""), email=request.form.get("email"),
+        jobs.submit(run, goal, email=request.form.get("email"),
                     results_url=_public_url(url_for(".analysis", run_id=run.id)),
-                    email_enabled=_notifier() is not None)
+                    email_enabled=_notifier() is not None, choices=choices)
     except UserFacingError as exc:
         _flash_error(exc)
         return redirect(url_for(".analysis", run_id=run.id, _anchor="plan"))

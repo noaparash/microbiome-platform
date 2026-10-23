@@ -19,6 +19,7 @@ from microplatform.core.preprocessing import CANONICAL
 from microplatform.examples import EXAMPLE_COUNTS
 
 MIMIC_EXAMPLE = Path(__file__).parent / "data" / "mimic_example"  # the authors' files, unchanged
+GIMIC_EXAMPLE = Path(__file__).parent / "data" / "gimic_example"  # the authors' files, unchanged
 
 
 @pytest.fixture(scope="module")
@@ -61,7 +62,8 @@ def mimic_theirs(tmp_path_factory):
                                 rawData=df, taxnomy_group="sub PCA")
         selected, _ = apply_mimic(str(folder), tag, eval="man", threshold_p=0.05, processed=processed,
                                   apply_samba=True, save=True)
-    return selected, pd.read_csv(folder / "df_corrs.csv", index_col=0)
+    # Read back exactly what miMic wrote (pandas' default reader can be off in the last digit).
+    return selected, pd.read_csv(folder / "df_corrs.csv", index_col=0, float_precision="round_trip")
 
 
 @pytest.fixture(scope="module")
@@ -94,3 +96,35 @@ def test_mimic_starts_the_post_hoc_test_at_the_same_level(mimic_theirs, mimic_ou
     record, _ = mimic_ours
     assert record["record"]["post_hoc_start"] == str(selected)
     assert record["record"]["eval"] == "man"
+
+
+# --- GIMIC (mean mode, as its published example runs) ------------------------------------
+
+@pytest.mark.slow
+def test_gimic_mean_mode_reproduces_the_authors_example_exactly(tmp_path):
+    """SAMBA's example_use.py: MIPMLP.preprocess(df) (defaults: mean) → micro2matrix → SAMBA distances.
+
+    GIMIC's distances are deterministic, so the match must be exact. About 4 minutes.
+    """
+    from microplatform.engines.gimic import load_gimic
+
+    micro2matrix, build_SAMBA_distance_matrix = load_gimic()
+    df = pd.read_csv(GIMIC_EXAMPLE / "for_preprocess.csv")
+    with warnings.catch_warnings(), pytest.MonkeyPatch.context() as mp:
+        warnings.simplefilter("ignore")
+        mp.chdir(tmp_path)
+        processed = MIPMLP.preprocess(df)
+        array_of_imgs, bact_names, ordered_df = micro2matrix(processed, "example_data/2D_images", save=False)
+        theirs = build_SAMBA_distance_matrix("example_data/2D_images", imgs=array_of_imgs, ordered_df=ordered_df,
+                                             bact_names=bact_names, class_=False)
+
+    files = [(p.name, p.read_bytes()) for p in (GIMIC_EXAMPLE / "for_preprocess.csv", GIMIC_EXAMPLE / "tag.csv")]
+    run = workflows.start_run(tmp_path / "runs", sort_uploads(files))
+    workflows.run_goal(run, "group", tmp_path / "cache", {"grouping": "mean"})
+    ours = run.table("distance_matrix").set_index("ID")
+
+    ours.index = ours.index.astype(str)
+    theirs.index, theirs.columns = theirs.index.astype(str), theirs.columns.astype(str)
+    assert theirs.shape == (257, 257)
+    pd.testing.assert_frame_equal(ours, theirs, check_names=False, check_exact=True)
+    assert run.engine_record()["record"]["grouping"] == "mean"

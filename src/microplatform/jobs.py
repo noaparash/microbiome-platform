@@ -44,12 +44,16 @@ def submit(
     email: str | None = None,
     results_url: str | None = None,
     email_enabled: bool = False,
+    choices: dict | None = None,
 ) -> None:
-    """Queue ``goal_id`` for ``run``; raises ``InputError`` (with a fix) if it cannot be queued."""
+    """Queue ``goal_id`` for ``run``; raises ``InputError`` (with a fix) if it cannot be queued.
+
+    ``choices`` are the engine's advanced settings; they are checked now, not in the background.
+    """
     if run.status in ("queued", "running"):
         raise InputError("This analysis is already running.",
                          "Wait for it to finish; its page updates by itself.")
-    workflows.check_goal(run, goal_id)
+    choices = workflows.check_goal(run, goal_id).resolve(choices)
     email = (email or "").strip() or None
     if email and not email_enabled:
         raise InputError("Email notifications are not switched on on this server.",
@@ -59,7 +63,7 @@ def submit(
                          "Check the address, or leave it empty and bookmark this page.")
     run.clear_results()
     run.set_status("queued", goal=goal_id, error=None, queued=_now_iso(),
-                   notify=email, results_url=results_url)
+                   notify=email, results_url=results_url, choices=choices)
 
 
 def queued(root: Path) -> list[runs.Run]:
@@ -88,11 +92,11 @@ def claim(run: runs.Run, worker: str) -> bool:
 
 def process(run: runs.Run, cache_dir: Path | None = None, notifier: EmailNotifier | None = None) -> None:
     """Run a claimed run's goal to the end; never raises. Releases the lock and sends any email."""
-    goal_id = run.meta()["goal"]
+    meta = run.meta()
     beat = _Heartbeat(run.lock_file)
     beat.start()
     try:
-        workflows.run_goal(run, goal_id, cache_dir)
+        workflows.run_goal(run, meta["goal"], cache_dir, meta.get("choices"))
     except UserFacingError:
         pass  # run_goal has recorded the message and fix
     except Exception:  # a bug, not the user's data: keep the details for us, tell the user plainly

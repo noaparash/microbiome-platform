@@ -45,9 +45,10 @@ MEDIA_TYPES = {
 ACCENT = "#0f766e"  # the site's teal
 CONTRAST = "#b45309"  # the second group, distinguishable from teal (also for colour blindness)
 MARKER = "#b42318"
-PALETTE = (ACCENT, CONTRAST)
+# Groups beyond two: distinct hues that stay apart for common colour blindness.
+PALETTE = (ACCENT, CONTRAST, "#6d28d9", "#0369a1", "#be185d", "#4d7c0f", "#57534e")
 
-Kind = Literal["bar", "histogram", "barh", "column"]
+Kind = Literal["bar", "histogram", "barh", "column", "scatter"]
 Section = Literal["quality", "findings"]
 
 
@@ -59,6 +60,7 @@ class Figure:
     histogram  distribution of ``x`` between 0 and 100
     barh       one labelled horizontal bar per row: label ``y``, value ``x``, coloured by ``color_by``
     column     one labelled vertical bar per row: label ``x``, value ``y``
+    scatter    one point per row at (``x``, ``y``), coloured by ``color_by``; ``label`` names each point
     """
 
     name: str  # file stem, e.g. "reads_per_sample"
@@ -73,7 +75,8 @@ class Figure:
     marker: tuple[float, str] | None = None  # vertical reference line: (x, label)
     hline: tuple[float, str] | None = None  # horizontal reference line: (y, label)
     log_y: bool = False
-    color_by: str | None = None  # barh: a column with (at most two) groups
+    color_by: str | None = None  # barh, scatter: a column with the groups to colour by
+    label: str | None = None  # scatter: a column naming each point (shown on hover)
     hover: str | None = None  # plotly hovertemplate
     section: Section = "quality"
 
@@ -197,6 +200,12 @@ def _write_static(fig: Figure, out_dir: Path) -> None:
             if legend:
                 ax.legend(handles=[Patch(color=c, label=g) for g, c in legend], frameon=False,
                           loc="lower right")
+        elif fig.kind == "scatter":
+            colors, legend = _group_colors(fig)
+            ax.scatter(fig.data[fig.x], fig.data[fig.y], c=colors, s=28, alpha=0.85, edgecolors="white",
+                       linewidths=0.5)
+            if legend:
+                ax.legend(handles=[Patch(color=c, label=g) for g, c in legend], frameon=False)
         else:  # column
             ax.bar(fig.data[fig.x].astype(str), fig.data[fig.y], color=ACCENT, width=0.7)
         if fig.log_y:
@@ -235,6 +244,16 @@ def to_plotly(fig: Figure) -> go.Figure:
             out.add_trace(go.Bar(x=rows[fig.x], y=rows[fig.y], orientation="h", marker_color=color,
                                  name=group or "", hovertemplate=fig.hover, showlegend=group is not None))
         out.update_yaxes(autorange="reversed", categoryorder="array", categoryarray=list(fig.data[fig.y]))
+    elif fig.kind == "scatter":
+        _, legend = _group_colors(fig)
+        for group, color in legend or [(None, ACCENT)]:
+            rows = fig.data if group is None else fig.data[fig.data[fig.color_by].astype(str) == group]
+            out.add_trace(go.Scatter(
+                x=rows[fig.x], y=rows[fig.y], mode="markers", name=group or "",
+                marker={"color": color, "size": 8, "opacity": 0.85, "line": {"color": "white", "width": 0.5}},
+                text=rows[fig.label] if fig.label else None, hovertemplate=fig.hover,
+                showlegend=group is not None,
+            ))
     else:  # column
         out.add_trace(go.Bar(x=fig.data[fig.x].astype(str), y=fig.data[fig.y], marker_color=ACCENT,
                              hovertemplate=fig.hover))

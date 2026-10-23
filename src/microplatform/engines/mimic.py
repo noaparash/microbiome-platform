@@ -69,7 +69,7 @@ class MimicEngine(Engine):
     goal = "differ"
     requires = frozenset({"counts", "labels"})
 
-    def run(self, data: Dataset, work_dir: Path) -> EngineResult:
+    def run(self, data: Dataset, work_dir: Path, choices: dict[str, str] | None = None) -> EngineResult:
         if data.labels is None:
             raise UserFacingError("miMic needs a labels file.", "Add a labels file in the Plan step.")
         if data.label_kind not in EVALS:

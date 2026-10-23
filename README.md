@@ -9,8 +9,8 @@ explains why, and asks you for as little as possible. It is a Python package
 |---|---|---|
 | **MIPMLP** | Preprocessing: the clean table every tool uses | Available |
 | **miMic** | *Which bacteria differ between my groups?* | Available |
-| **iMic** | *Can the microbiome predict my outcome?* | Coming next |
-| **GIMIC** | *How do my samples group?* | Planned |
+| **iMic** | *Can the microbiome predict my outcome?* | On hold (waiting for the lab's code) |
+| **GIMIC** | *How do my samples group?* | Available |
 | **LOCATE** | *How do my bacteria relate to my metabolites?* | Planned |
 
 ## Quick start (Windows, PowerShell)

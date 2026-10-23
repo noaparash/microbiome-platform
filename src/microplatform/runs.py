@@ -88,7 +88,8 @@ class Run:
         table.to_csv(self.tables_dir / f"{name}.csv", index=False)
 
     def table(self, name: str, rows: int | None = None) -> pd.DataFrame:
-        return pd.read_csv(self.tables_dir / f"{name}.csv", nrows=rows)
+        # round_trip: read back exactly the numbers that were written (to the last digit)
+        return pd.read_csv(self.tables_dir / f"{name}.csv", nrows=rows, float_precision="round_trip")
 
     def table_file(self, name: str) -> Path | None:
         """A result table by exact file name, or None (never anything outside the tables folder)."""
@@ -142,7 +143,7 @@ class Run:
         self.update_meta(labels_name=name)
 
     def processed_preview(self, rows: int = 5) -> pd.DataFrame:
-        return pd.read_csv(self.processed_file, index_col=0, nrows=rows)
+        return pd.read_csv(self.processed_file, index_col=0, nrows=rows, float_precision="round_trip")
 
     def save_result(self, result: PreprocessResult) -> None:
         table = result.table.rename_axis(ID_COLUMN)

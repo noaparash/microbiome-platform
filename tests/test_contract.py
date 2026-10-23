@@ -60,7 +60,20 @@ def test_engine_declares_a_valid_interface(engine):
     assert goal is not None and goal.tool == engine.name
     assert engine.requires == goal.requires, "engine and goal disagree on required inputs"
     assert "counts" in engine.requires and engine.requires <= set(INPUT_KINDS)
-    check_settings(engine.preprocessing)  # only allowed variations of CANONICAL
+    check_settings(engine.preprocessing, engine.name)  # only allowed variations of CANONICAL
+    for option in engine.options:  # every choice an engine offers must stay within the contract
+        assert option.default in option.values
+        for value in option.values:
+            check_settings(engine.settings_for(engine.resolve({option.name: value})), engine.name)
+
+
+def test_only_declared_engines_have_exceptions():
+    from microplatform.core.contract import ENGINE_EXCEPTIONS
+
+    assert set(ENGINE_EXCEPTIONS) <= {e.name for e in ENGINES.values()}
+    assert set(ENGINE_EXCEPTIONS) == {"GIMIC"}  # adding one is a decision: record it in CLAUDE.md first
+    for name, fields in ENGINE_EXCEPTIONS.items():
+        assert fields and all(values for values in fields.values()), name
 
 
 @pytest.mark.parametrize("engine", ENGINES.values(), ids=lambda e: e.name)
