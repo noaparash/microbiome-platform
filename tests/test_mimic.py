@@ -11,7 +11,8 @@ from microplatform.core.contract import LABEL_COLUMN, RANK_SEPARATOR, Dataset
 from microplatform.core.errors import UserFacingError
 from microplatform.core.inputs import sort_uploads
 from microplatform.core.preprocessing import CANONICAL
-from microplatform.engines.mimic import MimicEngine, display_name, native_tag
+from microplatform.engines.labels import native_tag
+from microplatform.engines.mimic import MimicEngine, display_name
 from microplatform.examples import EXAMPLE_COUNTS, EXAMPLE_TAGS
 
 

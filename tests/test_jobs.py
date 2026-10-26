@@ -55,7 +55,7 @@ def test_submit_queues_the_run(new_run):
 
 def test_submit_refuses_a_task_that_cannot_run(new_run):
     with pytest.raises(InputError, match="cannot run"):
-        jobs.submit(new_run(), "predict")
+        jobs.submit(new_run(), "metabolites")
 
 
 def test_submit_refuses_a_second_click(new_run):

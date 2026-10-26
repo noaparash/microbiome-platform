@@ -158,7 +158,7 @@ def test_bad_counts_show_fix_and_block_running(client):
 
 def test_unavailable_goal_is_explained(client):
     url = upload(client, *EXAMPLE).headers["Location"]
-    page = client.post(f"{url}/run", data={"goal": "predict"}, follow_redirects=True).get_data(as_text=True)
+    page = client.post(f"{url}/run", data={"goal": "metabolites"}, follow_redirects=True).get_data(as_text=True)
     assert "cannot run on this data yet" in page
 
 

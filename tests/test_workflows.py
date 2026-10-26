@@ -38,8 +38,8 @@ def test_preprocess_only_end_to_end(root, tmp_path):
 def test_unavailable_goal_is_refused(root):
     run = workflows.start_example_run(root)
     with pytest.raises(InputError, match="cannot run") as info:
-        workflows.run_goal(run, "predict")
-    assert info.value.fix == "Coming next."
+        workflows.run_goal(run, "metabolites")
+    assert info.value.fix == "Planned. Needs a metabolite table."
     assert run.status == "uploaded"
 
 

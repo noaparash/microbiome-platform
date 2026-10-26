@@ -128,3 +128,111 @@ def test_gimic_mean_mode_reproduces_the_authors_example_exactly(tmp_path):
     assert theirs.shape == (257, 257)
     pd.testing.assert_frame_equal(ours, theirs, check_names=False, check_exact=True)
     assert run.engine_record()["record"]["grouping"] == "mean"
+
+
+# --- iMic (same seed, within the tolerance recorded on 2026-10-22, before any run) -------
+
+PROBABILITY_TOLERANCE = 1e-4
+AUC_TOLERANCE = 0.005
+
+
+@pytest.fixture(scope="module")
+def imic_theirs(tmp_path_factory):
+    """MIPMLP's documented usage: micro2matrix(df, folder) then apply_iMic(tag, folder), seed 42.
+
+    Run twice: once exactly as published (plain CNN), and once with the CNN observed so the
+    probabilities its own predict() computes can be read. Labels are in the counts table's order.
+    """
+    import numpy as np
+    import pytorch_lightning as pl
+
+    from microplatform.engines.imic import load_imic, recording_cnn
+
+    mipmlp, apply_iMic, _, _ = load_imic()
+    work = tmp_path_factory.mktemp("imic_authors")
+    df = pd.read_csv(MIMIC_EXAMPLE / "for_process.csv")
+    tag = pd.read_csv(MIMIC_EXAMPLE / "tag.csv", index_col=0)[["Tag"]]
+    tag.index = tag.index.astype(str)
+    tag = tag.loc[df["ID"].iloc[:-1].astype(str)]  # the counts table's order
+    with warnings.catch_warnings(), pytest.MonkeyPatch.context() as mp:
+        warnings.simplefilter("ignore")
+        mp.chdir(work)
+        (work / "images").mkdir()
+        mipmlp.micro2matrix(df, "images")
+        pl.seed_everything(42, workers=True)
+        plain = apply_iMic(tag, "images")
+        observed_cnn = recording_cnn(mipmlp.CNN)
+        mp.setattr(mipmlp, "CNN", observed_cnn)
+        pl.seed_everything(42, workers=True)
+        observed = apply_iMic(tag, "images")
+    images = {p.stem: np.load(p, allow_pickle=True) for p in (work / "images").glob("*.npy")}
+    return plain, observed, observed_cnn.instances[-1].recorded_proba[1], images
+
+
+@pytest.fixture(scope="module")
+def imic_ours(tmp_path_factory):
+    root = tmp_path_factory.mktemp("imic_ours")
+    files = [(p.name, p.read_bytes()) for p in (MIMIC_EXAMPLE / "for_process.csv", MIMIC_EXAMPLE / "tag.csv")]
+    run = workflows.start_run(root / "runs", sort_uploads(files))
+    workflows.run_goal(run, "predict", root / "cache")
+    return run
+
+
+def _ours_test(run):
+    predictions = run.table("predictions")
+    return predictions[predictions["set"] == "test"].reset_index(drop=True)
+
+
+@pytest.mark.slow
+def test_imic_images_are_identical(imic_theirs, imic_ours):
+    import numpy as np
+
+    _, _, _, theirs = imic_theirs
+    folder = imic_ours.path / "work" / "imic" / "imic_images"
+    ours = {p.stem: np.load(p, allow_pickle=True) for p in folder.glob("*.npy")}
+    assert set(ours) == set(theirs)
+    assert len(set(ours) - {"bact_names"}) == 257  # one image per sample, plus the taxon names
+    assert all(np.array_equal(ours[k], theirs[k]) for k in ours)
+
+
+@pytest.mark.slow
+def test_imic_split_hyperparameters_and_predicted_groups_are_identical(imic_theirs, imic_ours):
+    from microplatform.engines.imic import default_params, load_imic
+
+    plain, observed, _, _ = imic_theirs
+    ours = _ours_test(imic_ours)
+    coding = imic_ours.engine_record()["record"]["label_coding"]
+    to_code = {v: int(k) for k, v in coding.items()}
+    # The same test samples in the same order: their labels match ours position by position.
+    assert list(plain["y_test"]) == [to_code[str(g)] for g in ours["true_group"]]
+    assert list(plain["pred_test"]) == [to_code[str(g)] for g in ours["predicted_group"]]
+    assert list(observed["pred_test"]) == list(plain["pred_test"])  # observing changes nothing
+    _, apply_iMic, _, _ = load_imic()
+    recorded = imic_ours.engine_record()["record"]["hyperparameters"]
+    published = default_params()
+    assert {k: v for k, v in recorded.items() if k != "input_dim"} == \
+        {k: v for k, v in published.items() if k != "input_dim"}
+
+
+@pytest.mark.slow
+def test_imic_probabilities_and_auc_within_the_recorded_tolerance(imic_theirs, imic_ours):
+    import numpy as np
+    from sklearn.metrics import roc_auc_score
+
+    plain, _, their_proba, _ = imic_theirs
+    ours = _ours_test(imic_ours)
+    proba_column = next(c for c in ours.columns if c.startswith("probability_of_"))
+    diff = np.abs(np.asarray(their_proba) - ours[proba_column].to_numpy())
+    assert diff.max() <= PROBABILITY_TOLERANCE, f"largest probability difference {diff.max():.2e}"
+    their_auc = roc_auc_score(plain["y_test"], their_proba)
+    our_auc = imic_ours.table("test_metrics")["auc"].iloc[0]
+    assert abs(their_auc - our_auc) <= AUC_TOLERANCE
+
+
+@pytest.mark.slow
+def test_imic_two_runs_with_the_same_seed_agree(imic_ours, tmp_path):
+    files = [(p.name, p.read_bytes()) for p in (MIMIC_EXAMPLE / "for_process.csv", MIMIC_EXAMPLE / "tag.csv")]
+    again = workflows.start_run(tmp_path / "runs", sort_uploads(files))
+    workflows.run_goal(again, "predict", tmp_path / "cache")
+    first, second = _ours_test(imic_ours), _ours_test(again)
+    pd.testing.assert_frame_equal(first, second, check_exact=False, atol=PROBABILITY_TOLERANCE, rtol=0)

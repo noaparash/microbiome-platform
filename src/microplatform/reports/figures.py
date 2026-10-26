@@ -48,7 +48,7 @@ MARKER = "#b42318"
 # Groups beyond two: distinct hues that stay apart for common colour blindness.
 PALETTE = (ACCENT, CONTRAST, "#6d28d9", "#0369a1", "#be185d", "#4d7c0f", "#57534e")
 
-Kind = Literal["bar", "histogram", "barh", "column", "scatter"]
+Kind = Literal["bar", "histogram", "barh", "column", "scatter", "line"]
 Section = Literal["quality", "findings"]
 
 
@@ -61,6 +61,7 @@ class Figure:
     barh       one labelled horizontal bar per row: label ``y``, value ``x``, coloured by ``color_by``
     column     one labelled vertical bar per row: label ``x``, value ``y``
     scatter    one point per row at (``x``, ``y``), coloured by ``color_by``; ``label`` names each point
+    line       a line through (``x``, ``y``) in row order; ``diagonal`` adds the 0→1 reference line
     """
 
     name: str  # file stem, e.g. "reads_per_sample"
@@ -75,6 +76,7 @@ class Figure:
     marker: tuple[float, str] | None = None  # vertical reference line: (x, label)
     hline: tuple[float, str] | None = None  # horizontal reference line: (y, label)
     log_y: bool = False
+    diagonal: bool = False  # line: dashed y = x reference (e.g. chance on a ROC curve)
     color_by: str | None = None  # barh, scatter: a column with the groups to colour by
     label: str | None = None  # scatter: a column naming each point (shown on hover)
     hover: str | None = None  # plotly hovertemplate
@@ -206,6 +208,13 @@ def _write_static(fig: Figure, out_dir: Path) -> None:
                        linewidths=0.5)
             if legend:
                 ax.legend(handles=[Patch(color=c, label=g) for g, c in legend], frameon=False)
+        elif fig.kind == "line":
+            ax.plot(fig.data[fig.x], fig.data[fig.y], color=ACCENT, linewidth=2)
+            if fig.diagonal:
+                ax.plot([0, 1], [0, 1], color="#8a9a9a", linestyle="--", linewidth=1)
+                ax.set_xlim(0, 1)
+                ax.set_ylim(0, 1.02)
+                ax.set_aspect("equal")
         else:  # column
             ax.bar(fig.data[fig.x].astype(str), fig.data[fig.y], color=ACCENT, width=0.7)
         if fig.log_y:
@@ -254,6 +263,14 @@ def to_plotly(fig: Figure) -> go.Figure:
                 text=rows[fig.label] if fig.label else None, hovertemplate=fig.hover,
                 showlegend=group is not None,
             ))
+    elif fig.kind == "line":
+        out.add_trace(go.Scatter(x=fig.data[fig.x], y=fig.data[fig.y], mode="lines",
+                                 line={"color": ACCENT, "width": 2}, hovertemplate=fig.hover, showlegend=False))
+        if fig.diagonal:
+            out.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode="lines", hoverinfo="skip", showlegend=False,
+                                     line={"color": "#8a9a9a", "width": 1, "dash": "dash"}))
+            out.update_xaxes(range=[0, 1])
+            out.update_yaxes(range=[0, 1.02])
     else:  # column
         out.add_trace(go.Bar(x=fig.data[fig.x].astype(str), y=fig.data[fig.y], marker_color=ACCENT,
                              hovertemplate=fig.hover))

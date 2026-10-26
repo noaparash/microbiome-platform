@@ -34,6 +34,7 @@ import pandas as pd
 from microplatform.core.contract import RANK_SEPARATOR, Dataset
 from microplatform.core.errors import UserFacingError
 from microplatform.engines.base import Engine, EngineResult
+from microplatform.engines.labels import native_tag
 from microplatform.reports.figures import Figure
 
 # The authors' defaults, recorded with every result.
@@ -103,6 +104,7 @@ class MimicEngine(Engine):
             summary=_summary(start, hits, apriori, data.label_kind, coding),
             figures=[f for f in (_taxa_figure(hits, data.label_kind, coding), _apriori_figure(apriori)) if f],
             tables={"significant_taxa": hits, "apriori_test": apriori},
+            highlight=("significant_taxa", "Most significant taxa") if not hits.empty else None,
             record={
                 "tool": "miMic", "package": "mimic-da", "version": version("mimic-da"),
                 "test": {"man": "Mann-Whitney (binary)", "corr": "Spearman (continuous)"}[test],
@@ -111,18 +113,6 @@ class MimicEngine(Engine):
                 "post_hoc_start": str(start), "significant_taxa": len(hits),
             },
         )
-
-
-def native_tag(labels: pd.Series, kind: str) -> tuple[pd.DataFrame, dict[str, str]]:
-    """Labels in miMic's form: one column; binary labels coded 0/1 (in sorted order)."""
-    if kind == "binary":
-        values = sorted(labels.unique(), key=lambda v: (isinstance(v, str), v))
-        coding = {"0": str(values[0]), "1": str(values[1])}
-        coded = labels.map({values[0]: 0, values[1]: 1}).astype(int)
-    else:
-        coding = {}
-        coded = labels.astype(float)
-    return coded.to_frame(labels.name), coding
 
 
 def display_name(taxon: str) -> str:

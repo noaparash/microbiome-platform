@@ -56,7 +56,8 @@ def test_recommendation_without_labels_is_preprocessing():
     assert rec.goal_id == "preprocess"
     assert any("first step" in r for r in rec.reasons)
     # Only tasks that can actually run once labels are added are offered as "unlocks".
-    assert rec.unlock["labels"] == ["Find bacteria that differ between groups"]
+    assert rec.unlock["labels"] == ["Find bacteria that differ between groups",
+                                    "Predict the outcome from the microbiome"]
 
 
 @pytest.mark.parametrize("kind", ["binary", "continuous"])
@@ -76,9 +77,9 @@ def test_categorical_labels_disable_mimic_with_the_reason():
 
 
 def test_recommendation_explains_an_unavailable_request():
-    rec = recommend(goal_options(COUNTS_AND_LABELS, "binary"), requested="predict")
+    rec = recommend(goal_options(COUNTS_AND_LABELS, "binary"), requested="metabolites")
     assert rec.goal_id == "differ"  # the best task that can run instead
-    assert "Can the microbiome predict my outcome?" in rec.reasons[0]
+    assert "How do my bacteria relate to my metabolites?" in rec.reasons[0]
     assert "not in the platform yet" in rec.reasons[0]
 
 

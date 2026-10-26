@@ -34,6 +34,7 @@ class EngineResult:
     figures: list[Figure] = field(default_factory=list)  # drawn through reports.figures
     tables: dict[str, pd.DataFrame] = field(default_factory=dict)  # name → table, saved as CSV
     record: dict = field(default_factory=dict)  # tool version and every setting, for reproducibility
+    highlight: tuple[str, str] | None = None  # (table name, heading): the table to preview on the page
 
 
 @dataclass(frozen=True)

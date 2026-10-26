@@ -196,10 +196,12 @@
       {{ figure_grid(view.run.id, view.findings) }}
     {% endif %}
 
-    {% set hits = view.tables.get("significant_taxa") %}
-    {% if hits is not none and hits|length %}
-      <h3>Most significant taxa</h3>
-      {{ result_table(hits) }}
+    {% if engine.highlight %}
+      {% set shown = view.tables.get(engine.highlight[0]) %}
+      {% if shown is not none and shown|length %}
+        <h3>{{ engine.highlight[1] }}</h3>
+        {{ result_table(shown) }}
+      {% endif %}
     {% endif %}
     <p class="downloads table-downloads">Full tables (CSV):
       {% for name in engine.tables %}

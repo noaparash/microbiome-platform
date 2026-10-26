@@ -144,3 +144,13 @@ def test_an_invalid_choice_is_explained(tmp_path):
     page = client.post(f"{url}/run", data={"goal": "group", "group:grouping": "sum"},
                        follow_redirects=True).get_data(as_text=True)
     assert "is not a choice" in page and "How to fix:" in page
+
+
+def test_imic_results_page(tmp_path):
+    _, client = make_client(tmp_path, JOBS="inline")
+    url = client.post("/example").headers["Location"]
+    page = client.post(f"{url}/run", data={"goal": "predict"}, follow_redirects=True).get_data(as_text=True)
+    assert "Results: Predict the outcome from the microbiome (iMic)" in page
+    assert "Test AUC" in page and "ROC curve" in page and "one random split" in page
+    assert "probability of" in page.lower()  # the predictions table
+    assert "dropout on" in page  # the published behaviour is recorded in the reproducibility record
