@@ -56,11 +56,24 @@ Email when a run finishes is **off** until the mail-server settings are given
 only the results link, never data, and the address is deleted once it is sent.
 Behind a proxy, set `MICROPLATFORM_PUBLIC_URL` so the links are right.
 
+### Lab server
+
+`deploy/` holds everything for a Linux server: gunicorn settings
+(`microplatform.web.wsgi:app`, queue-only), systemd units for the website and
+the worker, an HTTPS nginx template restricted to the lab network / VPN, and a
+commented settings template (`microplatform.env.example`; the real file stays
+out of Git). Install with `pip install ".[server]"`. Old runs are removed only
+by hand: `python -m microplatform.retention --instance <dir> --older-than 90`
+lists them, and `--delete` asks for confirmation and logs every deletion. The
+step-by-step guide and the decisions checklist are in
+[docs/deployment.he.md](docs/deployment.he.md) (Hebrew).
+
 ## Documentation
 
 - [User guide](docs/user-guide.md): the website, file formats, outputs
 - [Package guide](docs/package-guide.md): Python use, structure, adding a tool
 - [Tool inputs (Hebrew)](docs/tool-inputs.he.md): each tool's native input and adapter
+- [Server deployment (Hebrew)](docs/deployment.he.md): decisions checklist and runbook
 - The website's **Methods** and **Docs & API** pages
 
 ## Citing

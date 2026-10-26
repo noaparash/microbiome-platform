@@ -34,3 +34,7 @@ Thumbs.db
 
 # Presentations: kept in docs/ as reference, too large and changing to version
 *.pptx
+
+# Server settings hold secrets: only the template is versioned
+*.env
+!*.env.example

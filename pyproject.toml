@@ -23,6 +23,10 @@ dependencies = [
 dev = [
     "pytest>=8.0",
 ]
+# Production web server for Linux servers (gunicorn does not run on Windows).
+server = [
+    "gunicorn>=23.0; platform_system != 'Windows'",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -1,0 +1,31 @@
+# Microbiome Platform — the website (gunicorn). It only queues analyses.
+# Install: sudo cp deploy/systemd/microplatform-web.service /etc/systemd/system/
+#          sudo systemctl daemon-reload && sudo systemctl enable --now microplatform-web
+# Paths assume the layout in docs/deployment.he.md (/opt/microplatform, /var/lib/microplatform).
+
+[Unit]
+Description=Microbiome Platform website (gunicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=microplatform
+Group=microplatform
+WorkingDirectory=/opt/microplatform
+EnvironmentFile=/etc/microplatform/microplatform.env
+ExecStart=/opt/microplatform/.venv/bin/gunicorn -c /opt/microplatform/deploy/gunicorn.conf.py microplatform.web.wsgi:app
+Restart=on-failure
+RestartSec=5
+
+# Files it creates are private to the service account (uploads may be clinical data).
+UMask=0077
+# Hardening: it can write only to the data folder.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/microplatform
+
+[Install]
+WantedBy=multi-user.target

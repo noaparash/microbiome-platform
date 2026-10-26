@@ -20,6 +20,7 @@ random 32-character ID, which is also the run's results link:
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import uuid
@@ -167,7 +168,10 @@ def create(
 ) -> Run:
     run_id = uuid.uuid4().hex
     run = Run(run_id, Path(root) / run_id)
-    run.path.mkdir(parents=True)
+    # Uploads may be clinical data: on Linux only the service account may read a run's folder.
+    run.path.mkdir(parents=True, mode=0o700)
+    if os.name == "posix":
+        os.chmod(run.path, 0o700)  # mkdir's mode is reduced by the umask; make it exact
     counts.to_csv(run.counts_file, index=False)
     if labels is not None:
         labels.to_csv(run.labels_file)
