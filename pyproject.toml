@@ -4,12 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "microplatform"
-version = "0.1.0"
-description = "One intelligent web platform for the Louzoun lab's microbiome tools (MIPMLP, iMic, miMic, GIMIC, LOCATE)."
+version = "0.2.0"  # keep equal to microplatform.__version__ (a test checks)
+description = "The Louzoun lab's microbiome tools (MIPMLP, miMic, iMic, GIMIC; LOCATE planned) behind one interface."
 readme = "README.md"
 requires-python = ">=3.13"
+keywords = ["microbiome", "16S", "preprocessing", "differential abundance", "machine learning"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+# The analysis package; the website is an optional extra ([web], or [server] on Linux).
 dependencies = [
-    "flask>=3.1",
     "pandas>=2.2,<3",  # MIPMLP 1.2.19 uses to_numeric(errors="ignore"), removed in pandas 3
     "MIPMLP>=1.2.19",
     "matplotlib>=3.9",  # static figures (PNG, SVG)
@@ -20,11 +27,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+web = [
+    "flask>=3.1",
+]
 dev = [
+    "flask>=3.1",  # the website's tests
     "pytest>=8.0",
 ]
-# Production web server for Linux servers (gunicorn does not run on Windows).
+# The website with a production web server, for Linux servers (gunicorn does not run on Windows).
 server = [
+    "flask>=3.1",
     "gunicorn>=23.0; platform_system != 'Windows'",
 ]
 

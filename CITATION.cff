@@ -1,0 +1,90 @@
+# How to cite this software. GitHub and Zenodo read this file.
+# TO CONFIRM WITH THE LAB before the first public release:
+#   - the authors (and their order and ORCIDs); the entry below is a placeholder,
+#   - the licence (none has been chosen yet),
+#   - the repository URL and a Zenodo DOI (added once the code is public).
+# Please also cite the paper of each tool you use (listed under "references").
+cff-version: 1.2.0
+message: >-
+  If you use this software, please cite it as below, together with the paper
+  of each tool you used (MIPMLP, iMic, miMic, GIMIC, LOCATE).
+type: software
+title: "microplatform: the Louzoun lab's microbiome tools behind one interface"
+abstract: >-
+  A Python package (with a thin website) that profiles microbiome count
+  tables, preprocesses them once with MIPMLP, recommends the right tool for
+  the question and runs the authors' own code: miMic (differential abundance
+  along the taxonomy tree), iMic (prediction from tree images) and GIMIC
+  (sample distances). LOCATE (microbiome-metabolome) is planned.
+version: 0.2.0
+date-released: "2026-10-28"
+authors:
+  - name: "Prof. Yoram Louzoun's lab, Bar-Ilan University"  # placeholder: authors to be confirmed
+keywords:
+  - microbiome
+  - 16S rRNA
+  - preprocessing
+  - differential abundance
+  - machine learning
+references:
+  - type: article
+    title: "Microbiome Preprocessing Machine Learning Pipeline"
+    authors:
+      - {family-names: Jasner, given-names: Y}
+      - {family-names: Belogolovski, given-names: A}
+      - {family-names: Ben-Itzhak, given-names: M}
+      - {family-names: Koren, given-names: O}
+      - {family-names: Louzoun, given-names: Y}
+    journal: Frontiers in Immunology
+    year: 2021
+    volume: 12
+    start: "677870"
+    doi: 10.3389/fimmu.2021.677870
+  - type: article
+    title: "Ordering taxa in image convolution networks improves microbiome-based machine learning accuracy"
+    authors:
+      - {family-names: Shtossel, given-names: O}
+      - {family-names: Isakov, given-names: H}
+      - {family-names: Turjeman, given-names: S}
+      - {family-names: Koren, given-names: O}
+      - {family-names: Louzoun, given-names: Y}
+    journal: Gut Microbes
+    year: 2023
+    volume: 15
+    issue: 1
+    start: "2224474"
+    doi: 10.1080/19490976.2023.2224474
+  - type: article
+    title: "mi-Mic: a novel multi-layer statistical test for microbiota-disease associations"
+    authors:
+      - {family-names: Shtossel, given-names: O}
+      - {family-names: Finkelstein, given-names: S}
+      - {family-names: Louzoun, given-names: Y}
+    journal: Genome Biology
+    year: 2024
+    volume: 25
+    start: "113"
+    doi: 10.1186/s13059-024-03256-0
+  - type: article
+    title: "GIMIC: smoothed graph-image representation of microbiome samples induce an optimal distance"
+    authors:
+      - {family-names: Shtossel, given-names: O}
+      - {family-names: Louzoun, given-names: Y}
+    journal: Genome Biology
+    year: 2025
+    volume: 26
+    start: "350"
+    doi: 10.1186/s13059-025-03822-0
+  - type: article
+    title: "Gut microbiome-metabolome interactions predict host condition"
+    authors:
+      - {family-names: Shtossel, given-names: O}
+      - {family-names: Koren, given-names: O}
+      - {family-names: Shai, given-names: I}
+      - {family-names: Rinott, given-names: E}
+      - {family-names: Louzoun, given-names: Y}
+    journal: Microbiome
+    year: 2024
+    volume: 12
+    start: "24"
+    doi: 10.1186/s40168-023-01737-1

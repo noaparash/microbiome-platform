@@ -22,6 +22,9 @@ python -m pip install -e ".[dev]"
 python -m pytest
 ```
 
+`[dev]` includes the website and the tests. For the analysis package alone,
+`python -m pip install -e .` is enough; add `[web]` for the website.
+
 Run the website, then open http://127.0.0.1:5000:
 
 ```powershell
@@ -78,7 +81,10 @@ step-by-step guide and the decisions checklist are in
 
 ## Citing
 
-Please cite the methods you use (the results ZIP lists them for each run):
+To cite the software, see [CITATION.cff](CITATION.cff) (the authors are still
+to be confirmed with the lab). Changes between versions are in
+[CHANGELOG.md](CHANGELOG.md). Please also cite the methods you use (the
+results ZIP lists them for each run):
 
 - MIPMLP: Jasner Y, et al. *Front Immunol* 2021;12:677870. doi:10.3389/fimmu.2021.677870
 - iMic: Shtossel O, et al. *Gut Microbes* 2023;15(1):2224474. doi:10.1080/19490976.2023.2224474

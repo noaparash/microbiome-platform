@@ -162,9 +162,13 @@ def analyze(
 ) -> RunView:
     """Run a whole analysis from files on disk, without the website.
 
-    ``goal`` defaults to the recommended task; ``options`` are its advanced settings,
-    e.g. ``{"grouping": "mean"}`` for GIMIC. All outputs (table, figures, record) are
-    written to a new folder inside ``out_dir``: ``view.run.path``.
+    ``goal`` is one of ``"preprocess"`` (MIPMLP only), ``"differ"`` (miMic),
+    ``"predict"`` (iMic) or ``"group"`` (GIMIC); it defaults to the recommended task
+    (see ``GOALS``). ``options`` are its advanced settings, e.g. ``{"grouping": "mean"}``
+    for GIMIC. All outputs are written to a new folder inside ``out_dir``,
+    ``view.run.path``: ``processed.csv``, ``tables/``, ``figures/``, ``record.json`` and
+    ``engine.json``. ``view.engine`` holds the summary and the record of every setting.
+    Raises ``UserFacingError`` (with a message and a fix) if the data cannot be used.
     """
     paths = [Path(counts)] + ([Path(labels)] if labels else [])
     run = start_run(Path(out_dir), sort_uploads([(p.name, p.read_bytes()) for p in paths]), goal)

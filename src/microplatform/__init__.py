@@ -12,12 +12,14 @@ Quick start::
     result = mp.preprocess(counts)                  # MIPMLP, the paper's settings
 
 Everything listed in ``__all__`` is the public API; it is documented on the
-website's "Docs & API" page (generated from these docstrings).
+website's "Docs & API" page (generated from these docstrings). Changes to it
+are recorded in CHANGELOG.md.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from microplatform.core.contract import Dataset
+from microplatform.core.errors import UserFacingError
 from microplatform.core.inputs import sort_uploads
 from microplatform.core.preprocessing import CANONICAL, PreprocessSettings, preprocess
 from microplatform.core.profiler import profile_counts, profile_labels, read_table
@@ -39,6 +41,7 @@ __all__ = [
     "run_goal",
     "build_dataset",
     "Dataset",
+    "UserFacingError",
     "GOALS",
     "TOOLS",
 ]
