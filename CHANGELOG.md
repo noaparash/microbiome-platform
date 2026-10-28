@@ -6,6 +6,16 @@ All notable changes to `microplatform`. The format follows
 (0.x) may change the public API, but only with a note under **Changed** or
 **Removed** here; see "Public API and stability" in `docs/package-guide.md`.
 
+## [Unreleased]
+
+### Added
+- LOCATE's adapter, not enabled yet (`engines/locate.py`, `core/metabolites.py`):
+  metabolite-table checks, the paper's metabolite preparation (relative → log →
+  z-score; log base and pseudocount provisional), and a runner that executes
+  the authors' unchanged LOCATE in its own Python 3.10 environment
+  (`MICROPLATFORM_LOCATE_PYTHON`). Its reproduction test waits for that
+  environment and a real paired dataset.
+
 ## [0.2.0] — 2026-10-28
 
 The package reaches a clean, citable state with four of the lab's five tools.

@@ -61,7 +61,8 @@ def test_one_version_everywhere():
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     assert pyproject["project"]["version"] == mp.__version__
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert re.search(r"^## \[(.+?)\]", changelog, re.M).group(1) == mp.__version__  # newest entry first
+    # The newest released entry comes first (an "Unreleased" section may sit above it).
+    assert re.search(r"^## \[(\d[^\]]*)\]", changelog, re.M).group(1) == mp.__version__
 
 
 def test_citation_file_is_complete():

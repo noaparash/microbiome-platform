@@ -27,12 +27,16 @@ from microplatform.core.contract import (
 from microplatform.core.inputs import sort_uploads
 from microplatform.core.preprocessing import CANONICAL
 from microplatform.engines import ENGINES, Engine, EngineResult
+from microplatform.engines.locate import LocateEngine
 from microplatform.reports.figures import Figure
 from microplatform.examples import EXAMPLE_COUNTS
 from microplatform.router.goals import GOALS, get_goal
 
 PACKAGE = Path(microplatform.__file__).parent
 CONVENTIONS = {ID_COLUMN, TAXONOMY_ROW, LABEL_COLUMN, RANK_SEPARATOR}
+# Engines built but not offered yet (their goal is still "planned"): held to the same interface rules.
+PENDING = (LocateEngine(),)
+ALL_ENGINES = (*ENGINES.values(), *PENDING)
 
 
 # --- 1. the conventions are defined in exactly one place ------------------------------
@@ -53,7 +57,7 @@ def test_conventions_are_never_retyped_outside_the_contract():
 
 # --- 2. every engine follows the contract ----------------------------------------------
 
-@pytest.mark.parametrize("engine", ENGINES.values(), ids=lambda e: e.name)
+@pytest.mark.parametrize("engine", ALL_ENGINES, ids=lambda e: e.name)
 def test_engine_declares_a_valid_interface(engine):
     assert isinstance(engine, Engine)
     goal = get_goal(engine.goal)
@@ -76,7 +80,7 @@ def test_only_declared_engines_have_exceptions():
         assert fields and all(values for values in fields.values()), name
 
 
-@pytest.mark.parametrize("engine", ENGINES.values(), ids=lambda e: e.name)
+@pytest.mark.parametrize("engine", ALL_ENGINES, ids=lambda e: e.name)
 def test_engine_consumes_only_the_canonical_dataset(engine):
     hints = typing.get_type_hints(type(engine).run)
     assert hints["data"] is Dataset, "engines must take the shared Dataset, nothing else"
