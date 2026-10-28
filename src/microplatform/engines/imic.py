@@ -217,7 +217,7 @@ def _summary(n_train: int, n_test: int, metrics: dict, coding: dict) -> list[str
     if set(coding.values()) != {"0", "1"}:
         lines.append(f"The two groups were coded 0 = '{coding['0']}' and 1 = '{coding['1']}'.")
     lines.append(f"iMic was trained on {n_train} samples and tested on {n_test} it had not seen "
-                 f"(a {round((1 - TEST_SIZE) * 100)}/{round(TEST_SIZE * 100)} split, seed {SEED}).")
+                 f"({round((1 - TEST_SIZE) * 100)}% for training, {round(TEST_SIZE * 100)}% for testing, seed {SEED}).")
     if np.isnan(metrics["auc"]):
         lines.append("The test samples all belong to one group, so an AUC cannot be computed.")
     else:

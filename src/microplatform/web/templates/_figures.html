@@ -1,16 +1,20 @@
-{# A grid of figures: interactive in the page (PNG fallback), with every download. #}
+{# A grid of figures: interactive in the page (PNG fallback), with every download.
+   The title is a real heading (screen readers can jump to it, and it wraps on phones);
+   the interactive plot drops its own copy of the title. #}
 {% macro figure_grid(run_id, figs) -%}
-<div class="figures" data-plotly="{{ url_for('main.plotly_js') }}">
+<div class="figures{% if figs|length == 1 %} figures-single{% endif %}" data-plotly="{{ url_for('main.plotly_js') }}">
   {% for fig in figs %}
-    <figure class="figure{% if fig.tall %} figure-tall{% endif %}">
-      <div class="plot" data-plot="{{ url_for('main.figure_file', run_id=run_id, name=fig.files.json) }}">
+    <figure class="figure{% if fig.tall %} figure-tall{% endif %}" aria-labelledby="fig-{{ fig.name }}">
+      <h4 class="figure-title" id="fig-{{ fig.name }}">{{ fig.title }}</h4>
+      <div class="plot" data-plot="{{ url_for('main.figure_file', run_id=run_id, name=fig.files.json) }}"
+           data-label="{{ fig.title }}">
         <img src="{{ url_for('main.figure_file', run_id=run_id, name=fig.files.png) }}"
-             alt="{{ fig.title }}" loading="lazy">
+             alt="{{ fig.title }}. {{ fig.caption }}" loading="lazy">
       </div>
       <figcaption>{{ fig.caption }}</figcaption>
       <p class="downloads">Download:
         {% for fmt, label in [("png", "PNG"), ("svg", "SVG"), ("html", "Interactive"), ("csv", "Data (CSV)")] %}
-          <a href="{{ url_for('main.figure_file', run_id=run_id, name=fig.files[fmt], download=1) }}">{{ label }}</a>{% if not loop.last %} ·{% endif %}
+          <a href="{{ url_for('main.figure_file', run_id=run_id, name=fig.files[fmt], download=1) }}">{{ label }}<span class="visually-hidden"> of “{{ fig.title }}”</span></a>{% if not loop.last %} ·{% endif %}
         {% endfor %}
       </p>
     </figure>
@@ -18,12 +22,18 @@
 </div>
 {%- endmacro %}
 
-{# A result table: first rows on the page, the whole table as CSV. #}
-{% macro result_table(table, hide=("taxon",)) -%}
-<div class="table-scroll">
+{# A result table: first rows on the page, the whole table as CSV.
+   Numbers are right-aligned under right-aligned headers; text is left-aligned under left-aligned ones. #}
+{% set COLUMN_NAMES = {"p": "p-value"} %}
+{% macro result_table(table, label, hide=("taxon",)) -%}
+<div class="table-scroll" role="region" aria-label="{{ label }}" tabindex="0">
   <table class="data data-results">
+    <caption class="visually-hidden">{{ label }}</caption>
     <thead><tr>
-      {% for col in table.columns if col not in hide %}<th scope="col">{{ col|replace("_", " ")|capitalize }}</th>{% endfor %}
+      {% for col in table.columns if col not in hide %}
+        <th scope="col"{% if table[col].dtype.kind not in "iuf" %} class="text-col"{% endif %}>
+          {{- COLUMN_NAMES.get(col, col|replace("_", " ")|capitalize) -}}</th>
+      {% endfor %}
     </tr></thead>
     <tbody>
       {% for _, row in table.iterrows() %}

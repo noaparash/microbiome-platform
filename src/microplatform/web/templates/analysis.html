@@ -3,8 +3,10 @@
 {% set meta, profile, record, rec = view.meta, view.profile, view.record, view.recommendation %}
 {% block title %}{% if view.in_progress %}Running… · {% endif %}{{ meta.counts_name }} · Microbiome Platform{% endblock %}
 {% block head_extra %}
-  {# While the run is in the background, the page checks again every few seconds (no JavaScript needed). #}
-  {% if view.in_progress %}<meta http-equiv="refresh" content="4">{% endif %}
+  {# While the run is in the background, app.js checks quietly every few seconds and reloads only when
+     the status changes (a full refresh would make screen readers start the page again). Without
+     JavaScript, the page refreshes itself. #}
+  {% if view.in_progress %}<noscript><meta http-equiv="refresh" content="4"></noscript>{% endif %}
 {% endblock %}
 {% block content %}
 <nav class="crumbs"><a href="{{ url_for('main.index') }}">← New analysis</a></nav>
@@ -20,6 +22,12 @@
 {# ── Step 2: Data check ─────────────────────────────────────────────── #}
 <section class="card" id="check" aria-labelledby="check-heading">
   <h2 id="check-heading"><span class="step-label">Step 2</span> Data check</h2>
+  {# Once results are shown, the data check folds away so the results come first; problems stay visible. #}
+  {% if view.show_results %}
+  <details class="check-details">
+    <summary>{{ profile.n_samples }} samples · {{ profile.n_taxa }} taxa{% if view.labels %} · labels{% endif %}
+      <span class="muted">— show the full data check</span></summary>
+  {% endif %}
   <dl class="stats">
     <div><dt>Samples</dt><dd>{{ profile.n_samples }}</dd></div>
     <div><dt>Taxa</dt><dd>{{ profile.n_taxa }}</dd></div>
@@ -33,6 +41,7 @@
     {% if view.labels %}{% for line in view.labels.summary() %}<li>{{ line }}</li>{% endfor %}
     {% else %}<li>No labels file, so only tasks that need just the counts can run.</li>{% endif %}
   </ul>
+  {% if view.show_results %}</details>{% endif %}
 
   {% if view.issues %}
     <ul class="issues">
@@ -154,13 +163,13 @@
 
 {# ── Step 4 in progress: running in the background ─────────────────────── #}
 {% if view.in_progress %}
-<section class="card running" id="results" aria-labelledby="running-heading" aria-live="polite">
+<section class="card running" id="results" aria-labelledby="running-heading" data-status="{{ view.status }}">
   <div class="running-head">
     <span class="spinner" aria-hidden="true"></span>
     <div>
       <h2 id="running-heading"><span class="step-label">Step 4</span>
-        {{ "Running" if view.status == "running" else "Waiting to start" }}…</h2>
-      <p class="muted">{% set goal = view.goals | selectattr("goal.id", "equalto", meta.goal) | first %}
+        <span role="status">{{ "Running" if view.status == "running" else "Waiting to start" }}…</span></h2>
+      <p class="muted" data-elapsed>{% set goal = view.goals | selectattr("goal.id", "equalto", meta.goal) | first %}
         {{ goal.goal.title if goal else meta.goal }}{% if view.elapsed_seconds is not none %} ·
         {{ view.elapsed_seconds // 60 }} min {{ view.elapsed_seconds % 60 }} s so far{% endif %}</p>
     </div>
@@ -200,7 +209,7 @@
       {% set shown = view.tables.get(engine.highlight[0]) %}
       {% if shown is not none and shown|length %}
         <h3>{{ engine.highlight[1] }}</h3>
-        {{ result_table(shown) }}
+        {{ result_table(shown, engine.highlight[1]) }}
       {% endif %}
     {% endif %}
     <p class="downloads table-downloads">Full tables (CSV):
@@ -230,8 +239,9 @@
     <a class="btn btn-secondary" href="{{ url_for('main.download', run_id=view.run.id) }}" download>Table (CSV)</a>
   </div>
   {% set preview = view.preview %}
-  <div class="table-scroll">
+  <div class="table-scroll" role="region" aria-label="Processed table (first rows)" tabindex="0">
     <table class="data">
+      <caption class="visually-hidden">Processed table, first rows and columns</caption>
       <thead><tr><th scope="col">Sample</th>
         {% for col in preview.columns[:6] %}<th scope="col" title="{{ col }}">{{ col|short_taxon }}</th>{% endfor %}
         {% if preview.columns|length > 6 %}<th scope="col" class="muted">+{{ preview.columns|length - 6 }} more</th>{% endif %}

@@ -96,7 +96,7 @@ class GimicEngine(Engine):
             figures.append(_separation_figure(separation))
 
         return EngineResult(
-            highlight=("group_distances", "Distances within and between groups") if separation is not None else None,
+            highlight=("group_distances", "Average distances, in numbers") if separation is not None else None,
             summary=_summary(dm, choices["grouping"], separation, coords is not None),
             figures=figures,
             tables=tables,

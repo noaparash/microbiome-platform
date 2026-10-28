@@ -221,7 +221,7 @@ def profile_counts(raw: pd.DataFrame) -> CountsProfile:
         name, top = max(deep, key=lambda d: d[1])
         issues.append(Issue(
             "warning",
-            f"{len(deep)} sample(s) have over {DEPTH_OUTLIER}× the median sequencing depth "
+            f"{len(deep)} {'sample has' if len(deep) == 1 else 'samples have'} over {DEPTH_OUTLIER}× the median sequencing depth "
             f"(e.g. '{name}': {top:,.0f} reads vs a median of {median:,.0f}).",
             "Check them for contamination or a sequencing error. Preprocessing uses log of raw "
             "counts, so unusually deep samples stand out in every analysis.",

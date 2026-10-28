@@ -26,6 +26,9 @@
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
   --gap: 1.5rem; /* vertical rhythm between blocks, on every page */
+  /* Chart colours, in the order of app.js PLOT_COLORS (= reports/figures.py ACCENT, CONTRAST, MARKER, rest of PALETTE). */
+  --plot-1: #0f766e; --plot-2: #b45309; --plot-3: #b42318; --plot-4: #6d28d9;
+  --plot-5: #0369a1; --plot-6: #be185d; --plot-7: #4d7c0f; --plot-8: #57534e;
   color-scheme: light;
 }
 
@@ -47,6 +50,8 @@
     --warning-soft: #3a2e14;
     --shadow: none;
     --shadow-hover: 0 0 0 1px var(--accent);
+    --plot-1: #3ec9bf; --plot-2: #f59e4b; --plot-3: #ff8a80; --plot-4: #a78bfa;
+    --plot-5: #38bdf8; --plot-6: #f472b6; --plot-7: #a3e635; --plot-8: #a8a29e;
     color-scheme: dark;
   }
 }
@@ -68,6 +73,8 @@
   --warning-soft: #3a2e14;
   --shadow: none;
   --shadow-hover: 0 0 0 1px var(--accent);
+  --plot-1: #3ec9bf; --plot-2: #f59e4b; --plot-3: #ff8a80; --plot-4: #a78bfa;
+  --plot-5: #38bdf8; --plot-6: #f472b6; --plot-7: #a3e635; --plot-8: #a8a29e;
   color-scheme: dark;
 }
 
@@ -333,7 +340,9 @@ code, pre { font-family: var(--mono); font-size: 0.875em; }
 /* ── Results ─────────────────────────────────────────────────────────── */
 .results-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
 .figures { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); }
+.figures-single:not(:has(.figure-tall)) { max-width: 640px; } /* one small chart should not fill the page */
 .figure { margin: 0; border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem; background: var(--surface); }
+.figure-title { margin: 0 0 0.4rem; font-size: 0.95rem; font-weight: 600; color: var(--text); }
 .plot { aspect-ratio: 7 / 4; width: 100%; }
 .plot img { width: 100%; height: 100%; object-fit: contain; border-radius: 6px; background: #fff; }
 .figure figcaption { color: var(--muted); font-size: 0.875rem; margin-top: 0.5rem; }
@@ -344,16 +353,22 @@ code, pre { font-family: var(--mono); font-size: 0.875em; }
 .subhead { margin: 1.5rem 0 0.75rem; }
 .subhead h3 { margin: 0; }
 .table-downloads { margin-top: 0.6rem; }
-.data-results td.text-cell { text-align: left; white-space: normal; min-width: 8rem; }
+.data-results td.text-cell { text-align: left; white-space: normal; min-width: 5rem; }
 .downloads { font-size: 0.875rem; margin: 0.4rem 0 0; }
 
 .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+.table-scroll:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; } /* scrollable by keyboard */
+.data th.text-col { text-align: left; }
 .data { border-collapse: collapse; width: 100%; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
 .data th, .data td { padding: 0.5rem 0.75rem; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
 .data thead th { background: var(--surface-2); font-weight: 600; max-width: 12rem; overflow: hidden; text-overflow: ellipsis; }
 .data th[scope="row"], .data thead th:first-child { text-align: left; }
 .data tbody tr:last-child > * { border-bottom: 0; }
 
+.check-details summary { cursor: pointer; font-weight: 600; }
+.check-details summary:hover { color: var(--accent-strong); }
+.check-details[open] summary { margin-bottom: 0.25rem; }
+summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .record { margin-top: 1.5rem; }
 .record summary { cursor: pointer; font-weight: 600; }
 .record summary:hover { color: var(--accent-strong); }

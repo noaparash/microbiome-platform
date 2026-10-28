@@ -48,6 +48,10 @@ MARKER = "#b42318"
 # Groups beyond two: distinct hues that stay apart for common colour blindness.
 PALETTE = (ACCENT, CONTRAST, "#6d28d9", "#0369a1", "#be185d", "#4d7c0f", "#57534e")
 
+# Interactive files: plotly.js shows a "Share chart" button by default, which uploads the
+# plot's data to Chart Studio online. Uploads may be clinical, so it is always off.
+PLOTLY_CONFIG = {"displaylogo": False, "showSendToCloud": False, "responsive": True}
+
 Kind = Literal["bar", "histogram", "barh", "column", "scatter", "line"]
 Section = Literal["quality", "findings"]
 
@@ -147,7 +151,8 @@ def export(figures: list[Figure], out_dir: Path) -> list[ExportedFigure]:
         fig.data.to_csv(out_dir / f"{fig.name}.csv", index=False)
         _write_static(fig, out_dir)
         interactive = to_plotly(fig)
-        interactive.write_html(out_dir / f"{fig.name}.html", include_plotlyjs=True, full_html=True)
+        interactive.write_html(out_dir / f"{fig.name}.html", include_plotlyjs=True, full_html=True,
+                               config=PLOTLY_CONFIG)
         (out_dir / f"{fig.name}.json").write_text(interactive.to_json(), encoding="utf-8")
         exported.append(ExportedFigure(
             fig.name, fig.title, fig.caption, {f: f"{fig.name}.{f}" for f in (*FORMATS, "json")},
@@ -222,7 +227,8 @@ def _write_static(fig: Figure, out_dir: Path) -> None:
         if fig.marker:
             ax.axvline(fig.marker[0], color=MARKER, linestyle="--", linewidth=1)
             ax.annotate(fig.marker[1], (fig.marker[0], 1), xycoords=("data", "axes fraction"),
-                        xytext=(4, -4), textcoords="offset points", va="top", color=MARKER)
+                        xytext=(4, -4), textcoords="offset points", va="top", color=MARKER,
+                        bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.85, "pad": 1.5})
         if fig.hline:
             ax.axhline(fig.hline[0], color=MARKER, linestyle="--", linewidth=1)
             ax.annotate(fig.hline[1], (0, fig.hline[0]), xycoords=("axes fraction", "data"),
@@ -275,8 +281,10 @@ def to_plotly(fig: Figure) -> go.Figure:
         out.add_trace(go.Bar(x=fig.data[fig.x].astype(str), y=fig.data[fig.y], marker_color=ACCENT,
                              hovertemplate=fig.hover))
     if fig.marker:
+        # A light box behind the label keeps it readable where it crosses a bar.
         out.add_vline(x=fig.marker[0], line_dash="dash", line_color=MARKER,
-                      annotation_text=fig.marker[1], annotation_font_color=MARKER)
+                      annotation_text=fig.marker[1], annotation_font_color=MARKER,
+                      annotation_bgcolor="rgba(255,255,255,0.85)")
     if fig.hline:
         out.add_hline(y=fig.hline[0], line_dash="dash", line_color=MARKER, annotation_position="top left",
                       annotation_text=fig.hline[1], annotation_font_color=MARKER)
