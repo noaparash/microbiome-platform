@@ -9,12 +9,17 @@ All notable changes to `microplatform`. The format follows
 ## [Unreleased]
 
 ### Added
-- LOCATE's adapter, not enabled yet (`engines/locate.py`, `core/metabolites.py`):
-  metabolite-table checks, the paper's metabolite preparation (relative → log →
-  z-score; log base and pseudocount provisional), and a runner that executes
-  the authors' unchanged LOCATE in its own Python 3.10 environment
-  (`MICROPLATFORM_LOCATE_PYTHON`). Its reproduction test waits for that
-  environment and a real paired dataset.
+- `locate_lightning2`: LOCATE (LOCATE-model 0.0.3) converted to Lightning 2, so it
+  runs natively on Python 3.13. Six marked changes, listed in its CHANGES.md; the
+  model's logic is unchanged. Validated against the original in a Python 3.10
+  reference environment (`validation/locate/`): with the original's one source of
+  run-to-run noise removed in both, the conversion is **bit-identical** (V1′). The
+  product-vs-original check (V2) awaits an approved rule.
+- LOCATE's engine, not enabled yet (`engines/locate.py`, `core/metabolites.py`):
+  metabolite-table checks and the paper's metabolite preparation (relative → log →
+  z-score; log base and pseudocount provisional). It runs `locate_lightning2`
+  in-process.
+- Dependency: `pytorch-lightning>=2.2,<3` (already installed with MIPMLP).
 
 ## [0.2.0] — 2026-10-28
 

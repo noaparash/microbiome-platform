@@ -6,9 +6,6 @@ proves the adapter feeds the original tool faithfully (see docs/tool-inputs.he.m
 Every new engine must add its test here.
 """
 
-import dataclasses
-import os
-import subprocess
 import warnings
 from pathlib import Path
 
@@ -242,62 +239,19 @@ def test_imic_two_runs_with_the_same_seed_agree(imic_ours, tmp_path):
 
 
 # --- LOCATE ------------------------------------------------------------------------------------
-# Waits for two things the lab provides (see docs/tool-inputs.he.md, LOCATE):
-#   1. LOCATE's own environment, named by MICROPLATFORM_LOCATE_PYTHON;
-#   2. a real paired dataset in tests/data/locate_example/: counts.csv (our counts format) and
-#      metabolites.csv (same sample IDs), plus, from the authors' own run on it,
-#      reference_scores.csv (metabolite, spearman) for the same split.
-# Standard (proposed 2026-10-28, to be confirmed before the first run, as for iMic):
-#   - same environment, same seed, same inputs: predictions equal within 1e-6 (CSV round trip is
-#     exact, so any larger difference is a real one); the split's test samples identical;
-#   - against the authors' reference: per-metabolite Spearman within a tolerance agreed with them.
-LOCATE_EXAMPLE = Path(__file__).parent / "data" / "locate_example"
-LOCATE_PREDICTION_TOLERANCE = 1e-6
-
-AUTHORS_USAGE = """
-import sys, random, numpy as np, pandas as pd, torch, pytorch_lightning as pl
-from LOCATE import LOCATE_training, LOCATE_predict
-random.seed(42); np.random.seed(42); torch.manual_seed(42); pl.seed_everything(42)
-read = lambda n: pd.read_csv(n + ".csv", index_col=0, float_precision="round_trip")
-X_train, Y_train, X_val, Y_val = (read(n) for n in ("X_train", "Y_train", "X_val", "Y_val"))
-model = LOCATE_training(X_train, Y_train, X_val, Y_val)       # as in the authors' usage_example.py
-Z_val, n_pred = LOCATE_predict(model, X_val, Y_val.columns)
-n_pred.index = X_val.index
-n_pred.to_csv("theirs_pred_val.csv")
-"""
-
-
-def _locate_missing() -> list[str]:
-    python = os.environ.get("MICROPLATFORM_LOCATE_PYTHON", "")
-    needs = {"LOCATE's environment (MICROPLATFORM_LOCATE_PYTHON)": bool(python) and Path(python).is_file(),
-             "the paired dataset (tests/data/locate_example/)": (LOCATE_EXAMPLE / "metabolites.csv").exists()}
-    return [what for what, ok in needs.items() if not ok]
+# The product runs locate_lightning2 (the authors' LOCATE converted to Lightning 2). Its faithfulness
+# to the original is established in validation/locate/ against the original LOCATE in a Python 3.10
+# reference environment (never shipped): PROTOCOL.md (fixed in advance, with Amendment 1) and RESULTS.md.
+#   V1': the conversion is exact against the original when both use a repeatable lstsq (test only).
+#   V2:  the product (Python 3.13) against the original: its rule awaits the project owner's approval,
+#        then runs on new seeds; once it passes, the reference outputs it used are saved in
+#        tests/data/locate_reference/ and this test re-checks the product against them on every run.
+#   V3:  against the authors' own results on a real paired dataset (requested from the lab).
+LOCATE_REFERENCE = Path(__file__).parent / "data" / "locate_reference"
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(bool(_locate_missing()), reason="LOCATE reproduction needs: " + "; ".join(_locate_missing()))
-def test_locate_matches_the_authors_usage(tmp_path):
-    from microplatform.core.profiler import read_table
-    from microplatform.engines.locate import LocateEngine
-
-    inputs = sort_uploads([("counts.csv", (LOCATE_EXAMPLE / "counts.csv").read_bytes())])
-    run = workflows.start_run(tmp_path / "runs", inputs)
-    data, _ = workflows.build_dataset(run, LocateEngine.preprocessing, tmp_path / "cache", engine="LOCATE")
-    metabolites = read_table(LOCATE_EXAMPLE / "metabolites.csv", index_col=0)
-    metabolites.index = metabolites.index.astype(str)
-    paired = metabolites.loc[metabolites.index.isin(data.features.index)]
-    data = dataclasses.replace(data, metabolites=paired).validate()
-
-    work = tmp_path / "work"
-    ours = LocateEngine().run(data, work)
-    subprocess.run([os.environ["MICROPLATFORM_LOCATE_PYTHON"], "-s", "-c", AUTHORS_USAGE], cwd=work, check=True,
-                   capture_output=True, timeout=6 * 3600)
-    theirs = pd.read_csv(work / "theirs_pred_val.csv", index_col=0, float_precision="round_trip")
-    mine = ours.tables["predicted_metabolites_test"].set_index("sample")
-    theirs.index = theirs.index.astype(str)
-    assert list(mine.index) == list(theirs.index)
-    assert (mine - theirs).abs().max().max() <= LOCATE_PREDICTION_TOLERANCE
-
-    reference = LOCATE_EXAMPLE / "reference_scores.csv"
-    if reference.exists():  # the authors' own numbers on this dataset; tolerance to be agreed with them
-        pytest.fail("Set the agreed tolerance for the authors' reference scores before using them.")
+@pytest.mark.skipif(not (LOCATE_REFERENCE / "RULE.md").exists(),
+                    reason="LOCATE: the product-vs-original rule (V2) awaits approval; see validation/locate/")
+def test_locate_product_matches_the_saved_original_reference():
+    pytest.fail("Implement with the approved V2 rule (tests/data/locate_reference/RULE.md).")

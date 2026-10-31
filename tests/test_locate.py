@@ -1,58 +1,27 @@
-"""LOCATE's adapter: metabolite checks and preparation, and the engine's round trip through a
-separate interpreter. The real LOCATE needs its own environment (not installed here), so these
-tests run the same runner against a small stand-in package with the authors' two function
-signatures. The reproduction test against the real tool is in test_reproduction.py."""
+"""LOCATE: the Lightning-2 conversion (locate_lightning2), metabolite checks and preparation, and the
+engine. Faithfulness to the original is checked separately, against the original LOCATE in its own
+Python 3.10 environment (validation/locate/: PROTOCOL.md, RESULTS.md)."""
 
 import ast
+import contextlib
 import dataclasses
 import inspect
-import sys
-import textwrap
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
+import locate_lightning2
 from microplatform import workflows
 from microplatform.core.contract import Dataset, check_settings
 from microplatform.core.metabolites import (LOCATE_METABOLITES, MIN_PAIRED, prepare_metabolites,
                                             profile_metabolites)
 from microplatform.engines import ENGINES
-from microplatform.engines.locate import PYTHON_SETTING, RUNNER, LocateBackend, LocateEngine, LocateUnavailable
+from microplatform.engines.locate import LocateEngine, fit_and_predict
 from microplatform.router.goals import get_goal
 
-# A stand-in for the LOCATE package: the authors' two functions, same signatures and return
-# shapes (LOCATE_predict returns predictions WITHOUT sample IDs), fitted by least squares on the
-# first 10 features (the synthetic metabolites below depend only on those).
-FAKE_LOCATE = '''
-import numpy as np
-import pandas as pd
-
-class Model:
-    training = True
-    def __init__(self, weights):
-        self.weights = weights
-
-def LOCATE_training(X_train, Y_train, X_val, Y_val, representation_size=10, weight_decay_rep=0.02,
-                    weight_decay_dis=0.2, lr_rep=0.001, lr_dis=0.01, rep_coef=1.0, dis_coef=0.0,
-                    activation_rep="elu", activation_dis="elu", neurons=20, neurons2=10, dropout=0.08):
-    weights, *_ = np.linalg.lstsq(X_train.to_numpy()[:, :10], Y_train.to_numpy(), rcond=None)
-    return Model(weights)
-
-def LOCATE_predict(model, X_val, metab_names):
-    pred = X_val.to_numpy()[:, :10] @ model.weights
-    Z_val = pd.DataFrame(pred[:, :3], index=X_val.index)
-    return Z_val, pd.DataFrame(pred, columns=metab_names)
-'''
-
-
-@pytest.fixture(scope="module")
-def fake_locate(tmp_path_factory):
-    folder = tmp_path_factory.mktemp("fake_locate")
-    (folder / "LOCATE").mkdir()
-    (folder / "LOCATE" / "__init__.py").write_text(textwrap.dedent(FAKE_LOCATE), encoding="utf-8")
-    return LocateBackend(sys.executable, extra_paths=(str(folder),))
+PORT = Path(locate_lightning2.__file__).parent
 
 
 @pytest.fixture(scope="module")
@@ -62,11 +31,37 @@ def dataset(tmp_path_factory):
     run = workflows.start_example_run(tmp / "runs")
     data, _ = workflows.build_dataset(run, LocateEngine.preprocessing, tmp / "cache", engine="LOCATE")
     rng = np.random.default_rng(0)
-    weights = rng.normal(size=(10, 12))
-    levels = np.exp(data.features.to_numpy()[:, :10] @ weights)  # positive, like concentrations
+    levels = np.exp(data.features.to_numpy()[:, :10] @ rng.normal(size=(10, 12)))  # positive, like concentrations
     metabolites = pd.DataFrame(levels, index=data.features.index, columns=[f"m{i}" for i in range(12)])
     metabolites["never_detected"] = 0.0  # constant after preparation: left out
     return dataclasses.replace(data, metabolites=metabolites).validate()
+
+
+# --- the conversion -------------------------------------------------------------------------------
+
+def test_the_conversion_keeps_the_authors_interface():
+    assert {"LOCATE_Model", "LOCATE_training", "LOCATE_predict"} <= set(locate_lightning2.__all__)
+    signature = inspect.signature(locate_lightning2.LOCATE_training)
+    defaults = {k: p.default for k, p in signature.parameters.items() if p.default is not inspect.Parameter.empty}
+    assert defaults == {  # LOCATE-model 0.0.3's defaults, unchanged
+        "representation_size": 10, "weight_decay_rep": 0.02, "weight_decay_dis": 0.2, "lr_rep": 0.001,
+        "lr_dis": 0.01, "rep_coef": 1.0, "dis_coef": 0.0, "activation_rep": "elu", "activation_dis": "elu",
+        "neurons": 20, "neurons2": 10, "dropout": 0.08}
+    assert locate_lightning2.BASED_ON == "LOCATE-model 0.0.3"
+    assert (PORT / "LICENSE.txt").exists() and (PORT / "CHANGES.md").exists()
+
+
+def test_the_conversion_stands_alone_and_marks_every_change():
+    """It must not import microplatform (it is also tested in a separate Python 3.10 environment)."""
+    for path in PORT.glob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        imported = [a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names]
+        imported += [n.module or "" for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)]
+        assert not any(name.startswith("microplatform") for name in imported), path.name
+    model = (PORT / "LOCATE_model.py").read_text(encoding="utf-8")
+    functions = (PORT / "LOCATE_functions.py").read_text(encoding="utf-8")
+    assert model.count("[lightning2]") == 3 and functions.count("[lightning2]") == 3  # CHANGES.md lists 6
+    assert "self.automatic_optimization = False" in model
 
 
 # --- the engine follows the contract ------------------------------------------------------------
@@ -77,55 +72,39 @@ def test_locate_engine_follows_the_contract():
     check_settings(engine.preprocessing, engine.name)  # z-scoring per feature is an allowed variation
     assert engine.preprocessing.z_scoring == "col" and engine.preprocessing.taxonomy_group == "sub PCA"
     assert inspect.get_annotations(LocateEngine.run, eval_str=True)["data"] is Dataset
-    # Not offered to users until its environment exists and its reproduction test passes.
+    # Not offered to users until it is validated against the original (validation/locate/).
     assert get_goal("metabolites").status == "planned" and "metabolites" not in ENGINES
 
 
-def test_the_runner_runs_on_locates_old_python():
-    """The runner executes in LOCATE's Python 3.7-3.10 environment: no newer syntax, no microplatform."""
-    source = RUNNER.read_text(encoding="utf-8")
-    ast.parse(source, feature_version=(3, 7))
-    assert "microplatform" not in "".join(
-        line for line in source.splitlines() if line.lstrip().startswith(("import", "from")))
-
-
-# --- the round trip through LOCATE's own interpreter -------------------------------------------
-
-def test_engine_round_trip(dataset, fake_locate, tmp_path):
-    result = LocateEngine(fake_locate).run(dataset, tmp_path / "work")
+def test_engine_runs_the_converted_locate(dataset, tmp_path):
+    result = LocateEngine().run(dataset, tmp_path / "work")
     scores = result.tables["metabolite_scores"]
     assert len(scores) == 12 and "never_detected" not in set(scores["metabolite"])
-    # Predictions come back without sample IDs; if they were re-attached wrongly, the
-    # correlations would be near 0. The stand-in fits these metabolites almost perfectly.
-    assert scores["spearman"].median() > 0.8
     test_rows = result.tables["predicted_metabolites_test"]
     assert len(test_rows) == 8 and test_rows["sample"].isin(dataset.features.index).all()
     latent = result.tables["latent_representation"]
-    assert len(latent) == 40 and list(latent.columns[:3]) == ["sample", "set", "z1"]
-    assert (latent["set"] == "test").sum() == 8
-
+    assert len(latent) == 40 and list(latent.columns[:3]) == ["sample", "set", "z1"] and latent.shape[1] == 12
     record = result.record
-    assert record["tool"] == "LOCATE" and record["seed"] == 42 and record["test_size"] == 0.2
-    assert record["environment"]["python"] == ".".join(map(str, sys.version_info[:3]))
-    assert record["hyperparameters"]["dropout"] == 0.08  # the authors' defaults, read in their environment
-    assert record["metabolites"]["left_out_constant"] == 1
-    assert record["metabolites"]["settings"]["confirmed"] is False
+    assert record["package"] == "locate_lightning2" and record["based_on"] == "LOCATE-model 0.0.3"
+    assert record["seed"] == 42 and record["epochs"] > 0
+    assert record["metabolites"]["left_out_constant"] == 1 and not record["metabolites"]["settings"]["confirmed"]
     assert any("provisional" in line for line in result.summary)
     assert [f.name for f in result.figures] == ["locate_metabolite_scores"]
-    assert (tmp_path / "work" / "locate.log").exists()
+    assert (tmp_path / "work" / "lightning_logs").exists()  # the tool's own files stay in the work folder
 
 
-def test_without_locates_environment_it_says_what_to_do(dataset, tmp_path, monkeypatch):
-    monkeypatch.delenv(PYTHON_SETTING, raising=False)
-    with pytest.raises(LocateUnavailable) as error:
-        LocateEngine().run(dataset, tmp_path)
-    assert PYTHON_SETTING in error.value.fix
-
-
-def test_a_failing_tool_reports_its_error(dataset, tmp_path):
-    broken = LocateBackend(sys.executable, extra_paths=(str(tmp_path / "nowhere"),))
-    with pytest.raises(RuntimeError, match="LOCATE failed"):
-        LocateEngine(broken).run(dataset, tmp_path / "work")
+def test_the_product_is_repeatable(dataset, tmp_path):
+    """Unlike the original on torch 1.13 (validation/locate, Amendment 1), the same seed gives the same result."""
+    X = dataset.features.iloc[:, :20]
+    Y, _ = prepare_metabolites(dataset.metabolites)
+    runs = []
+    for i in range(2):
+        folder = tmp_path / str(i)
+        folder.mkdir()
+        with contextlib.chdir(folder):
+            runs.append(fit_and_predict(X.iloc[:32], Y.iloc[:32], X.iloc[32:], Y.iloc[32:], seed=0))
+    assert runs[0]["epochs"] == runs[1]["epochs"]
+    pd.testing.assert_frame_equal(runs[0]["pred_val"], runs[1]["pred_val"], check_exact=True)
 
 
 # --- metabolite tables ----------------------------------------------------------------------

@@ -99,3 +99,27 @@ measured (environment A as published, two more runs per example and seed) and re
 next to C, for information only; (2) a revised V2 rule is **proposed to the project
 owner** and, once approved, run on **new seeds (10-19)** that nobody has seen. Until
 then V2 is "not passed" and LOCATE stays hidden.
+
+### Results under Amendment 1 (see RESULTS.md)
+
+- **V1′: PASS, exactly.** With the test-only repeatable lstsq in both, A and B gave
+  bit-identical predictions and Z (difference 0) and stopped at the same epoch, in all 10
+  runs. Step-by-step traces (`trace_steps.py`, `diff_traces.py`) also matched for every
+  forward pass, gradient, parameter update and random-number state (320 events on E1,
+  1,490 on E2). The only difference: the original also calls the discriminator's
+  `Adam.step` with no gradients, which never changes anything; the conversion skips it.
+- **V2: not passed** (no approved rule yet). Information only: on E2 the original
+  differs from itself by 0.03 in mean Spearman across three runs of the same seed.
+
+### Proposed rule for V2 (NOT approved, NOT run; for the project owner)
+
+V1′ shows the conversion is exact, so A vs C now measures only the library upgrade
+(torch 1.13 → 2.14 and the rest). That cannot be bit-exact (the original is not even
+repeatable on its own torch), so the proposal compares **prediction quality**:
+- data: E2-type structured data (E1 is random numbers: nothing to predict, so it is
+  reported but not judged);
+- **new seeds 10-29** (20 seeds; nobody has seen them); A as published, C as shipped;
+- per seed, d = mean test Spearman(C) − mean test Spearman(A);
+- **pass** if the 90% confidence interval of the mean of d lies within **±0.02**
+  (a standard equivalence test, TOST). The margin, 0.02, is below the original's own
+  run-to-run spread on E2 (0.03).
