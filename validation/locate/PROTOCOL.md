@@ -64,3 +64,38 @@ comes from the conversion (V1 would fail) or from the library versions (V1 passe
 **Decision:** LOCATE stays hidden ("Planned") and no faithfulness claim is made
 unless V2 passes. A later check, V3, compares C with the authors' own LOCATE results
 on a real paired dataset, with a tolerance agreed with them.
+
+---
+
+## Amendment 1 (2026-10-31, after run 1 failed; written before any run under it)
+
+**What run 1 showed** (RESULTS-run1.md): V1 and V2 both failed as written. Diagnosis,
+using environment A only:
+- the **original LOCATE is not repeatable against itself**: environment A, the same
+  seed and data, run twice, gave the same epochs on E1 but differences up to 3e-4, and
+  on E2 stopped at epoch 343 once and 279 the next time (differences up to 2.2).
+  Single-threading and MKL_CBWR=COMPATIBLE did not remove it;
+- the cause is `torch.linalg.lstsq` in torch 1.13 with its default driver (gelsy): the
+  same input, called 200 times, gives 2-3 different answers that differ in the last
+  digit (1.5e-7). LOCATE calls it at every training step, and hundreds of epochs plus
+  early stopping magnify that. Its other drivers (gels, gelsd, gelss) give one answer.
+  In torch 2.14 (environment C) the default driver gave one answer in 200 calls.
+
+So V1's premise (the same environment and seed give identical results) is false for
+the original code, and V1 as written cannot be passed even by the original against
+itself.
+
+**V1′, the conversion, exact (replaces V1).** For this check only, A and B both make
+`lstsq` repeatable in the same way: `torch.linalg.lstsq(..., driver="gels")`, injected
+by `run_locate.py --gels` (test only, never in the product). Then A and B differ only
+in Lightning and the conversion. Precondition: A with `--gels`, run twice, must give
+identical results; otherwise V1′ cannot be done. Check and tolerance are **V1's,
+unchanged**: for every example and seed, the same number of epochs, and max |difference|
+≤ 1e-6 in predictions and Z.
+
+**V2, the product.** Run 1's numbers for C are already known, so a new pass rule chosen
+now could be biased by them. Therefore: (1) the original's own run-to-run spread is
+measured (environment A as published, two more runs per example and seed) and reported
+next to C, for information only; (2) a revised V2 rule is **proposed to the project
+owner** and, once approved, run on **new seeds (10-19)** that nobody has seen. Until
+then V2 is "not passed" and LOCATE stays hidden.
