@@ -123,3 +123,20 @@ repeatable on its own torch), so the proposal compares **prediction quality**:
 - **pass** if the 90% confidence interval of the mean of d lies within **±0.02**
   (a standard equivalence test, TOST). The margin, 0.02, is below the original's own
   run-to-run spread on E2 (0.03).
+
+### V2 rule: APPROVED by the project owner (2026-10-31), recorded before running
+
+The proposed rule above is approved as written:
+- data: E2 (the structured example); seeds **10-29** (20 seeds, new); A = the original as
+  published (default lstsq, no test-only changes), C = the product as shipped;
+- per seed, d = mean test Spearman(C) − mean test Spearman(A), where mean test Spearman is the
+  mean over the 30 metabolites of Spearman(predicted, measured Y_val);
+- 90% confidence interval of the mean of d: mean ± t(0.95, df = 19) × SD / √20, with
+  t(0.95, 19) = 1.729;
+- **PASS** if the whole interval lies within **[−0.02, +0.02]**.
+
+Owner's addition, also fixed before running: report the direction and size of the
+difference, per seed and overall. The difference is called **systematically lower** if the
+whole 90% interval lies below 0, and **systematically higher** if it lies above 0;
+otherwise **no systematic direction**. If it is systematically lower, record it in the
+docs and flag it for the LOCATE authors, whether or not V2 passes.
