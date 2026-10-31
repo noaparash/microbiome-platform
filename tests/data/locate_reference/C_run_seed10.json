@@ -1,0 +1,12 @@
+{
+ "impl": "lightning2",
+ "seed": 10,
+ "lstsq": "default",
+ "epochs": 160,
+ "mode_at_prediction": "training",
+ "python": "3.13.3",
+ "torch": "2.14.1+cpu",
+ "lightning": "2.6.6",
+ "numpy": "2.5.4",
+ "pandas": "2.3.3"
+}

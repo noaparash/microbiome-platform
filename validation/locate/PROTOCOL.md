@@ -140,3 +140,11 @@ difference, per seed and overall. The difference is called **systematically lowe
 whole 90% interval lies below 0, and **systematically higher** if it lies above 0;
 otherwise **no systematic direction**. If it is systematically lower, record it in the
 docs and flag it for the LOCATE authors, whether or not V2 passes.
+
+### V2 result (approved rule; RESULTS-V2.md)
+
+**PASS.** Mean d (C − A) = −0.0013; 90% confidence interval [−0.0193, +0.0168], within
+±0.02. Direction: **no systematic direction** (C lower in 11 of 20 seeds, higher in 9;
+the interval contains 0). The pass is narrow at the lower end (−0.0193). Per-seed
+differences reach ±0.10 in both directions, the same run-to-run sensitivity the original
+shows against itself. Nothing to flag for the authors on direction.

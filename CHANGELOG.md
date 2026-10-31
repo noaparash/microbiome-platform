@@ -14,7 +14,10 @@ All notable changes to `microplatform`. The format follows
   model's logic is unchanged. Validated against the original in a Python 3.10
   reference environment (`validation/locate/`): with the original's one source of
   run-to-run noise removed in both, the conversion is **bit-identical** (V1′). The
-  product-vs-original check (V2) awaits an approved rule.
+  Python 3.13 product is equivalent to the original under the approved rule (V2:
+  mean difference in test Spearman −0.0013, 90% CI [−0.0193, +0.0168] within ±0.02,
+  no systematic direction). The check against the authors' own results on a real
+  dataset (V3) is still to come.
 - LOCATE's engine, not enabled yet (`engines/locate.py`, `core/metabolites.py`):
   metabolite-table checks and the paper's metabolite preparation (relative → log →
   z-score; log base and pseudocount provisional). It runs `locate_lightning2`

@@ -10,6 +10,7 @@ import warnings
 from pathlib import Path
 
 import MIPMLP
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -240,18 +241,39 @@ def test_imic_two_runs_with_the_same_seed_agree(imic_ours, tmp_path):
 
 # --- LOCATE ------------------------------------------------------------------------------------
 # The product runs locate_lightning2 (the authors' LOCATE converted to Lightning 2). Its faithfulness
-# to the original is established in validation/locate/ against the original LOCATE in a Python 3.10
-# reference environment (never shipped): PROTOCOL.md (fixed in advance, with Amendment 1) and RESULTS.md.
-#   V1': the conversion is exact against the original when both use a repeatable lstsq (test only).
-#   V2:  the product (Python 3.13) against the original: its rule awaits the project owner's approval,
-#        then runs on new seeds; once it passes, the reference outputs it used are saved in
-#        tests/data/locate_reference/ and this test re-checks the product against them on every run.
-#   V3:  against the authors' own results on a real paired dataset (requested from the lab).
+# to the original was established in validation/locate/ against the original LOCATE in a Python 3.10
+# reference environment (never shipped): PROTOCOL.md (fixed in advance, with Amendment 1),
+# RESULTS.md (V1': the conversion is bit-identical) and RESULTS-V2.md (V2: the product passes the
+# approved equivalence rule). The evidence is saved in tests/data/locate_reference/ (RULE.md).
+# Still to come, V3: against the authors' own results on a real paired dataset.
 LOCATE_REFERENCE = Path(__file__).parent / "data" / "locate_reference"
+LOCATE_EXAMPLE = Path(__file__).parents[1] / "validation" / "locate" / "data" / "E2"
+
+
+def test_locate_product_passes_the_approved_rule_against_the_original():
+    """V2 as approved: the 90% CI of mean(C - A) over seeds 10-29 lies within ±0.02."""
+    import math
+
+    scores = pd.read_csv(LOCATE_REFERENCE / "v2_scores.csv")
+    assert list(scores["seed"]) == list(range(10, 30))
+    d = scores["C"] - scores["A"]
+    half = 1.729 * d.std(ddof=1) / math.sqrt(len(d))
+    assert -0.02 <= d.mean() - half and d.mean() + half <= 0.02
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(not (LOCATE_REFERENCE / "RULE.md").exists(),
-                    reason="LOCATE: the product-vs-original rule (V2) awaits approval; see validation/locate/")
-def test_locate_product_matches_the_saved_original_reference():
-    pytest.fail("Implement with the approved V2 rule (tests/data/locate_reference/RULE.md).")
+@pytest.mark.parametrize("seed", [10, 11, 12])
+def test_locate_product_still_gives_its_validated_output(seed, tmp_path, monkeypatch):
+    """The product is deterministic; any change (e.g. a library upgrade) means: re-validate first."""
+    import json
+
+    from microplatform.engines.locate import fit_and_predict
+
+    read = lambda name: pd.read_csv(LOCATE_EXAMPLE / f"{name}.csv", index_col=0, float_precision="round_trip")
+    monkeypatch.chdir(tmp_path)  # the tool writes lightning_logs/ into the current folder
+    out = fit_and_predict(read("X_train"), read("Y_train"), read("X_val"), read("Y_val"), seed=seed)
+    saved = pd.read_csv(LOCATE_REFERENCE / f"C_pred_val_seed{seed}.csv", index_col=0, float_precision="round_trip")
+    info = json.loads((LOCATE_REFERENCE / f"C_run_seed{seed}.json").read_text())
+    assert out["epochs"] == info["epochs"]
+    # LOCATE computes in float32; the file keeps 9 significant digits, which recover each float32 exactly.
+    np.testing.assert_array_equal(out["pred_val"].to_numpy(dtype="float32"), saved.to_numpy().astype("float32"))

@@ -3,11 +3,13 @@
 #   validation\locate\run_all.ps1                                   # run 1: A, B, C on E1, E2, seeds 0-4
 #   validation\locate\run_all.ps1 -Setups A,B -Gels -Folder runs-gels   # Amendment 1, V1'
 #   validation\locate\run_all.ps1 -Setups A -Folder runs-A-repeat2      # the original's own spread
+#   validation\locate\run_all.ps1 -Setups A,C -Examples E2 -Seeds (10..29) -Folder runs-v2   # approved V2
 # Outputs: <Reference>\<Folder>\<setup>\<example>\seed<n>\ (pred_*.csv, Z_*.csv, run.json, log.txt)
 param(
     [string]$Reference = "C:\Users\noapa\code\locate-reference",
     [string[]]$Setups = @("A", "B", "C"),
     [int[]]$Seeds = @(0, 1, 2, 3, 4),
+    [string[]]$Examples = @("E1", "E2"),
     [switch]$Gels,
     [string]$Folder = "runs"
 )
@@ -24,7 +26,7 @@ $all = @{
 if ($Gels) { $extra = @("--gels") }
 foreach ($name in $Setups) {
     $setup = $all[$name]
-    foreach ($example in "E1", "E2") {
+    foreach ($example in $Examples) {
         foreach ($seed in $Seeds) {
             $out = "$Reference\$Folder\$name\$example\seed$seed"
             Remove-Item -Recurse -Force $out -ErrorAction SilentlyContinue
