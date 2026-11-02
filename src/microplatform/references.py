@@ -109,7 +109,7 @@ TOOLS: tuple[Tool, ...] = (
         Paper("Shtossel O, Koren O, Shai I, Rinott E, Louzoun Y.",
               "Gut microbiome-metabolome interactions predict host condition.",
               "Microbiome", 2024, "12", "24", "10.1186/s40168-023-01737-1"),
-        "LOCATE-model", "https://github.com/oshritshtossel/LOCATE",
+        "locate_lightning2 (LOCATE-model 0.0.3 on Python 3.13)", "https://github.com/oshritshtossel/LOCATE",
     ),
 )
 

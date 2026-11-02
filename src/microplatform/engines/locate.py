@@ -1,27 +1,28 @@
-"""LOCATE as an engine: "Link bacteria to metabolites" (not enabled yet).
+"""LOCATE as an engine: "Link bacteria to metabolites".
 
 LOCATE (Shtossel et al., Microbiome 2024) learns a latent representation Z of
 the microbiome that predicts metabolite levels. The published package,
 LOCATE-model 0.0.3, needs Python 3.7-3.10 and Lightning 1.x. The platform uses
 ``locate_lightning2`` (in this repository): the authors' model with only the
 changes Lightning 2 requires, validated against the original in
-validation/locate/ (PROTOCOL.md, RESULTS.md).
+validation/locate/ (PROTOCOL.md: V1′ bit-identical, V2 equivalent) and against
+the paper's published figures on two public datasets (FRANZOSA.md, YACHIDA.md).
 
 Inputs, as the paper prepares them:
 - microbiome: the shared table with one declared variation, a z-score per
   feature (``z_scoring="col"``): MIPMLP sub-PCA at species level, log10(x + 0.1),
   then z-scored, as in the paper's Methods;
 - metabolites: relative → log → z-score per metabolite (``core/metabolites.py``;
-  the log base and pseudocount are still to be confirmed by the authors).
+  the paper gives neither the log base nor the pseudocount, so these are reconstructed and
+  recorded as unconfirmed).
 
 As micrOS does: one ``train_test_split(test_size=0.2)``; the test samples also
 serve as ``LOCATE_training``'s validation set (used for early stopping), and the
 authors' default hyperparameters are used. The authors' two calls,
 ``LOCATE_training`` then ``LOCATE_predict``, run unchanged after every random
 seed is fixed. Prediction quality is the Spearman correlation per metabolite on
-the test samples (the paper's measure).
-
-Not registered in ``ENGINES`` until it is validated (see validation/locate/).
+the test samples (the paper's measure). The summary reports this one run
+honestly and says how the paper's figures were built (best of 16 runs).
 """
 
 from __future__ import annotations
@@ -163,9 +164,11 @@ def _summary(n_train: int, n_test: int, scores: pd.DataFrame, prepared: dict) ->
     ]
     if prepared["left_out_constant"]:
         lines.append(f"{prepared['left_out_constant']} metabolites were the same in every sample and were left out.")
-    if not prepared["settings"]["confirmed"]:
-        lines.append("The metabolite preparation (log base and the value added before the log) is provisional "
-                     "until the LOCATE authors confirm it.")
+    settings = prepared["settings"]
+    if not settings["confirmed"]:
+        lines.append("The paper does not give two details of its metabolite preparation (the log base and the "
+                     "value added before the log for zeros); the platform uses a reconstruction (log base "
+                     f"{settings['log_base']:g}, {settings['pseudocount']:g} added), recorded with these results.")
     return lines
 
 

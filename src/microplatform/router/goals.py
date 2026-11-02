@@ -6,8 +6,9 @@ metabolite table. ``label_kinds`` limits a task to the label types its tool
 handles. A task that cannot run says why, and what to add.
 
 ``recommend`` picks the pre-selected task and explains why in plain language:
-what the user asked for if it can run; otherwise miMic when there are usable
-labels; otherwise preprocessing.
+what the user asked for if it can run; otherwise LOCATE when a usable
+metabolite table was uploaded (that is why anyone uploads one); otherwise miMic
+when there are usable labels; otherwise preprocessing.
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ COUNTS_AND_LABELS: frozenset[InputKind] = frozenset({"counts", "labels"})
 COUNTS_AND_METABOLITES: frozenset[InputKind] = frozenset({"counts", "metabolites"})
 
 # Inputs that can already be added to an existing run from the Plan step.
-ADDABLE: frozenset[InputKind] = frozenset({"labels"})
+ADDABLE: frozenset[InputKind] = frozenset({"labels", "metabolites"})
 
 LABEL_WORDS = {"binary": "two groups", "categorical": "three or more groups", "continuous": "a continuous label"}
 
@@ -67,7 +68,7 @@ GOALS: tuple[Goal, ...] = (
     Goal("metabolites", "Link bacteria to metabolites",
          "How do my bacteria relate to my metabolites?",
          "Predict metabolite levels and find a shared representation.",
-         "LOCATE", "planned", COUNTS_AND_METABOLITES),
+         "LOCATE", "available", COUNTS_AND_METABOLITES),
 )
 
 
@@ -137,7 +138,11 @@ def recommend(options: list[GoalOption], requested: str | None = None) -> Recomm
             else:
                 detail = asked.reason.rstrip(".")[0].lower() + asked.reason.rstrip(".")[1:]
             reasons.append(f"You asked: “{asked.goal.question}” — {detail}, so we suggest what can run now.")
-        if by_id["differ"].enabled:
+        if by_id["metabolites"].enabled:
+            chosen = "metabolites"
+            reasons.append("You uploaded a metabolite table, so LOCATE can learn how your bacteria relate "
+                           "to your metabolites and predict metabolite levels.")
+        elif by_id["differ"].enabled:
             chosen = "differ"
             reasons.append("Your data has labels, so miMic can test which bacteria differ, "
                            "along the taxonomy tree.")

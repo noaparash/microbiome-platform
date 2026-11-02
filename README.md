@@ -11,7 +11,7 @@ explains why, and asks you for as little as possible. It is a Python package
 | **miMic** | *Which bacteria differ between my groups?* | Available |
 | **iMic** | *Can the microbiome predict my outcome?* | Available (two-group labels) |
 | **GIMIC** | *How do my samples group?* | Available |
-| **LOCATE** | *How do my bacteria relate to my metabolites?* | Planned |
+| **LOCATE** | *How do my bacteria relate to my metabolites?* | Available (with a metabolite table; Python 3.13 version, validated: `validation/locate/`) |
 
 ## Quick start (Windows, PowerShell)
 

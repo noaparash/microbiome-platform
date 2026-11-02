@@ -11,9 +11,11 @@ Then, those were log-normalized and further z-scored, such that the average
 value of each metabolite would be 0 and its variance would be 1."
 
 The paper does not give the log base or the value added before the log (needed
-for zeros). Until the authors confirm them, ``LOCATE_METABOLITES`` uses log10
-(as MIPMLP does for the microbiome) and a placeholder pseudocount, and every
-result records ``confirmed: False``.
+for zeros), and the authors cannot confirm them (2026-11). ``LOCATE_METABOLITES``
+uses a reconstruction: log10 (as MIPMLP does for the microbiome) and a pseudocount
+of 1e-6, and every result records ``confirmed: False``. With these, the platform
+reproduces the paper's published results on two public datasets
+(validation/locate/FRANZOSA.md, YACHIDA.md).
 """
 
 from __future__ import annotations
@@ -34,9 +36,9 @@ class MetaboliteSettings:
 
     normalization: str = "relative"  # each sample sums to 1
     log_base: float = 10.0
-    pseudocount: float = 1e-6  # PLACEHOLDER: added before the log; not given in the paper
+    pseudocount: float = 1e-6  # reconstructed: added before the log; not given in the paper
     z_scoring: str = "column"  # each metabolite: mean 0, variance 1
-    confirmed: bool = False  # True once the authors confirm log_base and pseudocount
+    confirmed: bool = False  # log_base and pseudocount are not confirmed by the authors
 
     def with_changes(self, **changes) -> MetaboliteSettings:
         return replace(self, **changes)

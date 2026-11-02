@@ -20,12 +20,13 @@ from microplatform.router.goals import GOALS
 
 ROOT = Path(__file__).parents[1]
 
-# The public API as released in 0.2.0. If this test fails, the API changed: make sure it
-# was meant to, record it in CHANGELOG.md (Added / Changed / Removed), then update this.
+# The public API: as released in 0.2.0, plus the changes recorded under [Unreleased] in CHANGELOG.md
+# (analyze gained ``metabolites``). If this test fails, the API changed: make sure it was meant to,
+# record it in CHANGELOG.md (Added / Changed / Removed), then update this.
 API_0_2 = {
     "analyze": "mp.analyze(counts: str | Path, labels: str | Path | None = None, goal: str | None = None, "
                "out_dir: str | Path = 'microplatform-runs', cache_dir: str | Path | None = None, "
-               "options: dict | None = None) -> RunView",
+               "options: dict | None = None, metabolites: str | Path | None = None) -> RunView",
     "read_table": "mp.read_table(source: str | IO, **kwargs) -> DataFrame",
     "profile_counts": "mp.profile_counts(raw: DataFrame) -> CountsProfile",
     "profile_labels": "mp.profile_labels(tags: DataFrame, sample_ids: list[str]) -> LabelProfile",

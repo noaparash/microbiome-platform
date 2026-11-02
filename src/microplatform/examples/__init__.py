@@ -10,6 +10,7 @@ EXAMPLE_TAGS = EXAMPLES_DIR / "example_tag.csv"
 TEMPLATES = {
     "counts_template.csv": EXAMPLES_DIR / "counts_template.csv",
     "labels_template.csv": EXAMPLES_DIR / "labels_template.csv",
+    "metabolites_template.csv": EXAMPLES_DIR / "metabolites_template.csv",
 }
 
 # Everything the website offers for download, by file name.

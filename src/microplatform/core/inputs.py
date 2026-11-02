@@ -1,7 +1,15 @@
-"""Sort uploaded files into a counts table and an optional labels file.
+"""Sort uploaded files into a counts table, an optional labels file and an optional metabolite table.
 
-The user may upload the files in any order and with any names. A counts
-table is recognised by its 'taxonomy' row; anything else is a labels file.
+The user may upload the files in any order and with any names. Each file is
+recognised by its shape:
+- a counts table has a 'taxonomy' row;
+- a labels file has a 'Tag' column, or a single column besides the sample IDs;
+- a metabolite table has at least ``MIN_METABOLITE_COLUMNS`` numeric columns
+  besides the sample IDs (one per metabolite), no 'Tag' column and no 'taxonomy'
+  row. With fewer, it is read as a labels file (a label plus a stray column), so
+  the user gets the labels file's own message instead of a wrong guess.
+A file added from the Plan step is the kind the user chose; only a counts table
+is refused there.
 """
 
 from __future__ import annotations
@@ -9,15 +17,28 @@ from __future__ import annotations
 import io
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import pandas as pd
 
-from microplatform.core.contract import TAXONOMY_ROW
+from microplatform.core.contract import INPUT_NAMES, LABEL_COLUMN, TAXONOMY_ROW
 from microplatform.core.errors import UserFacingError
 from microplatform.core.profiler import ProfileError, is_counts_table, read_table
 
 ALLOWED_SUFFIXES = {".csv", ".tsv", ".txt"}
 EXCEL_SUFFIXES = {".xlsx", ".xls", ".xlsm"}
+MAX_FILES = 3  # a counts table, a labels file and a metabolite table
+MIN_METABOLITE_COLUMNS = 3
+
+TableKind = Literal["counts", "labels", "metabolites"]
+
+# What each kind of file looks like, for messages and the format help.
+LOOKS_LIKE: dict[TableKind, str] = {
+    "counts": f"it has a '{TAXONOMY_ROW}' row",
+    "labels": f"it has a '{LABEL_COLUMN}' column or a single column besides the sample IDs",
+    "metabolites": f"it has {MIN_METABOLITE_COLUMNS} or more numeric columns (one per metabolite) and no "
+                   f"'{TAXONOMY_ROW}' row",
+}
 
 
 class InputError(UserFacingError):
@@ -30,53 +51,101 @@ class Inputs:
     counts: pd.DataFrame
     labels_name: str | None = None
     labels: pd.DataFrame | None = None  # index = sample ID
+    metabolites_name: str | None = None
+    metabolites: pd.DataFrame | None = None  # index = sample ID (strings), one column per metabolite
+
+
+def table_kind(table: pd.DataFrame) -> TableKind:
+    """Which kind of input a table is (see the module docstring)."""
+    if is_counts_table(table):
+        return "counts"
+    columns = table.columns[1:]  # the first column holds the sample IDs
+    numeric = [c for c in columns if pd.api.types.is_numeric_dtype(table[c])]
+    if LABEL_COLUMN in columns or len(numeric) < MIN_METABOLITE_COLUMNS:
+        return "labels"
+    return "metabolites"
 
 
 def sort_uploads(files: list[tuple[str, bytes]]) -> Inputs:
     """Take ``(filename, content)`` pairs and work out which file is which."""
     if not files:
         raise InputError("No file was uploaded.", "Choose a counts table (and optionally a labels file).")
-    if len(files) > 2:
+    if len(files) > MAX_FILES:
         raise InputError(
-            f"{len(files)} files were uploaded; at most two are expected.",
-            "Upload one counts table and, optionally, one labels file.",
+            f"{len(files)} files were uploaded; at most {MAX_FILES} are expected.",
+            "Upload one counts table and, if your question needs them, one labels file and one "
+            "metabolite table.",
         )
 
-    counts = labels = None
+    found: dict[TableKind, tuple[str, pd.DataFrame]] = {}
     for name, content in files:
         table = _read_upload(name, content)
-        if is_counts_table(table):
-            if counts is not None:
-                raise InputError(
-                    f"Both files look like counts tables (both have a '{TAXONOMY_ROW}' row).",
-                    "Upload one counts table at a time, optionally with a labels file.",
-                )
-            counts = (name, table)
-        else:
-            if labels is not None:
-                raise InputError(
-                    f"Neither file has a '{TAXONOMY_ROW}' row, so no counts table was found.",
-                    f"Add a last row named '{TAXONOMY_ROW}' to the counts table. See the template.",
-                )
-            labels = (name, table.set_index(table.columns[0]))
+        kind = table_kind(table)
+        if kind in found:
+            raise InputError(
+                f"'{found[kind][0]}' and '{name}' both look like {_noun(kind)}s "
+                f"({LOOKS_LIKE[kind]}).",
+                _one_of_each(kind),
+            )
+        found[kind] = (name, table if kind == "counts" else _by_sample(table))
 
-    if counts is None:
+    if "counts" not in found:
         raise InputError(
             f"No counts table was found: a counts table has a last row named '{TAXONOMY_ROW}'.",
             f"Upload the counts table too, or add the '{TAXONOMY_ROW}' row to it. See the template.",
         )
-    return Inputs(counts[0], counts[1], *(labels or (None, None)))
+    labels = found.get("labels", (None, None))
+    metabolites = found.get("metabolites", (None, None))
+    return Inputs(*found["counts"], *labels, *metabolites)
 
 
 def read_labels_upload(name: str, content: bytes) -> pd.DataFrame:
     """A labels file added later, from the Plan step (index = sample ID)."""
+    return read_added_upload("labels", name, content)
+
+
+def read_metabolites_upload(name: str, content: bytes) -> pd.DataFrame:
+    """A metabolite table added later, from the Plan step (index = sample ID)."""
+    return read_added_upload("metabolites", name, content)
+
+
+def read_added_upload(kind: TableKind, name: str, content: bytes) -> pd.DataFrame:
+    """A file added to an existing run as ``kind`` (index = sample ID); a counts table is refused."""
     table = _read_upload(name, content)
-    if is_counts_table(table):
+    if table_kind(table) == "counts":
         raise InputError(
-            f"'{name}' looks like a counts table (it has a '{TAXONOMY_ROW}' row), not a labels file.",
-            "Upload a labels file: sample IDs in the first column and the label in a second column.",
+            f"'{name}' looks like a counts table ({LOOKS_LIKE['counts']}), not {INPUT_NAMES[kind]}.",
+            _expected(kind),
         )
-    return table.set_index(table.columns[0])
+    return _by_sample(table)
+
+
+def _by_sample(table: pd.DataFrame) -> pd.DataFrame:
+    table = table.set_index(table.columns[0])
+    table.index = table.index.astype(str)  # sample IDs are strings everywhere (see the contract)
+    return table
+
+
+def _noun(kind: TableKind) -> str:
+    """'labels file' (INPUT_NAMES without its article)."""
+    return INPUT_NAMES[kind].split(" ", 1)[1]
+
+
+def _expected(kind: TableKind) -> str:
+    return {
+        "counts": f"Upload a counts table: sample IDs first, one column per taxon, and a last row "
+                  f"named '{TAXONOMY_ROW}'.",
+        "labels": f"Upload a labels file: sample IDs in the first column and the label in a column named "
+                  f"'{LABEL_COLUMN}'.",
+        "metabolites": "Upload a metabolite table: sample IDs in the first column, then one numeric column "
+                       "per metabolite.",
+    }[kind]
+
+
+def _one_of_each(kind: TableKind) -> str:
+    if kind == "counts":
+        return "Upload one counts table at a time, optionally with a labels file or a metabolite table."
+    return f"Upload at most one {_noun(kind)}. {_expected(kind)}"
 
 
 def _read_upload(name: str, content: bytes) -> pd.DataFrame:

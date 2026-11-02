@@ -76,11 +76,18 @@ def test_categorical_labels_disable_mimic_with_the_reason():
     assert recommend(options).goal_id == "preprocess"
 
 
-def test_recommendation_explains_an_unavailable_request():
+def test_recommendation_explains_a_request_that_misses_an_input():
     rec = recommend(goal_options(COUNTS_AND_LABELS, "binary"), requested="metabolites")
     assert rec.goal_id == "differ"  # the best task that can run instead
     assert "How do my bacteria relate to my metabolites?" in rec.reasons[0]
-    assert "not in the platform yet" in rec.reasons[0]
+    assert "needs a metabolite table" in rec.reasons[0]
+    assert rec.unlock["metabolites"] == ["Link bacteria to metabolites"]  # and it can be added in place
+
+
+def test_an_uploaded_metabolite_table_recommends_locate():
+    rec = recommend(goal_options(COUNTS_AND_LABELS | {"metabolites"}, "binary"))
+    assert rec.goal_id == "metabolites" and any("metabolite table" in r for r in rec.reasons)
+    assert "metabolites" not in rec.unlock
 
 
 def test_recommendation_honours_a_runnable_request():

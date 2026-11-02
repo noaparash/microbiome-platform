@@ -9,6 +9,16 @@ All notable changes to `microplatform`. The format follows
 ## [Unreleased]
 
 ### Added
+- **LOCATE is available** ("Link bacteria to metabolites"), on the website and in
+  the package. Its validation was accepted by the project owner (2026-11-02) under
+  the revised standard in `validation/locate/PROTOCOL.md`.
+- Metabolite tables as an input: recognised automatically among the uploads (at
+  least 3 numeric columns, no `Tag` column, no `taxonomy` row), checked with a fix
+  for every problem, addable from the Plan step without starting over, kept in the
+  results ZIP (`inputs/metabolites.csv`), and a downloadable template. An uploaded
+  metabolite table makes LOCATE the recommended task.
+- `Dataset.metabolites` is validated by the contract (string, unique sample IDs
+  that all have features; numbers only; no missing values).
 - `locate_lightning2`: LOCATE (LOCATE-model 0.0.3) converted to Lightning 2, so it
   runs natively on Python 3.13. Six marked changes, listed in its CHANGES.md; the
   model's logic is unchanged. Validated against the original in a Python 3.10
@@ -20,12 +30,19 @@ All notable changes to `microplatform`. The format follows
   datasets (FRANZOSA, YACHIDA; `validation/locate/`), built the same way (best of
   16 runs per metabolite), the medians are about 0.05 above the paper's, with the
   same shape.
-- LOCATE's engine, not enabled yet (`engines/locate.py`, `core/metabolites.py`):
-  metabolite-table checks and the paper's metabolite preparation (relative → log →
-  z-score; log base and pseudocount provisional). It runs `locate_lightning2`
-  in-process. Its summary reports one run honestly and says that the paper's
-  figures keep the best of 16 runs per metabolite (about +0.13 on the median).
+- LOCATE's engine (`engines/locate.py`, `core/metabolites.py`): metabolite-table
+  checks and the paper's metabolite preparation (relative → log → z-score; the log
+  base and pseudocount are not in the paper, so they are a recorded reconstruction:
+  log10, 1e-6). It runs `locate_lightning2` in-process. Its summary reports one run
+  honestly and says that the paper's figures keep the best of 16 runs per
+  metabolite (about +0.13 on the median).
 - Dependency: `pytorch-lightning>=2.2,<3` (already installed with MIPMLP).
+
+### Changed
+- `mp.analyze` takes `metabolites=` (a metabolite table's path), added last so
+  existing calls are unchanged.
+- Uploads: up to three files (counts, labels, metabolites). Two files of the same
+  kind are refused with a message naming both.
 
 ## [0.2.0] — 2026-10-28
 

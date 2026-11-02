@@ -108,8 +108,9 @@ class Dataset:
     labels       optional; a Series named ``LABEL_COLUMN``, indexed by sample IDs
                  that all appear in ``features``.
     label_kind   binary / categorical / continuous, set whenever labels are set.
-    metabolites  optional (planned, for LOCATE): samples × metabolites, indexed by
-                 sample IDs that all appear in ``features``.
+    metabolites  optional (for LOCATE): samples × metabolites as uploaded (not yet
+                 normalised), indexed by unique string sample IDs that all appear in
+                 ``features``; numbers only, no missing values.
     engine       the engine it was built for; only that engine's declared
                  ``ENGINE_EXCEPTIONS`` may apply to ``settings``.
     """
@@ -152,7 +153,13 @@ class Dataset:
             _require(self.label_kind is None, "label_kind is set but there are no labels")
 
         if self.metabolites is not None:
-            _require(set(self.metabolites.index) <= set(f.index), "every metabolite row must have features")
+            m = self.metabolites
+            _require(isinstance(m, pd.DataFrame) and not m.empty, "metabolites must be a non-empty table")
+            _require(all(isinstance(i, str) for i in m.index), "metabolite sample IDs must be strings")
+            _require(m.index.is_unique, "metabolite sample IDs must be unique")
+            _require(set(m.index) <= set(f.index), "every metabolite row must have features")
+            _require(all(pd.api.types.is_numeric_dtype(t) for t in m.dtypes), "metabolites must be numbers")
+            _require(bool(np.isfinite(m.to_numpy(dtype=float)).all()), "metabolites must have no missing values")
         return self
 
 

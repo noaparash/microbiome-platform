@@ -9,7 +9,7 @@ Every goal runs the same way: build the one canonical ``Dataset`` (see
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -18,7 +18,14 @@ import pandas as pd
 from microplatform import runs
 from microplatform.core.contract import ID_COLUMN, Dataset, InputKind
 from microplatform.core.errors import UserFacingError
-from microplatform.core.inputs import InputError, Inputs, read_labels_upload, sort_uploads
+from microplatform.core.inputs import (
+    InputError,
+    Inputs,
+    read_labels_upload,
+    read_metabolites_upload,
+    sort_uploads,
+)
+from microplatform.core.metabolites import MetaboliteProfile, profile_metabolites
 from microplatform.core.preprocessing import CANONICAL, PreprocessResult, PreprocessSettings, preprocess
 from microplatform.core.profiler import (
     CountsProfile,
@@ -38,8 +45,14 @@ from microplatform.router.goals import GoalOption, Recommendation, get_goal, goa
 
 TABLE_PREVIEW_ROWS = 15  # rows of each result table shown on the page; the CSV has all
 
+# Plain words for a declared preprocessing variation, shown as the results page's "Different table" note.
+SETTING_WORDS = {
+    ("z_scoring", "col"): "the cleaned table with one extra step, as the LOCATE paper does: each feature "
+                          "rescaled to mean 0 and spread 1 (z-score per feature; the shared table is not rescaled)",
+}
+
 __all__ = [
-    "RunView", "add_labels", "analyze", "build_bundle", "build_dataset", "describe", "run_goal",
+    "RunView", "add_labels", "add_metabolites", "analyze", "build_bundle", "build_dataset", "describe", "run_goal",
     "start_example_run", "start_run",
 ]
 
@@ -64,6 +77,7 @@ class RunView:
     engine: dict | None = None  # what the goal's engine found: tool, summary, record, tables
     tables: dict[str, pd.DataFrame] | None = None  # the engine's tables (first rows, for the page)
     options: dict | None = None  # goal id → the engine's advanced settings (EngineOption)
+    metabolites: MetaboliteProfile | None = None  # the metabolite table's check, if there is one
 
     @property
     def ready(self) -> bool:
@@ -84,7 +98,8 @@ class RunView:
             return None
         shared = asdict(CANONICAL)
         used = self.record.get("settings", {})
-        diffs = [f"{key.replace('_', ' ')} '{used[key]}' (the shared table uses '{shared[key]}')"
+        diffs = [SETTING_WORDS.get((key, used[key]),
+                                   f"{key.replace('_', ' ')} '{used[key]}' (the shared table uses '{shared[key]}')")
                  for key in shared if key in used and used[key] != shared[key]]
         return f"This analysis used {'; '.join(diffs)}." if diffs else None
 
@@ -135,7 +150,8 @@ class RunView:
 
 def start_run(root: Path, inputs: Inputs, requested_goal: str | None = None) -> runs.Run:
     """Store the uploads as a new run; ``requested_goal`` is the question picked on the home page."""
-    run = runs.create(root, inputs.counts_name, inputs.counts, inputs.labels_name, inputs.labels)
+    run = runs.create(root, inputs.counts_name, inputs.counts, inputs.labels_name, inputs.labels,
+                      inputs.metabolites_name, inputs.metabolites)
     _remember_request(run, requested_goal)
     return run
 
@@ -159,18 +175,20 @@ def analyze(
     out_dir: str | Path = "microplatform-runs",
     cache_dir: str | Path | None = None,
     options: dict | None = None,
+    metabolites: str | Path | None = None,
 ) -> RunView:
     """Run a whole analysis from files on disk, without the website.
 
     ``goal`` is one of ``"preprocess"`` (MIPMLP only), ``"differ"`` (miMic),
-    ``"predict"`` (iMic) or ``"group"`` (GIMIC); it defaults to the recommended task
-    (see ``GOALS``). ``options`` are its advanced settings, e.g. ``{"grouping": "mean"}``
+    ``"predict"`` (iMic), ``"group"`` (GIMIC) or ``"metabolites"`` (LOCATE, which needs
+    ``metabolites``: a table with sample IDs first and one column per metabolite); it
+    defaults to the recommended task (see ``GOALS``). ``options`` are its advanced settings, e.g. ``{"grouping": "mean"}``
     for GIMIC. All outputs are written to a new folder inside ``out_dir``,
     ``view.run.path``: ``processed.csv``, ``tables/``, ``figures/``, ``record.json`` and
     ``engine.json``. ``view.engine`` holds the summary and the record of every setting.
     Raises ``UserFacingError`` (with a message and a fix) if the data cannot be used.
     """
-    paths = [Path(counts)] + ([Path(labels)] if labels else [])
+    paths = [Path(p) for p in (counts, labels, metabolites) if p]
     run = start_run(Path(out_dir), sort_uploads([(p.name, p.read_bytes()) for p in paths]), goal)
     run_goal(run, goal or describe(run).default_goal, Path(cache_dir) if cache_dir else None, options)
     return describe(run)
@@ -185,6 +203,11 @@ def example_overview() -> tuple[CountsProfile, LabelProfile]:
 def add_labels(run: runs.Run, name: str, content: bytes) -> None:
     """Add a labels file from the Plan step, without starting over."""
     run.add_labels(name, read_labels_upload(name, content))
+
+
+def add_metabolites(run: runs.Run, name: str, content: bytes) -> None:
+    """Add a metabolite table from the Plan step, without starting over."""
+    run.add_metabolites(name, read_metabolites_upload(name, content))
 
 
 def _remember_request(run: runs.Run, requested_goal: str | None) -> None:
@@ -202,6 +225,9 @@ def describe(run: runs.Run) -> RunView:
     usable_labels = label_profile is not None and label_profile.ok
     if usable_labels:
         available.add("labels")
+    metabolite_profile = _profile_metabolites(run, profile.sample_ids, issues)
+    if metabolite_profile is not None and metabolite_profile.ok:
+        available.add("metabolites")
     options = goal_options(frozenset(available), label_profile.kind if usable_labels else None)
     meta = run.meta()
     recommendation = recommend(options, meta.get("requested_goal"))
@@ -224,6 +250,7 @@ def describe(run: runs.Run) -> RunView:
         engine=engine,
         tables={name: run.table(name, rows=TABLE_PREVIEW_ROWS) for name in engine["tables"]} if engine else None,
         options={goal: e.options for goal, e in ENGINES.items() if e.options},
+        metabolites=metabolite_profile,
     )
 
 
@@ -242,12 +269,18 @@ def build_dataset(
 
     label_profile = _profile_labels(run, list(features.index), issues=[])
     usable = label_profile is not None and label_profile.ok
+    metabolite_profile = _profile_metabolites(run, list(features.index), issues=[])
+    metabolites = None
+    if metabolite_profile is not None and metabolite_profile.ok:
+        table = run.metabolites()
+        metabolites = table.loc[[s for s in features.index if s in set(table.index)]]  # counts-table order
     dataset = Dataset(
         features=features,
         settings=settings,
         raw_counts=count_matrix(raw),
         labels=label_profile.values if usable else None,
         label_kind=label_profile.kind if usable else None,
+        metabolites=metabolites,
         engine=engine,
     )
     return dataset.validate(), result
@@ -314,4 +347,14 @@ def _profile_labels(run: runs.Run, sample_ids: list[str], issues: list[Issue]) -
         issues.append(Issue("error", exc.message, exc.fix))
         return None
     issues += profile.issues
+    return profile
+
+
+def _profile_metabolites(run: runs.Run, sample_ids: list[str], issues: list[Issue]) -> MetaboliteProfile | None:
+    """Check the run's metabolite table, if any; problems are appended to ``issues``, marked as its own."""
+    table = run.metabolites()
+    if table is None:
+        return None
+    profile = profile_metabolites(table, sample_ids)
+    issues += [replace(i, message=f"Metabolite table: {i.message}") for i in profile.issues]
     return profile

@@ -65,6 +65,8 @@ def build_bundle(run: Run) -> bytes:
         zf.write(run.counts_file, "inputs/counts.csv")
         if run.labels_file.exists():
             zf.write(run.labels_file, "inputs/labels.csv")
+        if run.metabolites_file.exists():
+            zf.write(run.metabolites_file, "inputs/metabolites.csv")
         if run.figures_dir.exists():
             for path in sorted(run.figures_dir.iterdir()):
                 if path.suffix != ".json":  # JSON copies are only for the web page

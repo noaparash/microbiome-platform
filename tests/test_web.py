@@ -43,6 +43,18 @@ EXAMPLE = [(EXAMPLE_COUNTS.name, EXAMPLE_COUNTS.read_bytes()),
            (EXAMPLE_TAGS.name, EXAMPLE_TAGS.read_bytes())]
 
 
+def _metabolite_file():
+    """A metabolite table for the example's 40 samples (positive intensities, 8 metabolites)."""
+    ids = pd.read_csv(EXAMPLE_COUNTS)["ID"].iloc[:-1].to_numpy()
+    rng = __import__("numpy").random.default_rng(3)
+    table = pd.DataFrame(rng.lognormal(3, 1, size=(len(ids), 8)), columns=[f"met{i}" for i in range(8)])
+    table.insert(0, "ID", ids)
+    return "metabolome.csv", table.to_csv(index=False).encode()
+
+
+METABOLITES = _metabolite_file()
+
+
 @pytest.fixture(scope="module")
 def processed_run(client):
     """Upload the example, preprocess it once, and return its analysis URL."""
@@ -66,7 +78,7 @@ def test_security_headers(client):
     assert headers["X-Frame-Options"] == "DENY"
 
 
-@pytest.mark.parametrize("name", ["counts_template.csv", "labels_template.csv"])
+@pytest.mark.parametrize("name", ["counts_template.csv", "labels_template.csv", "metabolites_template.csv"])
 def test_templates_download(client, name):
     response = client.get(f"/downloads/{name}")
     assert response.status_code == 200 and response.mimetype == "text/csv"
@@ -160,6 +172,50 @@ def test_unavailable_goal_is_explained(client):
     url = upload(client, *EXAMPLE).headers["Location"]
     page = client.post(f"{url}/run", data={"goal": "metabolites"}, follow_redirects=True).get_data(as_text=True)
     assert "cannot run on this data yet" in page
+
+
+def test_a_metabolite_table_can_be_uploaded_with_the_counts(client):
+    url = upload(client, METABOLITES, *EXAMPLE).headers["Location"]  # any order
+    page = client.get(url).get_data(as_text=True)
+    assert "with labels from example_tag.csv and metabolites from metabolome.csv" in page
+    assert "Metabolite table: 40 samples and 8 metabolites; 40 samples are also in the counts table." in page
+    assert "We recommend: <strong>Link bacteria to metabolites</strong>" in page
+    assert "Add a metabolite table" not in page
+
+
+def test_a_metabolite_table_can_be_added_from_the_plan(client):
+    url = upload(client, *EXAMPLE).headers["Location"]
+    page = client.get(url).get_data(as_text=True)
+    assert "Add a metabolite table" in page and "Unlocks: Link bacteria to metabolites." in page
+    data = {"file": (io.BytesIO(METABOLITES[1]), METABOLITES[0])}
+    page = client.post(f"{url}/metabolites", data=data, content_type="multipart/form-data",
+                       follow_redirects=True).get_data(as_text=True)
+    assert "metabolites from metabolome.csv" in page and "Add a metabolite table" not in page
+    # A counts table offered as metabolites is refused with a fix.
+    data = {"file": (io.BytesIO(EXAMPLE[0][1]), EXAMPLE[0][0])}
+    page = client.post(f"{url}/metabolites", data=data, content_type="multipart/form-data",
+                       follow_redirects=True).get_data(as_text=True)
+    assert "looks like a counts table" in page and "How to fix:" in page
+
+
+def test_metabolite_problems_are_shown_with_a_fix(client):
+    lines = METABOLITES[1].decode().splitlines()  # one negative value: the table looks already transformed
+    lines[1] = lines[1].split(",", 1)[0] + ",-1," + lines[1].split(",", 2)[2]
+    bad = ("metabolome.csv", "\n".join(lines).encode())
+    page = upload(client, EXAMPLE[0], bad, follow=True).get_data(as_text=True)
+    assert "Metabolite table: Some values are negative" in page and "How to fix:" in page
+    assert "Needs a metabolite table" in page  # LOCATE stays unavailable until it is fixed
+
+
+def test_locate_results_page(client):
+    url = upload(client, EXAMPLE[0], METABOLITES).headers["Location"]
+    page = client.post(f"{url}/run", data={"goal": "metabolites"}, follow_redirects=True).get_data(as_text=True)
+    assert "Results: Link bacteria to metabolites (LOCATE)" in page
+    assert "one training run" in page and "best of 16" in page  # honest single-run reporting
+    assert "Best-predicted metabolites" in page and "locate_lightning2" in page
+    response = client.get(f"{url}/tables/metabolite_scores.csv")
+    assert response.status_code == 200
+    assert list(pd.read_csv(io.BytesIO(response.data)).columns) == ["metabolite", "spearman", "p"]
 
 
 def test_mimic_results_page(client):

@@ -35,11 +35,11 @@ def test_preprocess_only_end_to_end(root, tmp_path):
     assert runs.load(root, run.id) == run  # the run ID is a stable results link
 
 
-def test_unavailable_goal_is_refused(root):
+def test_a_goal_missing_an_input_is_refused(root):
     run = workflows.start_example_run(root)
     with pytest.raises(InputError, match="cannot run") as info:
         workflows.run_goal(run, "metabolites")
-    assert info.value.fix == "Planned. Needs a metabolite table."
+    assert info.value.fix == "Needs a metabolite table."
     assert run.status == "uploaded"
 
 

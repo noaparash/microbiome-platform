@@ -9,6 +9,7 @@ random 32-character ID, which is also the run's results link:
     runs/<id>/worker.lock      present while a background worker owns the run (see jobs.py)
     runs/<id>/counts.csv       the uploaded counts table (shared format)
     runs/<id>/labels.csv       optional labels, sample ID as the first column
+    runs/<id>/metabolites.csv  optional metabolite table, sample ID as the first column
     runs/<id>/processed.csv    MIPMLP output, once preprocessing has run
     runs/<id>/figures/         each figure as PNG, SVG, HTML and JSON, plus its data CSV
     runs/<id>/tables/          the engine's result tables (CSV)
@@ -52,6 +53,10 @@ class Run:
     @property
     def labels_file(self) -> Path:
         return self.path / "labels.csv"
+
+    @property
+    def metabolites_file(self) -> Path:
+        return self.path / "metabolites.csv"
 
     @property
     def processed_file(self) -> Path:
@@ -133,6 +138,14 @@ class Run:
     def labels(self) -> pd.DataFrame | None:
         return read_table(self.labels_file, index_col=0) if self.labels_file.exists() else None
 
+    def metabolites(self) -> pd.DataFrame | None:
+        """The metabolite table (index = sample ID, as strings), or None."""
+        if not self.metabolites_file.exists():
+            return None
+        table = read_table(self.metabolites_file, index_col=0)
+        table.index = table.index.astype(str)
+        return table
+
     def record(self) -> dict | None:
         if not self.record_file.exists():
             return None
@@ -142,6 +155,11 @@ class Run:
         """Add (or replace) the labels file of an existing run."""
         labels.to_csv(self.labels_file)
         self.update_meta(labels_name=name)
+
+    def add_metabolites(self, name: str, metabolites: pd.DataFrame) -> None:
+        """Add (or replace) the metabolite table of an existing run."""
+        metabolites.to_csv(self.metabolites_file)
+        self.update_meta(metabolites_name=name)
 
     def processed_preview(self, rows: int = 5) -> pd.DataFrame:
         return pd.read_csv(self.processed_file, index_col=0, nrows=rows, float_precision="round_trip")
@@ -165,6 +183,8 @@ def create(
     counts: pd.DataFrame,
     labels_name: str | None = None,
     labels: pd.DataFrame | None = None,
+    metabolites_name: str | None = None,
+    metabolites: pd.DataFrame | None = None,
 ) -> Run:
     run_id = uuid.uuid4().hex
     run = Run(run_id, Path(root) / run_id)
@@ -175,9 +195,12 @@ def create(
     counts.to_csv(run.counts_file, index=False)
     if labels is not None:
         labels.to_csv(run.labels_file)
+    if metabolites is not None:
+        metabolites.to_csv(run.metabolites_file)
     meta = {
         "counts_name": counts_name,
         "labels_name": labels_name,
+        "metabolites_name": metabolites_name,
         "created": _now(),
         "status": "uploaded",
     }

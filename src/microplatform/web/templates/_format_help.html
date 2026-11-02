@@ -14,9 +14,18 @@ taxonomy, k__Bacteria;…, k__Bacteria;…, …</pre>
 <pre>ID,      Tag
 sample1, 1
 sample2, 0</pre>
+    <p><strong>Metabolite table (optional, for linking bacteria to metabolites):</strong>
+      sample IDs in the first column, the same as in the counts table, then one column per
+      metabolite with the measured concentrations or intensities (not log-transformed; 0 means
+      not detected). At least {{ min_metabolite_columns }} metabolite columns, and at least
+      {{ min_paired }} samples that are also in the counts table.</p>
+<pre>ID,      Acetate, Butyrate, …
+sample1, 5210.4,  830.2,    …
+sample2, 4480.0,  0,        …</pre>
     <p class="templates">
       <a class="btn btn-secondary" href="{{ url_for('main.download_file', name='counts_template.csv') }}" download>Counts template (CSV)</a>
       <a class="btn btn-secondary" href="{{ url_for('main.download_file', name='labels_template.csv') }}" download>Labels template (CSV)</a>
+      <a class="btn btn-secondary" href="{{ url_for('main.download_file', name='metabolites_template.csv') }}" download>Metabolites template (CSV)</a>
     </p>
   </div>
 </details>

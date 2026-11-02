@@ -72,8 +72,8 @@ def test_locate_engine_follows_the_contract():
     check_settings(engine.preprocessing, engine.name)  # z-scoring per feature is an allowed variation
     assert engine.preprocessing.z_scoring == "col" and engine.preprocessing.taxonomy_group == "sub PCA"
     assert inspect.get_annotations(LocateEngine.run, eval_str=True)["data"] is Dataset
-    # Not offered to users until it is validated against the original (validation/locate/).
-    assert get_goal("metabolites").status == "planned" and "metabolites" not in ENGINES
+    # Offered since it passed validation (validation/locate/PROTOCOL.md, revised standard).
+    assert get_goal("metabolites").status == "available" and ENGINES["metabolites"].name == "LOCATE"
 
 
 def test_engine_runs_the_converted_locate(dataset, tmp_path):
@@ -88,7 +88,7 @@ def test_engine_runs_the_converted_locate(dataset, tmp_path):
     assert record["package"] == "locate_lightning2" and record["based_on"] == "LOCATE-model 0.0.3"
     assert record["seed"] == 42 and record["epochs"] > 0
     assert record["metabolites"]["left_out_constant"] == 1 and not record["metabolites"]["settings"]["confirmed"]
-    assert any("provisional" in line for line in result.summary)
+    assert any("reconstruction (log base 10, 1e-06 added)" in line for line in result.summary)
     # Honest reporting (validation/locate/PROTOCOL.md, revised standard): one run, and why the paper looks better.
     assert any("one training run" in line and "best of 16" in line for line in result.summary)
     assert [f.name for f in result.figures] == ["locate_metabolite_scores"]
@@ -145,3 +145,29 @@ def test_preparation_is_relative_then_log_then_zscore():
     scaled.iloc[0] *= 10
     assert np.allclose(prepare_metabolites(scaled)[0], prepared)
     assert record["settings"] == dataclasses.asdict(LOCATE_METABOLITES) and record["metabolites_used"] == 5
+
+
+# --- end to end, from files (as a user of the package or the website would) ------------------
+
+def test_locate_runs_end_to_end_from_files(dataset, tmp_path):
+    import microplatform as mp
+    from microplatform.examples import EXAMPLE_COUNTS, EXAMPLE_TAGS
+
+    metabolites = tmp_path / "metabolome.csv"
+    dataset.metabolites.rename_axis("sample").to_csv(metabolites)
+    view = mp.analyze(EXAMPLE_COUNTS, EXAMPLE_TAGS, out_dir=tmp_path / "runs", cache_dir=tmp_path / "cache",
+                      metabolites=metabolites)  # no goal: an uploaded metabolite table makes LOCATE the default
+    assert view.meta["goal"] == "metabolites" and view.engine["tool"] == "LOCATE"
+    assert view.metabolites.ok and view.metabolites.n_metabolites == 13
+    assert view.available_inputs == {"counts", "labels", "metabolites"}
+    assert set(view.engine["tables"]) == {"metabolite_scores", "predicted_metabolites_test", "latent_representation"}
+    assert view.run.metabolites_file.exists() and view.meta["metabolites_name"] == "metabolome.csv"
+    assert "z-score per feature" in view.representation_note  # in plain words on the results page
+    assert any("best of 16" in line for line in view.engine["summary"])  # honest single-run reporting
+
+    import io
+    import zipfile
+    names = zipfile.ZipFile(io.BytesIO(workflows.build_bundle(view.run))).namelist()
+    assert {"inputs/metabolites.csv", "results/metabolite_scores.csv", "analysis.json"} <= set(names)
+    readme = zipfile.ZipFile(io.BytesIO(workflows.build_bundle(view.run))).read("README.txt").decode()
+    assert "LOCATE: Shtossel O" in readme  # cited from the single source

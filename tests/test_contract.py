@@ -8,6 +8,7 @@ import ast
 import typing
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -27,15 +28,14 @@ from microplatform.core.contract import (
 from microplatform.core.inputs import sort_uploads
 from microplatform.core.preprocessing import CANONICAL
 from microplatform.engines import ENGINES, Engine, EngineResult
-from microplatform.engines.locate import LocateEngine
 from microplatform.reports.figures import Figure
-from microplatform.examples import EXAMPLE_COUNTS
+from microplatform.examples import EXAMPLE_COUNTS, EXAMPLE_TAGS
 from microplatform.router.goals import GOALS, get_goal
 
 PACKAGE = Path(microplatform.__file__).parent
 CONVENTIONS = {ID_COLUMN, TAXONOMY_ROW, LABEL_COLUMN, RANK_SEPARATOR}
 # Engines built but not offered yet (their goal is still "planned"): held to the same interface rules.
-PENDING = (LocateEngine(),)
+PENDING = ()
 ALL_ENGINES = (*ENGINES.values(), *PENDING)
 
 
@@ -104,6 +104,18 @@ def run(tmp_path_factory):
 
 
 @pytest.fixture(scope="module")
+def full_run(tmp_path_factory):
+    """The example with every input kind uploaded together: counts, labels and a metabolite table."""
+    ids = pd.read_csv(EXAMPLE_COUNTS)[ID_COLUMN].iloc[:-1]
+    rng = np.random.default_rng(0)
+    metabolites = pd.DataFrame(rng.uniform(0.1, 10, size=(len(ids), 6)), columns=[f"m{i}" for i in range(6)])
+    metabolites.insert(0, "sample", ids.to_numpy())
+    files = [(p.name, p.read_bytes()) for p in (EXAMPLE_COUNTS, EXAMPLE_TAGS)]
+    files.append(("metabolites.csv", metabolites.to_csv(index=False).encode()))
+    return workflows.start_run(tmp_path_factory.mktemp("full"), sort_uploads(files))
+
+
+@pytest.fixture(scope="module")
 def cache(tmp_path_factory):
     return tmp_path_factory.mktemp("cache")
 
@@ -120,10 +132,16 @@ def test_example_dataset_meets_the_contract(dataset):
     assert dataset.features.columns.str.contains(RANK_SEPARATOR).all()
 
 
+def test_a_full_upload_meets_the_contract(full_run, cache):
+    data = workflows.build_dataset(full_run, CANONICAL, cache)[0]
+    assert data.available_inputs == {"counts", "labels", "metabolites"}
+    assert list(data.metabolites.index) == list(data.features.index)  # aligned, in the counts table's order
+
+
 @pytest.mark.parametrize("engine", ENGINES.values(), ids=lambda e: e.name)
-def test_every_engine_runs_on_the_same_representation(engine, run, cache, tmp_path):
-    data = workflows.build_dataset(run, engine.preprocessing, cache)[0]
-    assert data.validate() is data
+def test_every_engine_runs_on_the_same_representation(engine, full_run, cache, tmp_path):
+    data = workflows.build_dataset(full_run, engine.preprocessing, cache, engine.name)[0]
+    assert data.validate() is data and engine.requires <= data.available_inputs
     result = engine.run(data, tmp_path)
     # Engines return their findings in the shared forms; the workflow stores them.
     assert isinstance(result, EngineResult) and all(isinstance(s, str) for s in result.summary)
@@ -169,6 +187,18 @@ def test_labels_must_follow_the_contract(dataset):
                 label_kind="binary").validate()
     with pytest.raises(ContractError):  # labels without a kind
         Dataset(**base, labels=dataset.labels).validate()
+
+
+def test_metabolites_must_follow_the_contract(dataset):
+    base = dict(features=dataset.features, settings=dataset.settings, raw_counts=dataset.raw_counts)
+    good = pd.DataFrame({"m1": 1.0, "m2": 2.0}, index=dataset.features.index)
+    assert Dataset(**base, metabolites=good).validate().available_inputs == {"counts", "metabolites"}
+    for broken in (good.rename(index={good.index[0]: "nobody"}),   # a sample without features
+                   good.assign(m1=float("nan")),                   # missing values
+                   good.assign(m1="high"),                         # not numbers
+                   pd.concat([good, good.iloc[:1]])):              # a sample twice
+        with pytest.raises(ContractError):
+            Dataset(**base, metabolites=broken).validate()
 
 
 # --- 4. preprocessing variations -------------------------------------------------------------

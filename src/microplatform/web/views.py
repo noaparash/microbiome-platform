@@ -25,7 +25,8 @@ from microplatform import CANONICAL, TOOLS, __version__, jobs, runs, workflows
 from microplatform.apidoc import api_reference
 from microplatform.core.contract import ALLOWED_VARIATIONS, short_feature_name
 from microplatform.core.errors import UserFacingError
-from microplatform.core.inputs import sort_uploads
+from microplatform.core.inputs import MIN_METABOLITE_COLUMNS, sort_uploads
+from microplatform.core.metabolites import MIN_PAIRED
 from microplatform.examples import DOWNLOADS, EXAMPLE_SOURCE
 from microplatform.reports.figures import MEDIA_TYPES, PLOTLY_JS
 from microplatform.router.goals import GOALS, get_goal, requirement_text
@@ -34,6 +35,12 @@ bp = Blueprint("main", __name__)
 
 
 bp.add_app_template_filter(short_feature_name, "short_taxon")
+
+
+@bp.app_context_processor
+def format_rules():
+    """The input rules the format help states, from the package (never re-typed in templates)."""
+    return {"min_metabolite_columns": MIN_METABOLITE_COLUMNS, "min_paired": MIN_PAIRED}
 
 
 @bp.get("/")
@@ -65,12 +72,22 @@ def example():
 
 @bp.post("/runs/<run_id>/labels")
 def add_labels(run_id: str):
+    return _add_input(run_id, workflows.add_labels, "a labels file")
+
+
+@bp.post("/runs/<run_id>/metabolites")
+def add_metabolites(run_id: str):
+    return _add_input(run_id, workflows.add_metabolites, "a metabolite table")
+
+
+def _add_input(run_id: str, add, what: str):
+    """Add a file to a run from the Plan step, then show the plan again."""
     run = _get_run(run_id)
     upload = request.files.get("file")
     try:
         if not upload or not upload.filename:
-            raise UserFacingError("No file was chosen.", "Choose a labels file to add.")
-        workflows.add_labels(run, upload.filename, upload.read())
+            raise UserFacingError("No file was chosen.", f"Choose {what} to add.")
+        add(run, upload.filename, upload.read())
     except UserFacingError as exc:
         _flash_error(exc)
     return redirect(url_for(".analysis", run_id=run.id, _anchor="plan"))

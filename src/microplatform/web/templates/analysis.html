@@ -13,7 +13,10 @@
 
 <header class="page-head">
   <h1>{{ meta.counts_name }}</h1>
-  {% if meta.labels_name %}<p class="muted">with labels from {{ meta.labels_name }}</p>{% endif %}
+  {% set extras = [] %}
+  {% if meta.labels_name %}{% set _ = extras.append("labels from " ~ meta.labels_name) %}{% endif %}
+  {% if meta.metabolites_name %}{% set _ = extras.append("metabolites from " ~ meta.metabolites_name) %}{% endif %}
+  {% if extras %}<p class="muted">with {{ extras | join(" and ") }}</p>{% endif %}
 </header>
 
 {% set current = view.step %}
@@ -25,7 +28,7 @@
   {# Once results are shown, the data check folds away so the results come first; problems stay visible. #}
   {% if view.show_results %}
   <details class="check-details">
-    <summary>{{ profile.n_samples }} samples · {{ profile.n_taxa }} taxa{% if view.labels %} · labels{% endif %}
+    <summary>{{ profile.n_samples }} samples · {{ profile.n_taxa }} taxa{% if view.labels %} · labels{% endif %}{% if view.metabolites %} · {{ view.metabolites.n_metabolites }} metabolites{% endif %}
       <span class="muted">— show the full data check</span></summary>
   {% endif %}
   <dl class="stats">
@@ -40,6 +43,7 @@
     {% for line in profile.summary() %}<li>{{ line }}</li>{% endfor %}
     {% if view.labels %}{% for line in view.labels.summary() %}<li>{{ line }}</li>{% endfor %}
     {% else %}<li>No labels file, so only tasks that need just the counts can run.</li>{% endif %}
+    {% if view.metabolites %}{% for line in view.metabolites.summary() %}<li>Metabolite table: {{ line }}</li>{% endfor %}{% endif %}
   </ul>
   {% if view.show_results %}</details>{% endif %}
 
@@ -154,6 +158,21 @@
       <span class="dropzone-hint">Unlocks: {{ rec.unlock["labels"] | join(", ") }}.
         Sample IDs in the first column, the label in a column named <code>Tag</code>.</span>
       <span class="dropzone-busy">Adding your labels…</span>
+    </label>
+    <noscript><button class="btn btn-secondary" type="submit">Add</button></noscript>
+  </form>
+  {% endif %}
+
+  {% if "metabolites" in rec.unlock %}
+  <form class="dropzone dropzone-compact" action="{{ url_for('main.add_metabolites', run_id=view.run.id) }}"
+        method="post" enctype="multipart/form-data">
+    <input class="file-input" type="file" name="file" id="add-metabolites" accept=".csv,.tsv,.txt">
+    <label for="add-metabolites" class="dropzone-label">
+      <span class="dropzone-title">Add a metabolite table</span>
+      <span class="dropzone-hint">Unlocks: {{ rec.unlock["metabolites"] | join(", ") }}.
+        Sample IDs in the first column (the same IDs as the counts table), then one column per metabolite,
+        with measured concentrations or intensities.</span>
+      <span class="dropzone-busy">Adding your metabolites…</span>
     </label>
     <noscript><button class="btn btn-secondary" type="submit">Add</button></noscript>
   </form>

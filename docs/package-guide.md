@@ -49,8 +49,14 @@ view.engine["summary"]          # the findings in plain words
 view.run.path / "tables"        # every result table as CSV
 ```
 
+```python
+# Link bacteria to metabolites (LOCATE): add a metabolite table.
+view = mp.analyze("counts.csv", metabolites="metabolites.csv")   # LOCATE is then the default task
+```
+
 Tasks (`goal`): `"preprocess"` (MIPMLP only), `"differ"` (miMic), `"predict"`
-(iMic) and `"group"` (GIMIC). `mp.GOALS` lists them with what each needs.
+(iMic), `"group"` (GIMIC) and `"metabolites"` (LOCATE). `mp.GOALS` lists them
+with what each needs.
 
 ## Public API and stability
 
