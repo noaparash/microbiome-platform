@@ -1,5 +1,5 @@
-"""Step 1 for the FRANZOSA comparison: the platform's data checks and MIPMLP preprocessing on the converted
-files (no LOCATE yet). Usage: python franzosa_check.py <platform-format folder> <work folder>"""
+"""Step 1 for a comparison on a public dataset (FRANZOSA, YACHIDA): the platform's data checks and MIPMLP preprocessing on the converted
+files (no LOCATE yet). Usage: python dataset_check.py <platform-format folder> <work folder>"""
 
 import sys
 import time

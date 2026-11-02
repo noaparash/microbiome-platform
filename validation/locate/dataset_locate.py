@@ -1,12 +1,15 @@
-"""Step 2 for the FRANZOSA comparison: run the platform's LOCATE (Python 3.13) and summarise prediction quality
-the way the paper's supplementary Fig. S1A does (per-metabolite Spearman on the 20% test set).
+"""Step 2 for a comparison on a public dataset (FRANZOSA, YACHIDA): run the platform's LOCATE (Python 3.13) and
+summarise prediction quality the way the paper's supplementary Fig. S1 does (per-metabolite Spearman on the 20%
+test set).
 
 1. the engine as shipped: one run (split seed 42, training seed 42);
 2. 16 training seeds (0-15) on the same split: each run's per-metabolite Spearman;
 3. per metabolite, the best of those 16 (as the paper's analysis code builds Fig. 3/S1:
    LOCATE_all_analysis, Fig_3/swarm_plot_different_models_metab_predictions.py, choose_best_config).
 
-Usage: python franzosa_locate.py <platform-format folder> <work folder> <results folder>
+Usage: python dataset_locate.py <platform-format folder> <work folder> <results folder> [--top-detected N]
+--top-detected N keeps only the N metabolites detected (> 0) in the most samples (ties: table order); a
+sensitivity check for a paper whose metabolite count is smaller than the published table's.
 """
 
 import contextlib
@@ -27,6 +30,7 @@ from microplatform.core.profiler import read_table
 from microplatform.engines.locate import SEED, TEST_SIZE, LocateEngine, _quiet, fit_and_predict, metabolite_scores
 
 data, work, results = (Path(p) for p in sys.argv[1:4])
+top_detected = int(sys.argv[sys.argv.index("--top-detected") + 1]) if "--top-detected" in sys.argv else None
 results.mkdir(parents=True, exist_ok=True)
 
 
@@ -44,8 +48,12 @@ run = workflows.start_run(work / "runs", inputs)
 dataset, _ = workflows.build_dataset(run, LocateEngine.preprocessing, work / "cache", engine="LOCATE")  # cached
 metabolites = read_table(data / "metabolites.csv", index_col=0)
 metabolites.index = metabolites.index.astype(str)
+if top_detected:
+    detected = (metabolites > 0).mean()
+    metabolites = metabolites[detected.sort_values(ascending=False, kind="stable").index[:top_detected]]
 dataset = dataclasses.replace(dataset, metabolites=metabolites.loc[dataset.features.index]).validate()
-summary = {"features": int(dataset.features.shape[1]), "samples": int(dataset.features.shape[0])}
+summary = {"features": int(dataset.features.shape[1]), "samples": int(dataset.features.shape[0]),
+           "metabolites_in": int(metabolites.shape[1]), "top_detected": top_detected}
 
 # 1. the engine as shipped
 start = time.time()

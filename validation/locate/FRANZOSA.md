@@ -59,7 +59,7 @@ What the 16 are (configurations, splits or seeds) is not stated.
 5. **Measure.** Spearman per metabolite on the 44 test samples, summarised as in the figure
    (median and quartiles; the mean is also reported).
 
-## Results (`franzosa_locate.py`; full numbers in locate-reference/franzosa-results/summary.json)
+## Results (`dataset_locate.py`, formerly franzosa_locate.py; full numbers in locate-reference/franzosa-results/summary.json)
 
 | | Median | Quartiles | 5th-95th percentile | Below 0 | Mean |
 |---|---|---|---|---|---|

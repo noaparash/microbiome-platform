@@ -148,3 +148,36 @@ docs and flag it for the LOCATE authors, whether or not V2 passes.
 the interval contains 0). The pass is narrow at the lower end (−0.0193). Per-seed
 differences reach ±0.10 in both directions, the same run-to-run sensitivity the original
 shows against itself. Nothing to flag for the authors on direction.
+
+## Revised validation standard (2026-11-02, decided by the project owner)
+
+The last planned step, V3 ("match Oshrit's own LOCATE run, with her confirmed metabolite
+settings"), cannot be met: the LOCATE authors have nothing more to send (no private dataset,
+no reference run, no confirmed settings). LOCATE's validation standard is therefore:
+
+1. **The conversion is faithful to the original code** (done): V1′ bit-identical, V2 PASS
+   (above). Kept by `tests/test_reproduction.py`.
+2. **Faithful reproduction of the paper's published results across multiple public
+   datasets.** The datasets are the ones the paper used, from the Borenstein curated
+   collection (FRANZOSA, YACHIDA, ...). Each is compared *like for like* with the
+   published figure: the paper's figures keep the best of 16 runs per metabolite, so the
+   platform's numbers for the comparison are built the same way.
+3. **All reconstructed settings and their uncertainty are documented**, per dataset: the
+   data version, preprocessing, metabolite preparation, split, hyperparameters, how the
+   target was read from the figure (± reading error), and every mismatch with the paper's
+   tables. One file per dataset (FRANZOSA.md, YACHIDA.md).
+4. **Honest single-run reporting.** The platform reports what one run gives, which is what a
+   user gets. It says plainly that the paper's published figures keep the best of 16 runs
+   per metabolite, which inflates them.
+
+There is no numeric pass/fail threshold for step 2: the target is read from figure pixels and
+the settings are reconstructed. Each dataset reports the same quantities (median, quartiles,
+5th-95th percentile, share below 0 and mean, for best-of-16 and for one run), and the owner
+judges them in review. Fixed before the YACHIDA LOCATE runs: YACHIDA uses exactly FRANZOSA's
+procedure (`dataset_check.py`, `dataset_locate.py`, all metabolites as the main comparison).
+Because the paper's YACHIDA metabolite count (174) differs from the collection's (450), it adds
+one sensitivity run on the 174 most often detected metabolites, reported beside the main
+result, not instead of it.
+
+LOCATE stays "Planned" until the owner has reviewed YACHIDA, and the website must accept a
+metabolite table before it is enabled.
