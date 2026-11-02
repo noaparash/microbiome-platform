@@ -1,0 +1,228 @@
+{
+ "features": 44195,
+ "samples": 220,
+ "engine": {
+  "metabolites": 8848,
+  "mean": 0.3506,
+  "median": 0.3653,
+  "q25": 0.1919,
+  "q75": 0.5184,
+  "p05": -0.0217,
+  "p95": 0.696,
+  "share_below_0": 0.0644,
+  "epochs": 114,
+  "seconds": 17,
+  "summary": [
+   "LOCATE learned from 176 samples with both microbiome and metabolite data and was tested on 44 it had not seen (80% for training, 20% for testing, seed 42).",
+   "Across 8848 metabolites, the median Spearman correlation between measured and predicted levels on the test samples is 0.37; 8277 are predicted better than chance would suggest (correlation above 0).",
+   "As in micrOS, the test samples also decided when training stopped, so these scores may be slightly optimistic.",
+   "The metabolite preparation (log base and the value added before the log) is provisional until the LOCATE authors confirm it."
+  ],
+  "metabolites_prepared": {
+   "settings": {
+    "normalization": "relative",
+    "log_base": 10.0,
+    "pseudocount": 1e-06,
+    "z_scoring": "column",
+    "confirmed": false
+   },
+   "z_score_sd": "population (ddof=0)",
+   "metabolites_in": 8848,
+   "metabolites_used": 8848,
+   "left_out_constant": 0
+  }
+ },
+ "seeds": {
+  "0": {
+   "metabolites": 8848,
+   "mean": 0.3427,
+   "median": 0.3514,
+   "q25": 0.1889,
+   "q75": 0.5153,
+   "p05": -0.064,
+   "p95": 0.6958,
+   "share_below_0": 0.0807,
+   "epochs": 101
+  },
+  "1": {
+   "metabolites": 8848,
+   "mean": 0.3273,
+   "median": 0.3375,
+   "q25": 0.1785,
+   "q75": 0.4841,
+   "p05": -0.0391,
+   "p95": 0.6719,
+   "share_below_0": 0.0721,
+   "epochs": 119
+  },
+  "2": {
+   "metabolites": 8848,
+   "mean": 0.2704,
+   "median": 0.2795,
+   "q25": 0.1352,
+   "q75": 0.4163,
+   "p05": -0.0789,
+   "p95": 0.5855,
+   "share_below_0": 0.1035,
+   "epochs": 213
+  },
+  "3": {
+   "metabolites": 8848,
+   "mean": 0.3684,
+   "median": 0.3719,
+   "q25": 0.2142,
+   "q75": 0.5271,
+   "p05": 0.005,
+   "p95": 0.7216,
+   "share_below_0": 0.0472,
+   "epochs": 143
+  },
+  "4": {
+   "metabolites": 8848,
+   "mean": 0.347,
+   "median": 0.3564,
+   "q25": 0.1888,
+   "q75": 0.5128,
+   "p05": -0.0231,
+   "p95": 0.6913,
+   "share_below_0": 0.0663,
+   "epochs": 161
+  },
+  "5": {
+   "metabolites": 8848,
+   "mean": 0.3477,
+   "median": 0.3522,
+   "q25": 0.1833,
+   "q75": 0.5232,
+   "p05": -0.0424,
+   "p95": 0.7038,
+   "share_below_0": 0.0727,
+   "epochs": 154
+  },
+  "6": {
+   "metabolites": 8848,
+   "mean": 0.3435,
+   "median": 0.3476,
+   "q25": 0.1888,
+   "q75": 0.5077,
+   "p05": -0.0187,
+   "p95": 0.6819,
+   "share_below_0": 0.0613,
+   "epochs": 163
+  },
+  "7": {
+   "metabolites": 8848,
+   "mean": 0.342,
+   "median": 0.3501,
+   "q25": 0.1815,
+   "q75": 0.5018,
+   "p05": -0.0236,
+   "p95": 0.6971,
+   "share_below_0": 0.0635,
+   "epochs": 198
+  },
+  "8": {
+   "metabolites": 8848,
+   "mean": 0.3547,
+   "median": 0.3615,
+   "q25": 0.1986,
+   "q75": 0.5111,
+   "p05": -0.0032,
+   "p95": 0.7001,
+   "share_below_0": 0.0519,
+   "epochs": 188
+  },
+  "9": {
+   "metabolites": 8848,
+   "mean": 0.3394,
+   "median": 0.3407,
+   "q25": 0.1739,
+   "q75": 0.5069,
+   "p05": -0.0387,
+   "p95": 0.7079,
+   "share_below_0": 0.0713,
+   "epochs": 172
+  },
+  "10": {
+   "metabolites": 8848,
+   "mean": 0.3674,
+   "median": 0.3779,
+   "q25": 0.2168,
+   "q75": 0.527,
+   "p05": 0.0012,
+   "p95": 0.7007,
+   "share_below_0": 0.0491,
+   "epochs": 156
+  },
+  "11": {
+   "metabolites": 8848,
+   "mean": 0.3888,
+   "median": 0.4045,
+   "q25": 0.2519,
+   "q75": 0.5496,
+   "p05": -0.0019,
+   "p95": 0.7281,
+   "share_below_0": 0.0505,
+   "epochs": 113
+  },
+  "12": {
+   "metabolites": 8848,
+   "mean": 0.367,
+   "median": 0.3762,
+   "q25": 0.2079,
+   "q75": 0.5316,
+   "p05": -0.0104,
+   "p95": 0.7175,
+   "share_below_0": 0.0553,
+   "epochs": 129
+  },
+  "13": {
+   "metabolites": 8848,
+   "mean": 0.2863,
+   "median": 0.2768,
+   "q25": 0.1251,
+   "q75": 0.4419,
+   "p05": -0.0654,
+   "p95": 0.674,
+   "share_below_0": 0.0986,
+   "epochs": 154
+  },
+  "14": {
+   "metabolites": 8848,
+   "mean": 0.3657,
+   "median": 0.3803,
+   "q25": 0.2164,
+   "q75": 0.5238,
+   "p05": -0.0047,
+   "p95": 0.6992,
+   "share_below_0": 0.0522,
+   "epochs": 137
+  },
+  "15": {
+   "metabolites": 8848,
+   "mean": 0.3862,
+   "median": 0.408,
+   "q25": 0.2333,
+   "q75": 0.5486,
+   "p05": -0.0028,
+   "p95": 0.7176,
+   "share_below_0": 0.0511,
+   "epochs": 212
+  }
+ },
+ "best_of_16": {
+  "metabolites": 8848,
+  "mean": 0.4888,
+  "median": 0.4954,
+  "q25": 0.3663,
+  "q75": 0.6106,
+  "p05": 0.2086,
+  "p95": 0.7576,
+  "share_below_0": 0.0001
+ },
+ "single_run_medians": {
+  "min": 0.2768,
+  "max": 0.408,
+  "mean": 0.3545
+ }
+}

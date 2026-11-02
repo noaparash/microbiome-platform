@@ -54,3 +54,14 @@ The conversion is bit-identical to the original when lstsq is made repeatable in
 the original as published (torch 1.13), on 20 new seeds: mean test Spearman 0.3804 vs
 0.3816, difference −0.0013, 90% CI [−0.0193, +0.0168]: equivalent within ±0.02, with no
 systematic direction.
+
+## From reproducing FRANZOSA (FRANZOSA.md)
+
+- **Fig. 3 / Fig. S1 show the best of 16 runs per metabolite.** The analysis code
+  (`choose_best_config`) keeps, for every metabolite, the highest of 16 test-set correlations.
+  On FRANZOSA this construction raised the median from about 0.36 (a single run) to about 0.50.
+  It should be stated in the paper, or a single-run (or mean-of-runs) result shown beside it.
+- **Table S2's species count for FRANZOSA (9,154) matches no version** of the Borenstein
+  collection (163, 34,754 or 55,882 species). Which version and filter were used?
+- With the current collection, the platform's LOCATE built like Fig. S1A gives a median of
+  0.495 (paper ≈ 0.44, read from the figure).
