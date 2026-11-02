@@ -65,3 +65,15 @@ systematic direction.
   collection (163, 34,754 or 55,882 species). Which version and filter were used?
 - With the current collection, the platform's LOCATE built like Fig. S1A gives a median of
   0.495 (paper ≈ 0.44, read from the figure).
+
+## From reproducing YACHIDA (YACHIDA.md)
+
+- **The same best-of-16 inflation**: on YACHIDA it raised the median from about 0.15 (a single
+  run) to about 0.28, **+0.13, the same as on FRANZOSA**. A single run predicts about a fifth of
+  YACHIDA's metabolites worse than chance (correlation below 0).
+- **Table S2's YACHIDA counts match no version** of the collection: 16,383 species (the collection
+  has 500, 470, 42,143 or 57,702) and **174 metabolites** (the only published table has 450). Which
+  174, chosen how? The analysis code reads a `metab.csv` that is not in the repository. Keeping the
+  174 most often detected does not reproduce the figure (median 0.36 vs ≈ 0.22).
+- With all metabolites, the platform's LOCATE built like Fig. S1E gives a median of 0.276 (paper
+  ≈ 0.22, read from the figure): the same direction and size of difference as on FRANZOSA.

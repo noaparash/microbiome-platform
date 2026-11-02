@@ -89,6 +89,8 @@ def test_engine_runs_the_converted_locate(dataset, tmp_path):
     assert record["seed"] == 42 and record["epochs"] > 0
     assert record["metabolites"]["left_out_constant"] == 1 and not record["metabolites"]["settings"]["confirmed"]
     assert any("provisional" in line for line in result.summary)
+    # Honest reporting (validation/locate/PROTOCOL.md, revised standard): one run, and why the paper looks better.
+    assert any("one training run" in line and "best of 16" in line for line in result.summary)
     assert [f.name for f in result.figures] == ["locate_metabolite_scores"]
     assert (tmp_path / "work" / "lightning_logs").exists()  # the tool's own files stay in the work folder
 

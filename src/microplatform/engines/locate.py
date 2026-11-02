@@ -156,6 +156,10 @@ def _summary(n_train: int, n_test: int, scores: pd.DataFrame, prepared: dict) ->
         "No metabolite varied enough in the test samples to score the predictions.",
         "As in micrOS, the test samples also decided when training stopped, so these scores may be "
         "slightly optimistic.",
+        "These scores come from one training run, which is what to expect in practice. The LOCATE paper's "
+        "per-dataset figures show, for each metabolite, the best of 16 runs; on two of the paper's public "
+        "datasets (FRANZOSA and YACHIDA) that raised the median correlation by about 0.13, so the published "
+        "figures look better than a single run.",
     ]
     if prepared["left_out_constant"]:
         lines.append(f"{prepared['left_out_constant']} metabolites were the same in every sample and were left out.")

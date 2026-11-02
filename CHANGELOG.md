@@ -16,12 +16,15 @@ All notable changes to `microplatform`. The format follows
   run-to-run noise removed in both, the conversion is **bit-identical** (V1′). The
   Python 3.13 product is equivalent to the original under the approved rule (V2:
   mean difference in test Spearman −0.0013, 90% CI [−0.0193, +0.0168] within ±0.02,
-  no systematic direction). The check against the authors' own results on a real
-  dataset (V3) is still to come.
+  no systematic direction). Against the paper's published figures on two public
+  datasets (FRANZOSA, YACHIDA; `validation/locate/`), built the same way (best of
+  16 runs per metabolite), the medians are about 0.05 above the paper's, with the
+  same shape.
 - LOCATE's engine, not enabled yet (`engines/locate.py`, `core/metabolites.py`):
   metabolite-table checks and the paper's metabolite preparation (relative → log →
   z-score; log base and pseudocount provisional). It runs `locate_lightning2`
-  in-process.
+  in-process. Its summary reports one run honestly and says that the paper's
+  figures keep the best of 16 runs per metabolite (about +0.13 on the median).
 - Dependency: `pytorch-lightning>=2.2,<3` (already installed with MIPMLP).
 
 ## [0.2.0] — 2026-10-28

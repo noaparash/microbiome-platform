@@ -181,3 +181,13 @@ result, not instead of it.
 
 LOCATE stays "Planned" until the owner has reviewed YACHIDA, and the website must accept a
 metabolite table before it is enabled.
+
+### Results under the revised standard (for the owner's review)
+
+- **FRANZOSA** (FRANZOSA.md): paper ≈ 0.44 (median, best of 16, read from Fig. S1A); platform,
+  built the same way, 0.495; one run 0.365.
+- **YACHIDA** (YACHIDA.md; procedure fixed above before running): paper ≈ 0.22 (Fig. S1E);
+  platform, built the same way, 0.276; one run 0.144. Sensitivity (174 most detected
+  metabolites): 0.359.
+- On both, the platform is about 0.05-0.06 above the paper, with the same shape, and best-of-16
+  inflates the median over a typical single run by about 0.13.
