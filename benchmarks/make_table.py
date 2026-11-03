@@ -33,8 +33,9 @@ lines = [
     "",
     f"Measured {date} on {machine}, with the platform's own code path (`mp.analyze`, the same",
     "workflow the website's background worker runs). Each analysis ran in its own process,",
-    "capped at 60 minutes. A lab server will differ (more cores and memory make the big",
-    "datasets faster).",
+    "capped at 60 minutes for this measurement only: an entry \"> 60 min\" was stopped there",
+    "(the platform itself never stops a run). These are laptop timings; the timings that",
+    "matter are the lab server's, to be measured after deployment.",
     "",
     "**How to read it**",
     "",
@@ -49,7 +50,11 @@ lines = [
     "  longest runs here.",
     "- **Peak memory** is the most memory the analysis used at once (the whole process: Python,",
     "  the data and the tool). It is what the lab server needs per analysis running at the same",
-    "  time.",
+    "  time. For a run stopped at 60 minutes it is the peak until then (\"at least\").",
+    "- **Large datasets need the lab server.** On the big public datasets (tens of thousands of",
+    "  taxa), some tools did not finish within an hour on the laptop.",
+    "- The data overview figures (added after this measurement) take about 16 to 39 s more on the",
+    "  big datasets, and a few seconds on the small ones.",
     "",
 ]
 for name in datasets:
@@ -62,15 +67,23 @@ for name in datasets:
               "|---|---|---|---|---|"]
     for row in (r for r in rows if r["dataset"] == name):
         tool = TOOLS.get(row["goal"], row["goal"])
+        if row.get("status", "").startswith("time-out"):
+            peak = row.get("peak_memory_gb")
+            lines.append(f"| {tool} | cached (0 s) | **> 60 min** (stopped) | **> 60 min** | "
+                         f"{'at least ' + str(peak) + ' GB' if peak is not None else '—'} |")
+            continue
         if row.get("status") != "done":
             note = row.get("message") or ""
             lines.append(f"| {tool} | — | **{row['status']}**{': ' + note if note else ''} | "
                          f"{duration(row.get('total_s'))} | {row.get('peak_memory_gb', '—')} GB |")
             continue
         pre = "cached (0 s)" if row["from_cache"] else duration(row["preprocessing_s"])
-        tool_time = "—" if row["goal"] == "preprocess" else duration(row["tool_s"])
+        # "Just preprocess" has no tool: the rest is saving the cleaned table and drawing the figures.
+        tool_time = (f"{duration(row['tool_s'])} (saving, figures)" if row["goal"] == "preprocess"
+                     else duration(row["tool_s"]))
         lines.append(f"| {tool} | {pre} | {tool_time} | {duration(row['total_s'])} | "
                      f"{row.get('peak_memory_gb', '—')} GB |")
     lines.append("")
 Path(out).write_text("\n".join(lines), encoding="utf-8")
+sys.stdout.reconfigure(encoding="utf-8")  # the Windows console is not UTF-8 by default
 print("\n".join(lines))
