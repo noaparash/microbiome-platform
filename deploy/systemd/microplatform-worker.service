@@ -17,10 +17,13 @@ ExecStart=/opt/microplatform/.venv/bin/python -m microplatform.worker --instance
 Restart=always
 RestartSec=10
 
-# Graceful stop: on "systemctl stop/restart" the worker finishes the analysis in progress
-# before exiting. Allow up to 30 minutes for that (iMic takes seconds, GIMIC minutes).
+# Graceful stop: on "systemctl stop/restart" (and on a reboot) the worker finishes the analysis
+# in progress before exiting. Allow up to 4 hours, so a long run (e.g. miMic on a large dataset:
+# over 60 minutes) finishes instead of being interrupted. To be tuned from the run-time table.
+# The worker exits as soon as the run ends, so an idle worker stops at once. To stop it now
+# anyway (the run is then marked interrupted): sudo systemctl kill microplatform-worker
 KillSignal=SIGTERM
-TimeoutStopSec=1800
+TimeoutStopSec=4h
 
 UMask=0077
 NoNewPrivileges=true

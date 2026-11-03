@@ -209,7 +209,7 @@ def test_service_files_start_the_right_programs():
     for unit in (web, worker):
         assert "Restart=" in unit and "WantedBy=multi-user.target" in unit
         assert "UMask=0077" in unit and "EnvironmentFile=/etc/microplatform/microplatform.env" in unit
-    assert "TimeoutStopSec=1800" in worker  # time to finish the run in progress
+    assert "TimeoutStopSec=4h" in worker  # time to finish the run in progress, even a long one
 
 
 def test_gunicorn_settings_listen_locally_and_keep_addresses_out_of_logs():
