@@ -38,7 +38,19 @@ All notable changes to `microplatform`. The format follows
   metabolite (about +0.13 on the median).
 - Dependency: `pytorch-lightning>=2.2,<3` (already installed with MIPMLP).
 
+- `EngineResult.notes`: how to read an engine's findings (limits and caveats),
+  kept apart from `summary` and saved in `engine.json` as `"notes"`. iMic, GIMIC
+  and LOCATE moved their caveats there; the website shows them in a "How to read
+  these results" box under the findings, and the results ZIP's README lists them.
+- Website accessibility: a "Skip to content" link on every page; tests that every
+  text colour meets WCAG AA (4.5:1) in light and dark mode.
+
 ### Changed
+- Website polish: numbers in the stat tiles never break mid-number on phones (and
+  shrink a little instead); every count is shown with thousands separators
+  (55,882); a "Metabolites" tile in the data check; the five question cards sit
+  as two and three on wide screens; status badges appear only for a tool that is
+  not available; sentence case in the settings lists.
 - `mp.analyze` takes `metabolites=` (a metabolite table's path), added last so
   existing calls are unchanged.
 - Uploads: up to three files (counts, labels, metabolites). Two files of the same

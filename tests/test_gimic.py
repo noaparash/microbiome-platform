@@ -106,7 +106,7 @@ def test_mean_mode_is_labelled_as_the_exception(tmp_path, cache):
     view = workflows.describe(run)
     assert view.record["settings"]["taxonomy_group"] == "mean"
     assert "taxonomy group 'mean'" in view.representation_note and "'sub PCA'" in view.representation_note
-    assert any("published example" in line and "not on exactly the same" in line for line in view.engine["summary"])
+    assert any("published example" in line and "not on exactly the same" in line for line in view.engine["notes"])
 
 
 def test_without_labels_there_is_a_map_but_no_group_comparison(tmp_path, cache):

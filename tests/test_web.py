@@ -212,6 +212,8 @@ def test_locate_results_page(client):
     page = client.post(f"{url}/run", data={"goal": "metabolites"}, follow_redirects=True).get_data(as_text=True)
     assert "Results: Link bacteria to metabolites (LOCATE)" in page
     assert "one training run" in page and "best of 16" in page  # honest single-run reporting
+    notes = page.split('<section class="reading-notes"', 1)[1].split("</section>", 1)[0]
+    assert "one training run" in notes.split("<li>")[1]  # the first thing under "How to read these results"
     assert "Best-predicted metabolites" in page and "locate_lightning2" in page
     response = client.get(f"{url}/tables/metabolite_scores.csv")
     assert response.status_code == 200

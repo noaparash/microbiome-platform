@@ -59,8 +59,8 @@ class MetaboliteProfile:
         return not any(i.level == "error" for i in self.issues)
 
     def summary(self) -> list[str]:
-        return [f"{self.n_samples} samples and {self.n_metabolites} metabolites; "
-                f"{self.n_paired} samples are also in the counts table."]
+        return [f"{self.n_samples:,} samples and {self.n_metabolites:,} metabolites; "
+                f"{self.n_paired:,} samples are also in the counts table."]
 
 
 def profile_metabolites(table: pd.DataFrame, sample_ids: list[str]) -> MetaboliteProfile:

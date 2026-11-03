@@ -28,16 +28,17 @@
   {# Once results are shown, the data check folds away so the results come first; problems stay visible. #}
   {% if view.show_results %}
   <details class="check-details">
-    <summary>{{ profile.n_samples }} samples · {{ profile.n_taxa }} taxa{% if view.labels %} · labels{% endif %}{% if view.metabolites %} · {{ view.metabolites.n_metabolites }} metabolites{% endif %}
+    <summary>{{ profile.n_samples|count }} samples · {{ profile.n_taxa|count }} taxa{% if view.labels %} · labels{% endif %}{% if view.metabolites %} · {{ view.metabolites.n_metabolites|count }} metabolites{% endif %}
       <span class="muted">— show the full data check</span></summary>
   {% endif %}
   <dl class="stats">
-    <div><dt>Samples</dt><dd>{{ profile.n_samples }}</dd></div>
-    <div><dt>Taxa</dt><dd>{{ profile.n_taxa }}</dd></div>
+    <div><dt>Samples</dt><dd>{{ profile.n_samples|count }}</dd></div>
+    <div><dt>Taxa</dt><dd>{{ profile.n_taxa|count }}</dd></div>
     <div><dt>Zeros</dt><dd>{{ "%.0f"|format(profile.zero_fraction * 100) }}%</dd></div>
     {% if profile.value_kind == "counts" %}
-      <div><dt>Median reads</dt><dd>{{ "{:,.0f}".format(profile.median_reads) }}</dd></div>
+      <div><dt>Median reads</dt><dd>{{ profile.median_reads|count }}</dd></div>
     {% endif %}
+    {% if view.metabolites %}<div><dt>Metabolites</dt><dd>{{ view.metabolites.n_metabolites|count }}</dd></div>{% endif %}
   </dl>
   <ul class="facts">
     {% for line in profile.summary() %}<li>{{ line }}</li>{% endfor %}
@@ -214,6 +215,13 @@
   {% if view.engine and view.engine.tool != "MIPMLP" %}
     {% set engine = view.engine %}
     <ul class="facts findings">{% for line in engine.summary %}<li>{{ line }}</li>{% endfor %}</ul>
+    {# Limits and caveats sit right under the findings, never folded away, so they are read together. #}
+    {% if engine.notes %}
+      <section class="reading-notes" aria-labelledby="notes-heading">
+        <h3 id="notes-heading">How to read these results</h3>
+        <ul>{% for line in engine.notes %}<li>{{ line }}</li>{% endfor %}</ul>
+      </section>
+    {% endif %}
     {% if view.representation_note %}
       <p class="representation-note"><strong>Different table:</strong> {{ view.representation_note }}
         Results from other tools on this data use the shared table.</p>
@@ -241,9 +249,9 @@
   {% endif %}
 
   <dl class="stats">
-    <div><dt>Samples</dt><dd>{{ record.samples }}</dd></div>
-    <div><dt>Taxa in</dt><dd>{{ record.input_taxa }}</dd></div>
-    <div><dt>Features out</dt><dd>{{ record.output_features }}</dd></div>
+    <div><dt>Samples</dt><dd>{{ record.samples|count }}</dd></div>
+    <div><dt>Taxa in</dt><dd>{{ record.input_taxa|count }}</dd></div>
+    <div><dt>Features out</dt><dd>{{ record.output_features|count }}</dd></div>
     <div><dt>Time</dt><dd>{{ "cached" if record.from_cache else "%.0f s"|format(record.seconds) }}</dd></div>
   </dl>
   <ul class="facts">{% for line in record.summary %}<li>{{ line }}</li>{% endfor %}</ul>

@@ -12,8 +12,8 @@
     (<a href="{{ source }}">github.com/oshritshtossel/miMic</a>): 16S rRNA counts with a
     taxonomy row, and a binary label for each sample.</p>
   <dl class="stats">
-    <div><dt>Samples</dt><dd>{{ counts.n_samples }}</dd></div>
-    <div><dt>Taxa</dt><dd>{{ counts.n_taxa }}</dd></div>
+    <div><dt>Samples</dt><dd>{{ counts.n_samples|count }}</dd></div>
+    <div><dt>Taxa</dt><dd>{{ counts.n_taxa|count }}</dd></div>
     <div><dt>Zeros</dt><dd>{{ "%.0f"|format(counts.zero_fraction * 100) }}%</dd></div>
     <div><dt>Groups</dt><dd>{{ labels.class_counts | length }}</dd></div>
   </dl>

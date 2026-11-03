@@ -65,7 +65,7 @@ class CountsProfile:
 
     def summary(self) -> list[str]:
         """Plain-language description for the web page."""
-        lines = [f"{self.n_samples} samples and {self.n_taxa} bacterial taxa."]
+        lines = [f"{self.n_samples:,} samples and {self.n_taxa:,} bacterial taxa."]
         if self.has_taxonomy:
             lines.append(
                 f"Taxonomy found, named down to {RANKS[self.taxonomy_depth - 1]} level "

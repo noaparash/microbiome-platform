@@ -105,6 +105,11 @@ a { color: var(--accent); }
 code, pre { font-family: var(--mono); font-size: 0.875em; }
 .muted { color: var(--muted); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* The first Tab stop on every page: hidden until a keyboard user reaches it. */
+.skip-link { position: absolute; left: 1rem; top: -4rem; z-index: 10; padding: 0.6rem 1rem; border-radius: 10px;
+             background: var(--accent); color: var(--on-accent); font-weight: 600; text-decoration: none; }
+.skip-link:focus { top: 0.75rem; outline: 3px solid var(--accent-strong); outline-offset: 2px; }
+main:focus { outline: none; } /* focused only as the skip link's target */
 
 /* ── Header and footer ──────────────────────────────────────────────── */
 .site-header { background: var(--brand-dark); color: #e6f2f2; }
@@ -171,6 +176,12 @@ code, pre { font-family: var(--mono); font-size: 0.875em; }
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr));
   grid-auto-rows: 1fr; /* every card the same height */
 }
+/* Five questions on a wide screen: two, then three, so no row ends with an empty slot. */
+@media (min-width: 860px) {
+  .question-grid:has(> li:nth-child(5):last-child) { grid-template-columns: repeat(6, 1fr); }
+  .question-grid:has(> li:nth-child(5):last-child) > li { grid-column: span 2; }
+  .question-grid:has(> li:nth-child(5):last-child) > li:nth-child(-n+2) { grid-column: span 3; }
+}
 .question-card {
   display: flex; flex-direction: column; justify-content: space-between; gap: 0.75rem; height: 100%;
   padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
@@ -227,9 +238,11 @@ code, pre { font-family: var(--mono); font-size: 0.875em; }
 .results-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.5rem; }
 
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.75rem; margin: 1rem 0; }
-.stats div { background: var(--surface-2); border-radius: 10px; padding: 0.75rem 0.9rem; border-left: 3px solid var(--accent); }
+.stats div { background: var(--surface-2); border-radius: 10px; padding: 0.75rem 0.9rem; border-left: 3px solid var(--accent); min-width: 0; }
 .stats dt { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
-.stats dd { margin: 0.15rem 0 0; font-size: 1.5rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+/* A number never breaks inside itself (cards allow breaking long words); it shrinks a little instead. */
+.stats dd { margin: 0.15rem 0 0; font-size: clamp(1.15rem, 4.6vw, 1.5rem); font-weight: 650; font-variant-numeric: tabular-nums;
+            white-space: nowrap; overflow-wrap: normal; }
 
 .facts { margin: 0; padding-left: 1.2rem; }
 .facts li { margin-bottom: 0.25rem; }
@@ -335,6 +348,13 @@ code, pre { font-family: var(--mono); font-size: 0.875em; }
 .option legend { font-weight: 600; padding: 0; margin-bottom: 0.3rem; }
 .option-choice { display: grid; grid-template-columns: auto 1fr; gap: 0.6rem; align-items: start; font-size: 0.95rem; cursor: pointer; }
 .option-choice input { margin-top: 0.3rem; accent-color: var(--accent); }
+/* "How to read these results": an engine's limits and caveats, right under its findings. */
+.reading-notes { background: var(--surface-2); border-left: 4px solid var(--accent-strong); border-radius: 10px;
+                 padding: 0.8rem 1rem 0.8rem 1.1rem; margin: 1rem 0 0; }
+.reading-notes h3 { margin: 0 0 0.4rem; font-size: 0.95rem; }
+.reading-notes ul { margin: 0; padding-left: 1.2rem; }
+.reading-notes li { margin-bottom: 0.3rem; }
+.reading-notes li:last-child { margin-bottom: 0; }
 .representation-note { background: var(--warning-soft); color: var(--text); border-radius: 10px; padding: 0.7rem 0.9rem; margin: 0.75rem 0 0; font-size: 0.95rem; }
 
 /* ── Results ─────────────────────────────────────────────────────────── */
@@ -374,7 +394,8 @@ summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; b
 .record summary:hover { color: var(--accent-strong); }
 .record-list { display: grid; gap: 0.25rem; margin: 0.75rem 0 0; }
 .record-list div { display: flex; gap: 1rem; }
-.record-list dt { color: var(--muted); min-width: 12rem; text-transform: capitalize; }
+.record-list dt { color: var(--muted); min-width: 12rem; }
+.record-list dt::first-letter { text-transform: uppercase; } /* sentence case, as everywhere else */
 .record-list dd { margin: 0; overflow-wrap: anywhere; }
 
 /* ── Content pages: Example, Methods, Docs & API, About ──────────────── */

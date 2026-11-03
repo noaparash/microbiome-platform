@@ -35,6 +35,7 @@ bp = Blueprint("main", __name__)
 
 
 bp.add_app_template_filter(short_feature_name, "short_taxon")
+bp.add_app_template_filter(lambda n: f"{int(n):,}", "count")  # 55882 → 55,882, the same on every page
 
 
 @bp.app_context_processor

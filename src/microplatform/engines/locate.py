@@ -104,6 +104,7 @@ class LocateEngine(Engine):
         scores = metabolite_scores(Y.loc[test], out["pred_val"])
         return EngineResult(
             summary=_summary(len(train), len(test), scores, prepared),
+            notes=_notes(prepared),
             figures=[f for f in (_scores_figure(scores),) if f],
             tables={
                 "metabolite_scores": scores,
@@ -148,28 +149,35 @@ def _latent(z_train: pd.DataFrame, z_val: pd.DataFrame) -> pd.DataFrame:
 def _summary(n_train: int, n_test: int, scores: pd.DataFrame, prepared: dict) -> list[str]:
     rho = scores["spearman"].dropna()
     lines = [
-        f"LOCATE learned from {n_train} samples with both microbiome and metabolite data and was tested on "
-        f"{n_test} it had not seen ({round((1 - TEST_SIZE) * 100)}% for training, "
+        f"LOCATE learned from {n_train:,} samples with both microbiome and metabolite data and was tested on "
+        f"{n_test:,} it had not seen ({round((1 - TEST_SIZE) * 100)}% for training, "
         f"{round(TEST_SIZE * 100)}% for testing, seed {SEED}).",
-        f"Across {len(rho)} metabolites, the median Spearman correlation between measured and predicted "
-        f"levels on the test samples is {rho.median():.2f}; {int((rho > 0).sum())} are predicted better "
+        f"Across {len(rho):,} metabolites, the median Spearman correlation between measured and predicted "
+        f"levels on the test samples is {rho.median():.2f}; {int((rho > 0).sum()):,} are predicted better "
         "than chance would suggest (correlation above 0)." if len(rho) else
         "No metabolite varied enough in the test samples to score the predictions.",
-        "As in micrOS, the test samples also decided when training stopped, so these scores may be "
-        "slightly optimistic.",
+    ]
+    if prepared["left_out_constant"]:
+        lines.append(f"{prepared['left_out_constant']:,} metabolites were the same in every sample and were left out.")
+    return lines
+
+
+def _notes(prepared: dict) -> list[str]:
+    """How to read the scores; honest single-run reporting comes first (validation/locate/PROTOCOL.md)."""
+    notes = [
         "These scores come from one training run, which is what to expect in practice. The LOCATE paper's "
         "per-dataset figures show, for each metabolite, the best of 16 runs; on two of the paper's public "
         "datasets (FRANZOSA and YACHIDA) that raised the median correlation by about 0.13, so the published "
         "figures look better than a single run.",
+        "As in micrOS, the test samples also decided when training stopped, so these scores may be "
+        "slightly optimistic.",
     ]
-    if prepared["left_out_constant"]:
-        lines.append(f"{prepared['left_out_constant']} metabolites were the same in every sample and were left out.")
     settings = prepared["settings"]
     if not settings["confirmed"]:
-        lines.append("The paper does not give two details of its metabolite preparation (the log base and the "
+        notes.append("The paper does not give two details of its metabolite preparation (the log base and the "
                      "value added before the log for zeros); the platform uses a reconstruction (log base "
                      f"{settings['log_base']:g}, {settings['pseudocount']:g} added), recorded with these results.")
-    return lines
+    return notes
 
 
 def _scores_figure(scores: pd.DataFrame) -> Figure | None:

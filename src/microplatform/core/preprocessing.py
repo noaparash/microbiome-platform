@@ -96,7 +96,7 @@ class PreprocessResult:
         level = {6: "genus", 7: "species"}.get(self.settings.taxonomy_level,
                                                f"level {self.settings.taxonomy_level}")
         return [
-            f"Grouped {self.n_input_taxa} taxa into {self.n_features} features at {level} "
+            f"Grouped {self.n_input_taxa:,} taxa into {self.n_features:,} features at {level} "
             f"level ({self.settings.taxonomy_group}), then applied {self.settings.normalization} scaling.",
             "Taxa that MIPMLP cannot place (unnamed, viruses) or that appear in fewer than "
             f"{self.settings.rare_bacteria_threshold:.0%} of samples were left out.",

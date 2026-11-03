@@ -39,9 +39,11 @@
   <div class="tool-head">
     <span class="icon-badge">{{ icon(tool.name) }}</span>
     <h3 id="tool-{{ loop.index }}">{{ tool.name }}</h3>
+    {% if status[tool.name] != "available" %}
     <span class="chip chip-{{ status[tool.name] }}">
-      {{ {"available": "Available", "next": "Coming next", "planned": "Planned"}[status[tool.name]] }}
+      {{ {"next": "Coming next", "planned": "Planned"}[status[tool.name]] }}
     </span>
+    {% endif %}
   </div>
   <p class="tool-role">{{ tool.role }}</p>
   <ul class="facts">{% for line in tool.method %}<li>{{ line }}</li>{% endfor %}</ul>

@@ -330,6 +330,7 @@ def _save_engine_result(run: runs.Run, engine, found, choices: dict) -> None:
         "goal": engine.goal,
         "choices": choices,
         "summary": found.summary,
+        "notes": found.notes,
         "record": found.record,
         "tables": list(found.tables),
         "highlight": list(found.highlight) if found.highlight else None,

@@ -88,9 +88,11 @@ def test_engine_runs_the_converted_locate(dataset, tmp_path):
     assert record["package"] == "locate_lightning2" and record["based_on"] == "LOCATE-model 0.0.3"
     assert record["seed"] == 42 and record["epochs"] > 0
     assert record["metabolites"]["left_out_constant"] == 1 and not record["metabolites"]["settings"]["confirmed"]
-    assert any("reconstruction (log base 10, 1e-06 added)" in line for line in result.summary)
+    assert any("reconstruction (log base 10, 1e-06 added)" in line for line in result.notes)
     # Honest reporting (validation/locate/PROTOCOL.md, revised standard): one run, and why the paper looks better.
-    assert any("one training run" in line and "best of 16" in line for line in result.summary)
+    # It is the first note, so it is read first, never mixed in with the findings.
+    assert "one training run" in result.notes[0] and "best of 16" in result.notes[0]
+    assert not any("best of 16" in line for line in result.summary)
     assert [f.name for f in result.figures] == ["locate_metabolite_scores"]
     assert (tmp_path / "work" / "lightning_logs").exists()  # the tool's own files stay in the work folder
 
@@ -163,7 +165,7 @@ def test_locate_runs_end_to_end_from_files(dataset, tmp_path):
     assert set(view.engine["tables"]) == {"metabolite_scores", "predicted_metabolites_test", "latent_representation"}
     assert view.run.metabolites_file.exists() and view.meta["metabolites_name"] == "metabolome.csv"
     assert "z-score per feature" in view.representation_note  # in plain words on the results page
-    assert any("best of 16" in line for line in view.engine["summary"])  # honest single-run reporting
+    assert "best of 16" in view.engine["notes"][0]  # honest single-run reporting
 
     import io
     import zipfile

@@ -117,7 +117,10 @@ These are enforced by tests:
    `run(data: Dataset, work_dir, choices)` converts the `Dataset` to the
    tool's native input, calls the authors' code (inside `work_dir`, since some
    tools write files to the current folder) and returns an `EngineResult`
-   (summary, `Figure`s, tables, record).
+   (summary, notes, `Figure`s, tables, record). `summary` holds the findings;
+   `notes` holds how to read them (limits and caveats such as "one run" or "a
+   small test set"). The results page shows the notes in their own "How to read
+   these results" box, never folded away.
 3. Register it in `engines/__init__.py` and set its goal to `"available"` in
    `router/goals.py`.
 4. Add its reproduction test to `tests/test_reproduction.py`.

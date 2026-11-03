@@ -27,9 +27,12 @@
           </span>
           <span class="question-meta">
             <span class="question-tool">{{ goal.tool }}</span>
+            {# A badge only says something when a tool is not available yet. #}
+            {% if goal.status != "available" %}
             <span class="chip chip-{{ goal.status }}">
-              {{ {"available": "Available", "next": "Coming next", "planned": "Planned"}[goal.status] }}
+              {{ {"next": "Coming next", "planned": "Planned"}[goal.status] }}
             </span>
+            {% endif %}
           </span>
         </a>
       </li>

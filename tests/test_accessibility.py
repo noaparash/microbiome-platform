@@ -97,3 +97,72 @@ def test_dark_mode_chart_colours_cover_the_python_palette():
     for i, color in enumerate(python, start=1):
         assert f"--plot-{i}: {color};" in light
     assert css.count(f"--plot-{len(python)}:") == 3  # light, dark (system), dark (chosen)
+
+
+# --- the whole site: keyboard, contrast, phones ------------------------------------------------
+
+def _tokens(block: str) -> dict[str, str]:
+    return dict(re.findall(r"--([\w-]+):\s*(#[0-9a-fA-F]{6})", block))
+
+
+def _contrast(a: str, b: str) -> float:
+    def luminance(hex_colour):
+        channels = [int(hex_colour[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+        r, g, b = (c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels)
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    hi, lo = sorted((luminance(a), luminance(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+# Every text colour on every background it is used on (WCAG AA for normal text: 4.5:1).
+TEXT_ON = [("text", "bg"), ("text", "surface"), ("text", "surface-2"), ("text", "accent-soft"),
+           ("text", "warning-soft"), ("muted", "bg"), ("muted", "surface"), ("muted", "surface-2"),
+           ("accent", "bg"), ("accent", "surface"), ("accent-strong", "surface"), ("accent-strong", "surface-2"),
+           ("accent-strong", "accent-soft"), ("on-accent", "accent"), ("error", "error-soft"),
+           ("warning", "warning-soft")]
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_text_colours_meet_wcag_aa_in_both_themes(theme):
+    css = (STATIC / "style.css").read_text(encoding="utf-8")
+    tokens = _tokens(css.split(":root {", 1)[1].split("}", 1)[0])
+    if theme == "dark":
+        tokens |= _tokens(css.split(':root[data-theme="dark"] {', 1)[1].split("}", 1)[0])
+    failing = {f"{fg} on {bg}": round(_contrast(tokens[fg], tokens[bg]), 2) for fg, bg in TEXT_ON
+               if _contrast(tokens[fg], tokens[bg]) < 4.5}
+    assert not failing, failing
+
+
+def test_every_page_starts_with_a_skip_link(client, mimic_page):
+    for url in ("/", "/example", "/methods", "/docs", "/about", mimic_page[0]):
+        page = client.get(url).get_data(as_text=True)
+        body = page.split("<body>", 1)[1]
+        first_link = re.search(r"<a [^>]*>", body).group(0)
+        assert 'class="skip-link"' in first_link and 'href="#content"' in first_link, url
+        assert '<main class="wrap" id="content" tabindex="-1">' in page
+
+
+def test_numbers_never_break_and_read_the_same_everywhere(client):
+    css = (STATIC / "style.css").read_text(encoding="utf-8")
+    stats_dd = re.search(r"\.stats dd \{([^}]*)\}", css).group(1)
+    assert "white-space: nowrap" in stats_dd  # a phone showed "22,483,56 / 3"
+    count = client.application.jinja_env.filters["count"]
+    assert count(55882) == "55,882" and count(22483563.0) == "22,483,563" and count(40) == "40"
+
+
+def test_caveats_are_shown_apart_from_the_findings_and_never_folded(client):
+    files = [(io.BytesIO(p.read_bytes()), p.name) for p in (EXAMPLE_COUNTS, EXAMPLE_TAGS)]
+    url = client.post("/upload", data={"files": files}, content_type="multipart/form-data").headers["Location"]
+    page = client.post(f"{url}/run", data={"goal": "predict"}, follow_redirects=True).get_data(as_text=True)
+    notes = re.search(r'<section class="reading-notes" aria-labelledby="notes-heading">(.*?)</section>', page, re.S)
+    assert notes and "How to read these results" in notes.group(1)
+    assert "Only 8 test samples" in notes.group(1) and "one random split" in notes.group(1)
+    findings = page.index('class="facts findings"')
+    assert findings < notes.start() < page.index("<h3>Findings</h3>")  # right under the findings, before figures
+    assert "<details" not in page[findings:notes.end()]  # never folded away
+
+
+def test_a_status_badge_appears_only_when_a_tool_is_not_available(client):
+    for url in ("/", "/methods"):
+        page = client.get(url).get_data(as_text=True)
+        assert "chip-available" not in page  # all five are available: a badge would say nothing

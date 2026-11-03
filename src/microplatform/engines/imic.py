@@ -127,6 +127,7 @@ class ImicEngine(Engine):
         metrics = _metrics(test)
         return EngineResult(
             summary=_summary(len(train), len(test), metrics, coding),
+            notes=_notes(len(test)),
             figures=[f for f in (_roc_figure(test),) if f],
             tables={"predictions": predictions, "test_metrics": pd.DataFrame([metrics])},
             highlight=("predictions", "Predictions (test samples first)"),
@@ -216,7 +217,7 @@ def _summary(n_train: int, n_test: int, metrics: dict, coding: dict) -> list[str
     lines = []
     if set(coding.values()) != {"0", "1"}:
         lines.append(f"The two groups were coded 0 = '{coding['0']}' and 1 = '{coding['1']}'.")
-    lines.append(f"iMic was trained on {n_train} samples and tested on {n_test} it had not seen "
+    lines.append(f"iMic was trained on {n_train:,} samples and tested on {n_test:,} it had not seen "
                  f"({round((1 - TEST_SIZE) * 100)}% for training, {round(TEST_SIZE * 100)}% for testing, seed {SEED}).")
     if np.isnan(metrics["auc"]):
         lines.append("The test samples all belong to one group, so an AUC cannot be computed.")
@@ -224,10 +225,15 @@ def _summary(n_train: int, n_test: int, metrics: dict, coding: dict) -> list[str
         lines.append(f"Test AUC = {metrics['auc']:.3f} (0.5 is chance, 1 is perfect), from the predicted "
                      f"probabilities; accuracy {metrics['accuracy']:.0%}, balanced accuracy "
                      f"{metrics['balanced_accuracy']:.0%}.")
-    if n_test < SMALL_TEST_SET:
-        lines.append(f"Only {n_test} test samples: treat this AUC as a rough estimate.")
-    lines.append("This is one random split; another split would give a somewhat different number.")
     return lines
+
+
+def _notes(n_test: int) -> list[str]:
+    notes = []
+    if n_test < SMALL_TEST_SET:
+        notes.append(f"Only {n_test} test samples: treat this AUC as a rough estimate.")
+    notes.append("This is one random split; another split would give a somewhat different number.")
+    return notes
 
 
 def _roc_figure(test: pd.DataFrame) -> Figure | None:

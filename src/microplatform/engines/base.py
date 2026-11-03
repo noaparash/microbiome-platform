@@ -31,6 +31,9 @@ from microplatform.reports.figures import Figure
 @dataclass
 class EngineResult:
     summary: list[str] = field(default_factory=list)  # plain-language findings
+    # How to read the findings: limits and caveats (e.g. one run, a small test set). Shown apart from the
+    # findings and never folded away, so they are read together.
+    notes: list[str] = field(default_factory=list)
     figures: list[Figure] = field(default_factory=list)  # drawn through reports.figures
     tables: dict[str, pd.DataFrame] = field(default_factory=dict)  # name → table, saved as CSV
     record: dict = field(default_factory=dict)  # tool version and every setting, for reproducibility

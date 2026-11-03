@@ -45,6 +45,9 @@ def build_bundle(run: Run) -> bytes:
     findings = ""
     if engine and engine["summary"]:
         findings = "Findings\n--------\n" + "\n".join(f"- {line}" for line in engine["summary"]) + "\n\n"
+    if engine and engine.get("notes"):
+        findings += ("How to read these results\n-------------------------\n"
+                     + "\n".join(f"- {line}" for line in engine["notes"]) + "\n\n")
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:

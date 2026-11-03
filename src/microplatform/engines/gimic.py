@@ -97,7 +97,8 @@ class GimicEngine(Engine):
 
         return EngineResult(
             highlight=("group_distances", "Average distances, in numbers") if separation is not None else None,
-            summary=_summary(dm, choices["grouping"], separation, coords is not None),
+            summary=_summary(dm, choices["grouping"], separation),
+            notes=_notes(choices["grouping"], coords is not None),
             figures=figures,
             tables=tables,
             record={
@@ -147,14 +148,10 @@ def _separation(dm: pd.DataFrame, groups: pd.Series) -> pd.DataFrame | None:
     return pd.DataFrame(rows)
 
 
-def _summary(dm, grouping: str, separation, has_map: bool) -> list[str]:
-    lines = [f"GIMIC distances were computed between all {len(dm)} samples "
+def _summary(dm, grouping: str, separation) -> list[str]:
+    lines = [f"GIMIC distances were computed between all {len(dm):,} samples "
              f"(spectral angle between FFT-smoothed images, cut-off {CUTOFF:g})."]
-    if grouping == "mean":
-        lines.append("Bacteria were grouped by their mean, as in GIMIC's published example. Note: every other "
-                     "tool uses sub-PCA (the shared table), so these distances are not on exactly the same "
-                     "representation as the other tools' results.")
-    else:
+    if grouping != "mean":
         lines.append("Bacteria were grouped with sub-PCA: the same table the other tools use (the paper's method).")
     if separation is not None:
         within = separation[separation["comparison"] != "between groups"]["mean_distance"].mean()
@@ -162,10 +159,19 @@ def _summary(dm, grouping: str, separation, has_map: bool) -> list[str]:
         lines.append(f"Samples are on average {between / within:.2f}× as far from other groups as from their own "
                      f"(between {between:.3g}, within {within:.3g}). Above 1 means groups are more alike inside "
                      "than across; this is a description, not a statistical test.")
-    if has_map:
-        lines.append("The map places similar samples close together; it is for viewing — the distances themselves "
-                     "are in the table.")
     return lines
+
+
+def _notes(grouping: str, has_map: bool) -> list[str]:
+    notes = []
+    if grouping == "mean":
+        notes.append("Bacteria were grouped by their mean, as in GIMIC's published example. Every other "
+                     "tool uses sub-PCA (the shared table), so these distances are not on exactly the same "
+                     "representation as the other tools' results.")
+    if has_map:
+        notes.append("The map places similar samples close together; it is for viewing — the distances themselves "
+                     "are in the table.")
+    return notes
 
 
 def _map_figure(coords: pd.DataFrame, coloured: bool) -> Figure:

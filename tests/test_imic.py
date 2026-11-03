@@ -69,7 +69,7 @@ def test_results_on_the_example(run):
     record = engine["record"]
     assert record["seed"] == 42 and record["test_size"] == 0.2 and record["device"].startswith("cpu")
     assert "dropout on" in record["prediction_mode"]
-    assert any("Only 8 test samples" in line for line in engine["summary"])
+    assert any("Only 8 test samples" in line for line in engine["notes"])  # a caveat, shown apart
     assert any(f.name == "imic_roc" for f in workflows.describe(run).figures)
 
 

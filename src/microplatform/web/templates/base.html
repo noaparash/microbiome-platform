@@ -9,6 +9,7 @@
   {% block head_extra %}{% endblock %}
 </head>
 <body>
+  <a class="skip-link" href="#content">Skip to content</a>
   <header class="site-header">
     <div class="lab-bar">
       <div class="wrap lab-bar-inner">
@@ -38,7 +39,7 @@
     </div>
   </header>
 
-  <main class="wrap">
+  <main class="wrap" id="content" tabindex="-1">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% for category, message in messages %}
         <div class="alert alert-{{ category }}" role="alert">
