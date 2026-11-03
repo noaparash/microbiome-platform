@@ -284,6 +284,18 @@
     </table>
   </div>
 
+  {# The same for every tool: what the data looks like. Descriptive, so it says so before the figures. #}
+  {% if view.overview_figures %}
+    <section class="data-overview section-break" aria-labelledby="overview-heading">
+      <h3 id="overview-heading">Data overview</h3>
+      <p class="overview-note"><strong>Descriptive, not statistical tests.</strong> These figures show what your
+        data looks like (composition, diversity and sparsity), computed from the raw counts, with composition as
+        relative abundance (%). They are the same whichever task you ran. A difference between groups seen here
+        is not evidence by itself; to test one, run “Find bacteria that differ” (miMic).</p>
+      {{ figure_grid(view.run.id, view.overview_figures) }}
+    </section>
+  {% endif %}
+
   <details class="record">
     <summary>Reproducibility record</summary>
     <dl class="record-list">

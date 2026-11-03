@@ -84,7 +84,7 @@ src/microplatform/
   core/preprocessing.py the only module that calls MIPMLP (cached)
   engines/              one adapter per tool, all implementing engines/base.py
   router/goals.py       the tasks, their required inputs, the recommendation
-  reports/              figures (PNG/SVG/HTML + CSV) and the results ZIP
+  reports/              figures (PNG/SVG/HTML + CSV), the data overview (overview.py) and the results ZIP
   references.py         the tools and their citations (one source)
   runs.py               one folder per analysis
   workflows.py          end-to-end workflows (used by the website, the worker and mp.analyze)

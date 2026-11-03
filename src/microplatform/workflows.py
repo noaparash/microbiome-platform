@@ -39,7 +39,7 @@ from microplatform.core.profiler import (
 )
 from microplatform.engines import ENGINES
 from microplatform.examples import EXAMPLE_COUNTS, EXAMPLE_TAGS
-from microplatform.reports import figures
+from microplatform.reports import figures, overview
 from microplatform.reports.bundle import build_bundle
 from microplatform.router.goals import GoalOption, Recommendation, get_goal, goal_options, recommend
 
@@ -110,6 +110,11 @@ class RunView:
     @property
     def quality_figures(self) -> list[figures.ExportedFigure]:
         return [f for f in self.figures if f.section == "quality"]
+
+    @property
+    def overview_figures(self) -> list[figures.ExportedFigure]:
+        """The data overview (composition, diversity, sparsity): descriptive, the same for every tool."""
+        return [f for f in self.figures if f.section == "overview"]
 
     @property
     def status(self) -> str:
@@ -300,6 +305,8 @@ def run_goal(run: runs.Run, goal_id: str, cache_dir: Path | None = None, choices
         dataset, result = build_dataset(run, engine.settings_for(choices), cache_dir, engine.name)
         run.save_result(result)  # the representation this engine used is kept for every run
         figures.export(figures.preprocessing_figures(dataset.raw_counts, dataset.settings), run.figures_dir)
+        figures.export(overview.overview_figures(dataset.raw_counts, dataset.settings, dataset.labels,
+                                                 dataset.label_kind), run.figures_dir)
         found = engine.run(dataset, run.path / "work" / engine.name.lower(), choices)
         _save_engine_result(run, engine, found, choices)
     except UserFacingError as exc:

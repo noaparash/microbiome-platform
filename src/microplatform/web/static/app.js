@@ -66,7 +66,8 @@ if (figureGrid) {
       fetch(el.dataset.plot)
         .then((response) => response.text())
         .then((text) => {
-          const fig = JSON.parse(recolor(text, css));
+          // Box outlines (BOX_LINE in figures.py) take the page's muted text colour, readable in both themes.
+          const fig = JSON.parse(recolor(text, css).replaceAll("#3f4a4a", css.getPropertyValue("--muted").trim()));
           const color = (name) => css.getPropertyValue(name).trim();
           const axis = { gridcolor: color("--border"), linecolor: color("--border"), zerolinecolor: color("--border") };
           // The title is already a heading above the plot.
@@ -76,9 +77,27 @@ if (figureGrid) {
             if (note.bgcolor) note.bgcolor = color("--surface");
           }
           const narrow = el.clientWidth < 520; // phones: smaller text and margins
+          // Every axis, including each panel's in a figure with several (xaxis2, yaxis2, …).
+          const axes = Object.keys(fig.layout).filter((key) => /^[xy]axis\d*$/.test(key));
           if (narrow) {
             fig.layout.margin = { l: 56, r: 12, t: 16, b: 56 };
-            for (const name of ["xaxis", "yaxis"]) {
+            // A legend beside the plot (e.g. the taxa of a composition figure) would squeeze it: put it
+            // underneath, and give the figure the height that takes.
+            const legend = fig.layout.legend;
+            if (legend && legend.orientation !== "h") {
+              const below = fig.layout.xaxis && fig.layout.xaxis.title ? -0.45 : -0.08; // under the axis title, if any
+              fig.layout.legend = { ...legend, orientation: "h", x: 0, xanchor: "left", y: below, yanchor: "top" };
+              el.style.aspectRatio = "3 / 4";
+            }
+            // Two panels side by side (e.g. Shannon and richness) are too narrow: stack them, one above the other.
+            if (fig.layout.xaxis2 && fig.layout.yaxis2) {
+              Object.assign(fig.layout.xaxis, { domain: [0, 1] });
+              Object.assign(fig.layout.xaxis2, { domain: [0, 1] });
+              Object.assign(fig.layout.yaxis, { domain: [0.6, 1] });
+              Object.assign(fig.layout.yaxis2, { domain: [0, 0.4] });
+              el.style.aspectRatio = "3 / 4";
+            }
+            for (const name of axes) {
               fig.layout[name] = {
                 ...fig.layout[name], automargin: true, // room for every label, nothing clipped
                 title: { ...wrapTitle(fig.layout[name]), font: { size: 11 } }, tickfont: { size: 10 },
@@ -92,9 +111,8 @@ if (figureGrid) {
             plot_bgcolor: "rgba(0,0,0,0)",
             // Only the colour: passing the page's CSS font list breaks plotly's text measuring.
             font: { ...fig.layout.font, color: color("--text") },
-            xaxis: { ...fig.layout.xaxis, ...axis },
-            yaxis: { ...fig.layout.yaxis, ...axis },
           };
+          for (const name of axes) layout[name] = { ...fig.layout[name], ...axis };
           el.replaceChildren();
           // For screen readers the plot is one picture named by its title; the caption and the
           // data download carry the details.

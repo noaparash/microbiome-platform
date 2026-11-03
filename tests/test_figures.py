@@ -16,13 +16,15 @@ from microplatform.reports.figures import (
     export,
     load_manifest,
     preprocessing_figures,
+    taxa_prevalence,
     to_plotly,
 )
 
 
 @pytest.fixture(scope="module")
 def figures():
-    return preprocessing_figures(count_matrix(read_table(EXAMPLE_COUNTS)), CANONICAL)
+    counts = count_matrix(read_table(EXAMPLE_COUNTS))
+    return preprocessing_figures(counts, CANONICAL) + [taxa_prevalence(counts, CANONICAL)]
 
 
 @pytest.fixture(scope="module")
@@ -96,7 +98,10 @@ def finished_run(tmp_path_factory):
 
 
 def test_preprocessing_produces_figures(finished_run):
-    assert [f.name for f in workflows.describe(finished_run).figures] == ["reads_per_sample", "taxa_prevalence"]
+    view = workflows.describe(finished_run)
+    assert [f.name for f in view.quality_figures] == ["reads_per_sample"]
+    assert [f.name for f in view.overview_figures] == ["composition_bars", "composition_pie", "alpha_diversity",
+                                                       "beta_pcoa", "taxa_per_sample", "taxa_prevalence"]
 
 
 def test_figure_files_cannot_escape_the_run(finished_run):
@@ -112,7 +117,7 @@ def test_bundle_has_everything(finished_run):
         names = set(zf.namelist())
         assert {"README.txt", "record.json", "results/processed_table.csv",
                 "inputs/counts.csv", "inputs/labels.csv"} <= names
-        for fig in ("reads_per_sample", "taxa_prevalence"):
+        for fig in ("reads_per_sample", "taxa_prevalence", "composition_bars", "beta_pcoa"):
             assert {f"figures/{fig}.{fmt}" for fmt in FORMATS} <= names
         assert not any(n.endswith(".json") and n.startswith("figures/") for n in names)
         assert json.loads(zf.read("record.json"))["tool"] == "MIPMLP"

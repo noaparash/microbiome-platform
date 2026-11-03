@@ -44,8 +44,31 @@ All notable changes to `microplatform`. The format follows
   these results" box under the findings, and the results ZIP's README lists them.
 - Website accessibility: a "Skip to content" link on every page; tests that every
   text colour meets WCAG AA (4.5:1) in light and dark mode.
+- **Data overview** (`reports/overview.py`), made with every analysis and shown at
+  the end of the results page under "Data overview" (labelled "Descriptive, not
+  statistical tests"). Every figure comes as PNG (200 dpi), SVG, interactive HTML
+  and CSV, and is included in the results ZIP. The figures:
+  - stacked composition bars per sample (phylum, the top 7 + "Other"; grouped by
+    label, with an average bar per group);
+  - composition pies (one per group);
+  - alpha diversity (Shannon, richness) as boxes with every sample shown;
+  - a beta diversity PCoA of Bray-Curtis distances;
+  - row sparsity (taxa per sample).
+
+  Composition and diversity are computed from the raw counts (relative
+  abundance), independent of the log preprocessing. The taxon colours use the
+  Okabe-Ito palette, and each taxon and each group keeps one colour across
+  figures. Samples without reads are left out (the captions say how many). The
+  PCoA needs 3 samples that differ. Continuous labels are not grouped.
+- Figure kinds `stacked`, `pie` and `box`; `Figure.colors` fixes the colour of each
+  value; `ExportedFigure.wide` lets a figure take the whole row.
 
 ### Changed
+- "How widespread each taxon is" (`taxa_prevalence`) moved from "Data quality"
+  into the data overview, as its column-sparsity figure, with the same cut-off
+  line. `preprocessing_figures` now returns only the sequencing-depth figure.
+- Figure legends for groups sit above the plot, clear of the axis title. On
+  phones, side legends move below the plot and two-panel figures stack.
 - Website polish: numbers in the stat tiles never break mid-number on phones (and
   shrink a little instead); every count is shown with thousands separators
   (55,882); a "Metabolites" tile in the data check; the five question cards sit

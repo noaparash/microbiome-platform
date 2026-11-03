@@ -27,6 +27,8 @@ analysis.json                 the analysis tool's version, settings and findings
 figures/<name>.png / .svg     figures (SVG text stays editable)
 figures/<name>.html           interactive figures; open them in any browser, works offline
 figures/<name>.csv            the exact data behind each figure
+                              (composition_*, alpha_diversity, beta_pcoa, taxa_*: the data overview,
+                              descriptive figures of the data itself, not statistical tests)
 inputs/                       the files you uploaded
 
 Preprocessing settings

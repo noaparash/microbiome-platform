@@ -14,6 +14,7 @@ import microplatform as mp
 from microplatform import workflows
 from microplatform.apidoc import api_reference
 from microplatform.examples import EXAMPLE_COUNTS, EXAMPLE_TAGS
+from microplatform.reports.overview import FIGURE_NAMES as OVERVIEW
 from microplatform.references import TOOLS, get_tool
 from microplatform.router.goals import GOALS
 
@@ -101,8 +102,8 @@ def test_analyze_runs_a_whole_analysis_without_the_website(tmp_path):
     assert (view.run.path / "processed.csv").exists()
     # With labels, the recommended task is miMic; data-quality figures come with every run.
     assert view.engine["tool"] == "miMic"
-    assert {f.name for f in view.figures} == {"reads_per_sample", "taxa_prevalence",
-                                               "mimic_significant_taxa", "mimic_apriori_test"}
+    assert {f.name for f in view.figures} == {"reads_per_sample", "mimic_significant_taxa", "mimic_apriori_test",
+                                               *OVERVIEW}
 
 
 def test_every_goal_has_a_tool_reference():

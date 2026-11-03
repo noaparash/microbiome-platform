@@ -360,7 +360,7 @@ main:focus { outline: none; } /* focused only as the skip link's target */
 /* ── Results ─────────────────────────────────────────────────────────── */
 .results-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
 .figures { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); }
-.figures-single:not(:has(.figure-tall)) { max-width: 640px; } /* one small chart should not fill the page */
+.figures-single:not(:has(.figure-tall, .figure-wide)) { max-width: 640px; } /* one small chart should not fill the page */
 .figure { margin: 0; border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem; background: var(--surface); }
 .figure-title { margin: 0 0 0.4rem; font-size: 0.95rem; font-weight: 600; color: var(--text); }
 .plot { aspect-ratio: 7 / 4; width: 100%; }
@@ -368,6 +368,10 @@ main:focus { outline: none; } /* focused only as the skip link's target */
 .figure figcaption { color: var(--muted); font-size: 0.875rem; margin-top: 0.5rem; }
 .figure-tall { grid-column: 1 / -1; }
 .figure-tall .plot { aspect-ratio: auto; height: clamp(420px, 70vh, 760px); }
+.figure-wide { grid-column: 1 / -1; }
+.figure-wide .plot { aspect-ratio: 5 / 2; }
+.overview-note { margin: 0 0 1rem; padding: 0.6rem 0.85rem; border-left: 3px solid var(--accent);
+  background: var(--surface-2); border-radius: 0 8px 8px 0; color: var(--text); }
 .findings { font-size: 1.02rem; }
 .section-break { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
 .subhead { margin: 1.5rem 0 0.75rem; }
@@ -433,6 +437,7 @@ pre.code { background: var(--surface-2); padding: 0.9rem 1rem; border-radius: 10
   .dropzone-label { padding: 1.75rem 1rem; }
   .question-grid { grid-auto-rows: auto; }
   .plot { aspect-ratio: 5 / 4; }
+  .figure-wide .plot { aspect-ratio: 4 / 3.4; }
   .record-list div { flex-direction: column; gap: 0; }
   .results-actions, .results-head .btn { width: 100%; }
   .step-name { display: none; }

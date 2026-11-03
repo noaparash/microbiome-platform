@@ -92,6 +92,26 @@ Templates of all three are on the website (in every error message, and under
 - **"Download everything"**: one ZIP with a README, the reproducibility
   record (every setting and version), the results, the figures and your input
   files.
+- **A data overview**, the same for every task, at the end of the results. It
+  holds the standard figures that describe a microbiome dataset. They are
+  **descriptive, not statistical tests**: a difference you see there is not
+  evidence by itself.
+  - **Composition of each sample:** a stacked bar per sample, in % of its
+    reads, by phylum. The 7 most abundant phyla get a colour; the rest are
+    "Other". With a labels file, samples are grouped by label, with an
+    average bar per group.
+  - **Average composition:** a pie, one per group. The colours match the bars.
+  - **Alpha diversity:** Shannon index and richness, as a box per group with
+    every sample shown.
+  - **Beta diversity:** a PCoA map of Bray-Curtis distances, coloured by
+    group.
+  - **Sparsity:** taxa detected per sample (rows) and in how many samples each
+    taxon appears (columns).
+
+  All of these are computed from your raw counts, not from the
+  log-transformed table the tools use, so composition always adds up to 100%.
+  Taxon colours come from the Okabe-Ito palette, which stays distinguishable
+  for colour-blind readers.
 
 ## How good are LOCATE's predictions?
 

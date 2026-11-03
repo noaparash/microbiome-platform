@@ -4,7 +4,7 @@
 {% macro figure_grid(run_id, figs) -%}
 <div class="figures{% if figs|length == 1 %} figures-single{% endif %}" data-plotly="{{ url_for('main.plotly_js') }}">
   {% for fig in figs %}
-    <figure class="figure{% if fig.tall %} figure-tall{% endif %}" aria-labelledby="fig-{{ fig.name }}">
+    <figure class="figure{% if fig.tall %} figure-tall{% endif %}{% if fig.wide %} figure-wide{% endif %}" aria-labelledby="fig-{{ fig.name }}">
       <h4 class="figure-title" id="fig-{{ fig.name }}">{{ fig.title }}</h4>
       <div class="plot" data-plot="{{ url_for('main.figure_file', run_id=run_id, name=fig.files.json) }}"
            data-label="{{ fig.title }}">
