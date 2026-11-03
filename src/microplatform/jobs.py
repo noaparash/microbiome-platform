@@ -12,7 +12,12 @@ runs survive website restarts). Both share this module.
 
 While it works, the worker refreshes a heartbeat in the lock file. A run whose
 heartbeat has stopped (for example after a restart) is marked as interrupted,
-so nothing says "running" forever.
+so nothing says "running" forever. But a silent heartbeat alone is not proof:
+a long computation can hold Python's GIL and delay it. So the lock also records
+the worker's host, process ID and process start time, and a run is never marked
+interrupted while that very process is still alive on this machine. (A worker
+on another machine sharing the folder cannot be checked; there the heartbeat
+decides.)
 """
 
 from __future__ import annotations
@@ -21,6 +26,7 @@ import json
 import logging
 import os
 import socket
+import sys
 import threading
 import time
 import traceback
@@ -83,7 +89,8 @@ def claim(run: runs.Run, worker: str) -> bool:
     except FileExistsError:
         return False
     with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump({"worker": worker, "claimed": time.time(), "heartbeat": time.time()}, f)
+        json.dump({"worker": worker, "claimed": time.time(), "heartbeat": time.time(),
+                   "host": socket.gethostname(), "pid": os.getpid(), "started": _process_started(os.getpid())}, f)
     if run.status != "queued":  # it changed between listing and claiming
         run.lock_file.unlink(missing_ok=True)
         return False
@@ -129,6 +136,8 @@ def recover_stale(root: Path) -> list[runs.Run]:
             continue  # waiting its turn, not abandoned
         if _heartbeat_age(run) < STALE_AFTER_SECONDS:
             continue
+        if _owner_alive(run):
+            continue  # busy: its worker process is still running, only the heartbeat is late
         run.lock_file.unlink(missing_ok=True)
         run.set_status("failed", error={
             "message": "This analysis was interrupted (the server stopped while it was running).",
@@ -209,6 +218,64 @@ def _heartbeat_age(run: runs.Run) -> float:
         return time.time() - json.loads(run.lock_file.read_text(encoding="utf-8"))["heartbeat"]
     except (OSError, ValueError, KeyError):
         return float("inf")
+
+
+def _owner_alive(run: runs.Run) -> bool:
+    """True only if the process that claimed the run is certainly still running.
+
+    It must be on this machine, and the process with that ID must have the same start time
+    as the one recorded at claim time (a new process can reuse an old ID). Anything that
+    cannot be checked (another machine, an old lock, an unsupported system) gives False, so
+    the heartbeat decides, as before.
+    """
+    try:
+        lock = json.loads(run.lock_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if lock.get("host") != socket.gethostname() or not lock.get("pid") or lock.get("started") is None:
+        return False
+    return _process_started(int(lock["pid"])) == lock["started"]
+
+
+def _process_started(pid: int) -> str | None:
+    """When process ``pid`` started, as an opaque text; None if it is not running or this cannot be read."""
+    if sys.platform.startswith("linux"):
+        try:
+            stat = Path(f"/proc/{pid}/stat").read_text()
+            boot = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+        except OSError:
+            return None
+        # Field 22 (start time in clock ticks since boot) comes after the name, which may hold spaces.
+        return f"{boot}:{stat.rsplit(')', 1)[1].split()[19]}"
+    if sys.platform == "win32":
+        return _windows_process_started(pid)
+    return None
+
+
+def _windows_process_started(pid: int) -> str | None:
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+    kernel32.GetProcessTimes.argtypes = [wintypes.HANDLE] + [ctypes.POINTER(wintypes.FILETIME)] * 4
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return None
+    try:
+        code = wintypes.DWORD()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)) or code.value != 259:  # STILL_ACTIVE
+            return None
+        created, exited, kernel, user = (wintypes.FILETIME() for _ in range(4))
+        if not kernel32.GetProcessTimes(handle, ctypes.byref(created), ctypes.byref(exited),
+                                        ctypes.byref(kernel), ctypes.byref(user)):
+            return None
+        return str((created.dwHighDateTime << 32) | created.dwLowDateTime)
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def _notify(run: runs.Run, notifier: EmailNotifier | None) -> None:

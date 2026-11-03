@@ -1,10 +1,13 @@
 """Background runs (microplatform.jobs), the worker, and the optional email."""
 
 import json
+import os
+import socket
 import subprocess
 import sys
 import threading
 import time
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -186,6 +189,69 @@ def test_live_and_waiting_runs_are_left_alone(root, new_run):
     assert live.status == "running" and waiting.status == "queued"
 
 
+# --- a late heartbeat is not a gone worker ------------------------------------------------
+
+def _claimed_by(run, pid, started, age_seconds, host=None):
+    run.lock_file.write_text(json.dumps({
+        "worker": "w", "heartbeat": time.time() - age_seconds, "host": host or socket.gethostname(),
+        "pid": pid, "started": started,
+    }))
+
+
+def test_a_busy_worker_with_a_late_heartbeat_is_never_marked_interrupted(root, new_run):
+    """E.g. a long computation holding the GIL: the process is alive, so the run is left alone."""
+    run = new_run()
+    jobs.submit(run, "preprocess")
+    run.set_status("running")
+    me = os.getpid()
+    _claimed_by(run, me, jobs._process_started(me), jobs.STALE_AFTER_SECONDS * 100)
+    assert jobs._process_started(me) is not None  # this system can be checked
+    assert jobs.recover_stale(root) == []
+    assert run.status == "running" and run.lock_file.exists()
+
+
+def test_a_claim_records_the_process_that_can_be_checked(root, new_run):
+    run = new_run()
+    jobs.submit(run, "preprocess")
+    assert jobs.claim(run, "me")
+    lock = json.loads(run.lock_file.read_text())
+    assert lock["pid"] == os.getpid() and lock["host"] == socket.gethostname()
+    assert lock["started"] == jobs._process_started(os.getpid())
+    run.lock_file.write_text(json.dumps(lock | {"heartbeat": 0}))
+    run.set_status("running")
+    assert jobs.recover_stale(root) == []  # claimed by this live process
+
+
+def test_a_worker_process_that_has_exited_is_recovered(root, new_run):
+    gone = subprocess.run([sys.executable, "-c", "import os; print(os.getpid())"],
+                          capture_output=True, text=True, check=True)
+    pid = int(gone.stdout)
+    assert jobs._process_started(pid) is None
+    run = new_run()
+    jobs.submit(run, "preprocess")
+    run.set_status("running")
+    _claimed_by(run, pid, "12345", jobs.STALE_AFTER_SECONDS + 5)
+    assert jobs.recover_stale(root) == [run]
+
+
+def test_a_reused_process_id_is_not_mistaken_for_the_worker(root, new_run):
+    """The ID now belongs to another process (a different start time): the worker is gone."""
+    run = new_run()
+    jobs.submit(run, "preprocess")
+    run.set_status("running")
+    _claimed_by(run, os.getpid(), "not-this-process", jobs.STALE_AFTER_SECONDS + 5)
+    assert jobs.recover_stale(root) == [run]
+
+
+def test_a_worker_on_another_machine_falls_back_to_the_heartbeat(root, new_run):
+    late, fresh = new_run(), new_run()
+    for run, age in ((late, jobs.STALE_AFTER_SECONDS + 5), (fresh, 1)):
+        jobs.submit(run, "preprocess")
+        run.set_status("running")
+        _claimed_by(run, os.getpid(), jobs._process_started(os.getpid()), age, host="another-machine")
+    assert jobs.recover_stale(root) == [late]
+
+
 class _Slow(MipmlpEngine):
     def run(self, data, work_dir, choices=None):
         time.sleep(1.5)
@@ -313,3 +379,22 @@ def test_worker_program_starts():
 def test_analyze_still_runs_directly_without_a_worker(tmp_path, cache):
     view = workflows.analyze(EXAMPLE_COUNTS, goal="preprocess", out_dir=tmp_path, cache_dir=cache)
     assert view.status == "done" and not runs.load(tmp_path, view.run.id).lock_file.exists()
+
+
+def test_the_linux_process_start_time_is_read_from_proc(monkeypatch):
+    """The lab server runs Linux: field 22 of /proc/<pid>/stat, after a name that may hold spaces and ')'."""
+    files = {
+        "/proc/42/stat": "42 (python -m x) y) S 1 42 42 0 -1 4194560 100 0 0 0 5 2 0 0 20 0 3 0 987654 123 456\n",
+        "/proc/sys/kernel/random/boot_id": "boot-abc\n",
+    }
+
+    def read_text(path, *args, **kwargs):
+        try:
+            return files[Path(path).as_posix()]
+        except KeyError:
+            raise FileNotFoundError(path) from None
+
+    monkeypatch.setattr(jobs.sys, "platform", "linux")
+    monkeypatch.setattr(jobs.Path, "read_text", read_text)
+    assert jobs._process_started(42) == "boot-abc:987654"
+    assert jobs._process_started(43) is None  # no such process
