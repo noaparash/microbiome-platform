@@ -3,20 +3,24 @@
 They describe; they do not test. A difference between groups seen here is not a
 finding (that is what the tools are for), and every caption says so.
 
-Everything here is computed from the **raw counts** (``Dataset.raw_counts``), never from
-the log-transformed table the tools use:
+Everything here is computed from the **user's own table** (``Dataset.raw_counts``: counts or
+relative abundances), never from the log-transformed table the tools use:
 
-    composition_bars   one stacked bar per sample, % of its reads per taxon (+ an average bar per group)
+    composition_bars   phylum composition in the lab's fig_1B style (``reports/composition.py``):
+                       one stacked bar per sample, and the mean of all samples beside them
     composition_pie    the average composition (one pie per group, if there are groups)
+    composition_violin optional (``split_violin=True``, two groups only): per phylum, group A
+                       against group B as the two halves of a violin
     alpha_diversity    Shannon index and richness per sample, as boxes per group with every sample shown
     beta_pcoa          PCoA of Bray-Curtis distances between samples (on relative abundance)
     taxa_per_sample    row sparsity: how many taxa each sample contains
     taxa_prevalence    column sparsity: in how many samples each taxon appears
 
-Composition is shown at a readable rank (phylum by default): the ``top_n`` most
-abundant taxa get a colour each (Okabe-Ito, colour-blind safe), the rest are summed as
-"Other". A taxon has the same colour in the bars and the pies; a group has the same
-colour in the diversity boxes and the PCoA.
+Composition is shown at phylum level: the 12 phyla with the highest mean get a colour each
+(``palette="lab"``, the lab's look, by default; ``palette="colorblind"`` for a colour-blind-safer
+set), the rest are summed as "Other" in grey. A phylum has the same colour in every
+composition figure and every dataset; a group has the same colour in the diversity boxes,
+the PCoA and the violins.
 """
 
 from __future__ import annotations
@@ -27,17 +31,14 @@ import numpy as np
 import pandas as pd
 from scipy.spatial.distance import pdist, squareform
 
-from microplatform.core.contract import LABEL_COLUMN, RANK_SEPARATOR, LabelKind
+from microplatform.core.contract import LABEL_COLUMN, LabelKind
 from microplatform.core.preprocessing import PreprocessSettings
-from microplatform.core.profiler import RANKS, _strip_prefix
-from microplatform.reports.figures import OTHER, Figure, group_colors, taxa_prevalence, taxon_colors
+from microplatform.reports import composition
+from microplatform.reports.composition import PALETTE_DEFAULT, TOP_PHYLA, CompositionError
+from microplatform.reports.figures import OTHER, Figure, group_colors, taxa_prevalence
 
-RANK_DEFAULT = "phylum"
-TOP_TAXA = 7  # one colour each (the Okabe-Ito palette has 7 besides black); the rest are "Other"
-UNASSIGNED = "Unassigned"  # no name at the chosen rank
 NO_LABEL = "No label"  # samples the labels file does not mention
 ALL_SAMPLES = "All samples"  # the one group when there are no labels
-AVERAGES = "Average per group"  # the composition figure's last block of bars
 GROUPABLE: tuple[LabelKind, ...] = ("binary", "categorical")  # a continuous label has no groups
 MIN_ORDINATION = 3  # samples needed for a PCoA map
 DESCRIPTIVE = "Descriptive only, not a statistical test."
@@ -46,10 +47,9 @@ RICHNESS = "Richness (taxa observed)"
 # Every figure of the overview, in page order (the PCoA is left out when it cannot be drawn).
 FIGURE_NAMES = ("composition_bars", "composition_pie", "alpha_diversity", "beta_pcoa", "taxa_per_sample",
                 "taxa_prevalence")
-PLURAL = {"kingdom": "kingdoms", "phylum": "phyla", "class": "classes", "order": "orders",
-          "family": "families", "genus": "genera", "species": "species"}
+VIOLIN = "composition_violin"  # only with split_violin=True and two groups, right after the pie
 
-__all__ = ["overview_figures", "relative_abundance", "alpha_diversity", "bray_curtis_pcoa", "sample_groups"]
+__all__ = ["overview_figures", "alpha_diversity", "bray_curtis_pcoa", "sample_groups"]
 
 
 def overview_figures(
@@ -57,28 +57,31 @@ def overview_figures(
     settings: PreprocessSettings,
     labels: pd.Series | None = None,
     label_kind: LabelKind | None = None,
-    rank: str = RANK_DEFAULT,
-    top_n: int = TOP_TAXA,
+    dataset: str | None = None,
+    palette: str = PALETTE_DEFAULT,
+    split_violin: bool = False,
+    top_n: int = TOP_PHYLA,
 ) -> list[Figure]:
-    """The data overview from the raw counts (samples × taxa, columns named by lineage).
+    """The data overview from the user's table (samples × taxa, columns named by lineage).
 
     With two-group or categorical ``labels``, samples are grouped by label. Samples
     without any reads are left out of the composition, diversity and PCoA figures (and
     the captions say how many). The PCoA needs at least 3 such samples.
+
+    ``dataset`` names the composition figure (its bold heading); ``palette`` is "lab"
+    (default) or "colorblind"; ``split_violin`` adds the per-phylum split violins when the
+    samples form two groups. A table that cannot be shown as relative abundance (e.g.
+    already log-transformed, with negative values) gets no composition figures.
     """
     with_reads = counts.loc[counts.sum(axis=1) > 0]
     grouped = label_kind in GROUPABLE and labels is not None
     groups = sample_groups(with_reads.index, labels if grouped else None)
-    percent = relative_abundance(with_reads, rank, top_n)
-    taxa = tuple(taxon_colors(percent.columns).items())
     colors = tuple(group_colors(_ordered(groups)).items())
     dropped = len(counts) - len(with_reads)
     left_out = f" {dropped:,} sample{'s' if dropped != 1 else ''} without reads {'are' if dropped != 1 else 'is'} left out." if dropped else ""
-    figures = [
-        _composition_bars(percent, groups if grouped else None, rank, taxa, left_out),
-        _composition_pie(percent, groups if grouped else None, rank, taxa),
-        _alpha_figure(with_reads, groups, colors, left_out),
-    ]
+    figures = _composition_figures(with_reads, groups if grouped else None, dataset, palette, split_violin,
+                                   top_n, left_out)
+    figures.append(_alpha_figure(with_reads, groups, colors, left_out))
     if len(with_reads) >= MIN_ORDINATION:
         pcoa = _beta_figure(with_reads, groups if grouped else None, colors, left_out)
         if pcoa is not None:
@@ -88,27 +91,6 @@ def overview_figures(
 
 
 # --- the numbers ------------------------------------------------------------------------
-
-def relative_abundance(counts: pd.DataFrame, rank: str = RANK_DEFAULT, top_n: int = TOP_TAXA) -> pd.DataFrame:
-    """Samples × taxa at ``rank``, in % of each sample's reads (each row adds up to 100).
-
-    Columns: the ``top_n`` most abundant taxa on average, most abundant first, then
-    "Other" (the rest summed), if there is a rest. Samples without reads are left out.
-    """
-    level = RANKS.index(rank)
-    names = [_name_at(lineage, level) for lineage in counts.columns]
-    totals = counts.sum(axis=1)
-    counts = counts.loc[totals > 0]
-    per_taxon = counts.T.groupby(names).sum().T
-    percent = per_taxon.div(totals.loc[counts.index], axis=0) * 100
-    order = list(percent.mean().sort_values(ascending=False, kind="stable").index)
-    named = [t for t in order if t != OTHER]  # a taxon really called "Other" joins the rest
-    top = named[:top_n]
-    out = percent[top].copy()
-    if len(order) > len(top):
-        out[OTHER] = percent.drop(columns=top).sum(axis=1)
-    return out
-
 
 def alpha_diversity(counts: pd.DataFrame) -> pd.DataFrame:
     """Per sample: Shannon index (natural log, on each sample's proportions) and richness (taxa with a count > 0)."""
@@ -160,13 +142,6 @@ def sample_groups(samples: pd.Index, labels: pd.Series | None) -> pd.Series:
     return pd.Series([name(v) for v in labels.reindex(samples)], index=samples, name="group")
 
 
-def _name_at(lineage: str, level: int) -> str:
-    """The taxon's name at one rank of its lineage ('k__Bacteria;p__Firmicutes;…', 1 → 'Firmicutes')."""
-    parts = str(lineage).split(RANK_SEPARATOR)
-    name = _strip_prefix(parts[level]) if len(parts) > level else ""
-    return name or UNASSIGNED
-
-
 def _ordered(groups: pd.Series) -> list[str]:
     """Group names sorted, with "No label" last."""
     named = sorted(g for g in groups.unique() if g != NO_LABEL)
@@ -175,46 +150,37 @@ def _ordered(groups: pd.Series) -> list[str]:
 
 # --- the figures ------------------------------------------------------------------------
 
-def _composition_bars(percent: pd.DataFrame, groups: pd.Series | None, rank: str,
-                      colors: tuple, left_out: str) -> Figure:
-    lead = percent.columns[0]
-    if groups is None:
-        data = _long(percent.sort_values(lead, ascending=False, kind="stable"), rank, group=None)
-    else:
-        blocks = [_long(percent.loc[groups == g].sort_values(lead, ascending=False, kind="stable"), rank, group=g)
-                  for g in _ordered(groups)]
-        means = percent.groupby(groups).mean().loc[_ordered(groups)]
-        means.index = [f"{g} average" for g in means.index]
-        data = pd.concat([*blocks, _long(means, rank, group=AVERAGES)], ignore_index=True)
-    named = len([t for t in percent.columns if t != OTHER])
-    rest = f"; the rest are summed as {OTHER}" if OTHER in percent.columns else ""
-    order = (f"Samples are grouped by label and sorted by the most abundant {rank}; the last bars are each "
-             "group's average composition." if groups is not None else
-             f"Samples are sorted by the most abundant {rank}.")
-    return Figure(
-        name="composition_bars",
-        title=f"Composition of each sample ({rank})",
-        caption=f"Each bar is one sample: the share of its reads from each {rank}, adding up to 100%. "
-                f"The {named} most abundant {PLURAL[rank]} have a colour{rest}. {order} Relative abundance "
-                f"from the raw counts, not the log-transformed table the tools use.{left_out} {DESCRIPTIVE}",
-        data=data, kind="stacked", x="sample", y="percent", color_by=rank,
-        x_label="Samples by group" if groups is not None else "Samples", y_label="Relative abundance (%)",
-        group_by="group" if groups is not None else None, summary=(AVERAGES,) if groups is not None else (),
-        colors=colors, hover="%{customdata[0]}<br>%{fullData.name}: %{y:.1f}%<extra></extra>",
-        section="overview",
-    )
+def _composition_figures(counts: pd.DataFrame, groups: pd.Series | None, dataset: str | None, palette: str,
+                         split_violin: bool, top_n: int, left_out: str) -> list[Figure]:
+    """Bars and pie (and the split violins if asked), sharing one colour per phylum; none if not possible."""
+    try:
+        percent, removed = composition.phylum_percent(counts)
+    except CompositionError:
+        return []
+    top = composition.top_phyla(percent, top_n)
+    colors = composition.phylum_colors(top.columns, palette)
+    gone = removed["samples_dropped"]
+    notes = left_out
+    if removed["unassigned_percent"] >= 0.05:
+        notes += (f" Abundance with no phylum (on average {removed['unassigned_percent']:.1f}% of a sample) is "
+                  "left out before the shares are computed.")
+    if gone:
+        notes += f" {gone:,} sample{'s' if gone != 1 else ''} with nothing at phylum level {'are' if gone != 1 else 'is'} left out."
+    figures = [composition.composition_figure(top, colors, dataset, notes, DESCRIPTIVE),
+               _composition_pie(top, groups.loc[top.index] if groups is not None else None, colors)]
+    if split_violin and groups is not None:
+        labelled = groups.loc[top.index]
+        labelled = labelled[labelled != NO_LABEL]
+        violin = composition.split_violin_figure(
+            percent.loc[labelled.index], labelled, list(top.columns),
+            group_colors(_ordered(labelled)), DESCRIPTIVE)
+        if violin is not None:
+            figures.append(violin)
+    return figures
 
 
-def _long(percent: pd.DataFrame, rank: str, group: str | None) -> pd.DataFrame:
-    """Wide (bars × taxa) to long rows: sample, [group,] taxon, percent; bar by bar, taxa in column order."""
-    rows = (percent.stack(future_stack=True).round(4).rename("percent")
-            .rename_axis(["sample", rank]).reset_index())
-    if group is not None:
-        rows.insert(1, "group", group)
-    return rows
-
-
-def _composition_pie(percent: pd.DataFrame, groups: pd.Series | None, rank: str, colors: tuple) -> Figure:
+def _composition_pie(percent: pd.DataFrame, groups: pd.Series | None, colors: dict[str, str]) -> Figure:
+    rank = "phylum"
     if groups is None:
         data = pd.DataFrame({rank: percent.columns, "percent": percent.mean().round(4).to_numpy()})
         title, over = f"Average composition ({rank})", "all samples"
@@ -227,10 +193,10 @@ def _composition_pie(percent: pd.DataFrame, groups: pd.Series | None, rank: str,
     return Figure(
         name="composition_pie",
         title=title,
-        caption=f"The average share of reads from each {rank} over {over} (each sample counts equally)"
-                f"{rest}. Relative abundance from the raw counts; the colours match the bars. {DESCRIPTIVE}",
+        caption=f"The average share of each {rank} over {over} (each sample counts equally)"
+                f"{rest}. Relative abundance from the uploaded table; the colours match the bars. {DESCRIPTIVE}",
         data=data, kind="pie", x=rank, y="percent", x_label="", y_label="",
-        group_by="group" if groups is not None else None, colors=colors,
+        group_by="group" if groups is not None else None, colors=tuple(colors.items()),
         hover="%{label}: %{value:.1f}%<extra>%{fullData.name}</extra>",
         section="overview",
     )

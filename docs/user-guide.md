@@ -96,10 +96,12 @@ Templates of all three are on the website (in every error message, and under
   holds the standard figures that describe a microbiome dataset. They are
   **descriptive, not statistical tests**: a difference you see there is not
   evidence by itself.
-  - **Composition of each sample:** a stacked bar per sample, in % of its
-    reads, by phylum. The 7 most abundant phyla get a colour; the rest are
-    "Other". With a labels file, samples are grouped by label, with an
-    average bar per group.
+  - **Composition of each sample** (in the lab's figure style): on the left a
+    stacked bar per sample, by phylum, sorted by Firmicutes; on the right one
+    bar with the mean of all samples. The 12 phyla with the highest mean get a
+    colour; the rest are "Other", in grey. Abundance with no phylum is left
+    out, and each sample adds up to 100%. Your file's name is the heading of
+    the image (PNG at 300 dpi, and SVG).
   - **Average composition:** a pie, one per group. The colours match the bars.
   - **Alpha diversity:** Shannon index and richness, as a box per group with
     every sample shown.
@@ -108,10 +110,12 @@ Templates of all three are on the website (in every error message, and under
   - **Sparsity:** taxa detected per sample (rows) and in how many samples each
     taxon appears (columns).
 
-  All of these are computed from your raw counts, not from the
-  log-transformed table the tools use, so composition always adds up to 100%.
-  Taxon colours come from the Okabe-Ito palette, which stays distinguishable
-  for colour-blind readers.
+  All of these are computed from your own table (counts or relative
+  abundances), not from the log-transformed table the tools use. A phylum
+  always has the same colour, in every figure and every dataset (the lab's
+  palette by default; in the package, `palette="colorblind"` gives a
+  colour-blind-safer set). A table that is already log-transformed (negative
+  values) gets no composition figures.
 
 ## How good are LOCATE's predictions?
 

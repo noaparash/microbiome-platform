@@ -18,6 +18,30 @@ All notable changes to `microplatform`. The format follows
   authors' function behind each output and the library adjustments. Command line:
   `python -m microplatform.engines.mimic_authors processed.csv tag.csv out_dir`. Not used
   by the website.
+- `reports/composition.py`: phylum composition in the lab's figure style (the fig_1B scripts
+  in `references/composition/`). Reads counts or relative tables, with lineage columns or
+  MetaPhlAn's every-rank rows (only the phylum rows are used); drops columns with no phylum
+  (Bacteria, Archaea, Unassigned, Unclassified) and samples left empty; values must be
+  finite and not negative; every sample is re-normalized to 100%. The top 12 phyla by mean,
+  the rest "Other" (#BDBDBD, drawn last). One colour per phylum across figures and datasets
+  (fixed slots for common gut phyla, old and new names alike). Figure kinds `composition`
+  (samples and their mean, 5:1, legend below, the dataset's name as heading, 300 dpi) and
+  `violin` (split violins per phylum, two groups).
+- `overview_figures(..., dataset=None, palette="lab", split_violin=False)`: the heading of
+  the composition figure; `palette="colorblind"` for a colour-blind-safer 12-hue set (the
+  default "lab" is tab20 + Set3 + Pastel1 without their greys); `split_violin=True` adds the
+  per-phylum split violins when the samples form two groups.
+
+### Changed
+- The composition bars are now the fig_1B layout: every sample sorted by Firmicutes (else
+  the top phylum) and one mean bar, no longer grouped by label (the pies still are, and the
+  split violins compare two groups). 12 phyla instead of 7, in the lab's palette instead of
+  Okabe-Ito. Composition is now the share of phylum-assigned abundance (abundance with no
+  phylum is left out and the caption says how much). The pies use the same phyla and
+  colours. `overview.relative_abundance` and the `rank`/`top_n` choice of rank were removed
+  (internal, not in the public API).
+- A table that cannot be relative abundance (negative or non-finite values) gets no
+  composition figures instead of wrong ones.
 - Four scoped library adjustments let mimic-da 1.0.1's plot mode run on Python 3.13's
   libraries without changing the package: SciPy 1.18's `kstest(x, 'norm', args=...)` bug,
   matplotlib's removed `cm.get_cmap`, NumPy 2.2's empty-array truth value (in the tree

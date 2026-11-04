@@ -306,13 +306,19 @@ def run_goal(run: runs.Run, goal_id: str, cache_dir: Path | None = None, choices
         run.save_result(result)  # the representation this engine used is kept for every run
         figures.export(figures.preprocessing_figures(dataset.raw_counts, dataset.settings), run.figures_dir)
         figures.export(overview.overview_figures(dataset.raw_counts, dataset.settings, dataset.labels,
-                                                 dataset.label_kind), run.figures_dir)
+                                                 dataset.label_kind, dataset=_dataset_name(run)), run.figures_dir)
         found = engine.run(dataset, run.path / "work" / engine.name.lower(), choices)
         _save_engine_result(run, engine, found, choices)
     except UserFacingError as exc:
         run.set_status("failed", error={"message": exc.message, "fix": exc.fix})
         raise
     run.set_status("done")
+
+
+def _dataset_name(run: runs.Run) -> str | None:
+    """The uploaded counts file's name without its extension (the composition figure's heading)."""
+    name = run.meta().get("counts_name")
+    return Path(name).stem if name else None
 
 
 def check_goal(run: runs.Run, goal_id: str):

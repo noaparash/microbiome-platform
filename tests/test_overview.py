@@ -16,21 +16,19 @@ from microplatform.core.preprocessing import CANONICAL
 from microplatform.core.profiler import count_matrix, profile_labels, read_table
 from microplatform.examples import EXAMPLE_COUNTS, EXAMPLE_TAGS
 from microplatform.reports import figures
-from microplatform.reports.figures import FORMATS, OTHER, OTHER_COLOR, TAXON_PALETTE, export, to_plotly
+from microplatform.reports.composition import MEAN, OTHER_GREY, PALETTES, TOP_PHYLA
+from microplatform.reports.figures import FORMATS, OTHER, export, to_plotly
 from microplatform.reports.overview import (
     ALL_SAMPLES,
-    AVERAGES,
     DESCRIPTIVE,
     FIGURE_NAMES,
     NO_LABEL,
     RICHNESS,
     SHANNON,
-    TOP_TAXA,
-    UNASSIGNED,
+    VIOLIN,
     alpha_diversity,
     bray_curtis_pcoa,
     overview_figures,
-    relative_abundance,
 )
 
 LINEAGE = "k__Bacteria;p__{};c__;o__;f__;g__;s__"
@@ -66,15 +64,15 @@ def _table(columns: dict[str, list[float]], samples=None) -> pd.DataFrame:
 
 # --- the numbers ------------------------------------------------------------------------
 
-def test_relative_abundance_is_percent_of_each_samples_reads(counts):
-    percent = relative_abundance(counts)
-    assert np.allclose(percent.sum(axis=1), 100)
-    assert list(percent.columns)[-1] == OTHER and len(percent.columns) == TOP_TAXA + 1
+def test_composition_is_percent_of_each_samples_phylum_abundance(grouped, counts):
+    data = grouped["composition_bars"].data
+    assert np.allclose(data.groupby("sample")["percent"].sum(), 100, atol=1e-3)
     # Firmicutes in one sample, by hand from the raw counts (not from the log-transformed table).
-    sample = counts.iloc[0]
-    firmicutes = sample[[c for c in counts.columns if ";p__Firmicutes;" in c]].sum() / sample.sum() * 100
-    assert percent.iloc[0]["Firmicutes"] == pytest.approx(firmicutes)
-    assert list(percent.columns[:2]) == ["Firmicutes", "Bacteroidetes"]  # most abundant first
+    sample = counts.loc["a101"]
+    phylum = sample[[c for c in counts.columns if ";p__" in c and c.split(";")[1] != "p__"]].sum()
+    firmicutes = sample[[c for c in counts.columns if ";p__Firmicutes;" in c]].sum() / phylum * 100
+    row = data[(data["sample"] == "a101") & (data["phylum"] == "Firmicutes")]
+    assert row["percent"].iloc[0] == pytest.approx(firmicutes, abs=1e-3)
 
 
 def test_composition_does_not_depend_on_the_preprocessing(counts):
@@ -82,13 +80,6 @@ def test_composition_does_not_depend_on_the_preprocessing(counts):
     a = overview_figures(counts, CANONICAL)[0].data
     b = overview_figures(counts, other)[0].data
     pd.testing.assert_frame_equal(a, b)
-
-
-def test_few_taxa_need_no_other_and_unnamed_ones_are_unassigned():
-    table = _table({"Firmicutes": [5, 0], "": [5, 10]})
-    percent = relative_abundance(table)
-    assert list(percent.columns) == [UNASSIGNED, "Firmicutes"]  # no "Other" when nothing is left over
-    assert percent.loc["s0"].tolist() == [50, 50]
 
 
 def test_shannon_and_richness():
@@ -124,22 +115,25 @@ def test_every_figure_is_made_and_labelled_descriptive(grouped):
         assert fig.caption.endswith(DESCRIPTIVE), fig.name
 
 
-def test_composition_bars_group_samples_and_add_the_group_averages(grouped, labels):
-    data = grouped["composition_bars"].data
-    assert list(data.columns) == ["sample", "group", "phylum", "percent"]
-    assert set(data["group"]) == {"Tag 0", "Tag 1", AVERAGES}
-    assert np.allclose(data.groupby("sample")["percent"].sum(), 100, atol=1e-3)
-    averages = data[data["group"] == AVERAGES].pivot(index="sample", columns="phylum", values="percent")
-    samples = data[data["group"] == "Tag 1"].pivot(index="sample", columns="phylum", values="percent")
-    assert np.allclose(averages.loc["Tag 1 average"], samples.mean(), atol=1e-3)
-    assert data[data["group"] == "Tag 1"]["sample"].nunique() == (labels.values == 1).sum()
+def test_composition_bars_are_the_samples_and_their_mean(grouped, counts):
+    fig = grouped["composition_bars"]
+    data = fig.data
+    assert list(data.columns) == ["panel", "sample", "phylum", "percent"] and fig.kind == "composition"
+    assert set(data.loc[data["sample"] == MEAN, "panel"]) == {"Average"}
+    wide = data[data["panel"] == "Samples"].pivot(index="sample", columns="phylum", values="percent")
+    mean = data[data["sample"] == MEAN].set_index("phylum")["percent"]
+    assert np.allclose(wide.mean().loc[mean.index], mean, atol=1e-3)
+    assert len(wide) == len(counts)  # every sample, not grouped by label
+    # Sorted by Firmicutes, most first; "Other" (if any) drawn last.
+    firmicutes = data[(data["panel"] == "Samples") & (data["phylum"] == "Firmicutes")]["percent"]
+    assert firmicutes.is_monotonic_decreasing
+    assert list(dict(fig.colors))[-1] == OTHER
 
 
-def test_a_taxon_has_the_same_colour_in_the_bars_and_the_pies(grouped):
+def test_a_phylum_has_the_same_colour_in_the_bars_and_the_pies(grouped):
     bars, pie = dict(grouped["composition_bars"].colors), dict(grouped["composition_pie"].colors)
     assert bars == pie
-    assert bars[OTHER] == OTHER_COLOR and bars["Firmicutes"] == TAXON_PALETTE[0]
-    assert set(bars.values()) <= {*TAXON_PALETTE, OTHER_COLOR}  # Okabe-Ito: colour-blind safe
+    assert bars[OTHER] == OTHER_GREY and bars["Firmicutes"] == PALETTES["lab"][0]  # the lab's look by default
 
 
 def test_a_group_has_the_same_colour_in_the_diversity_boxes_and_the_map(grouped):
@@ -154,15 +148,15 @@ def test_pies_one_per_group_each_adding_up_to_100(grouped, plain):
 
 
 def test_without_labels_nothing_is_grouped(plain):
-    assert "group" not in plain["composition_bars"].data and plain["composition_bars"].group_by is None
+    assert "group" not in plain["composition_pie"].data
     assert set(plain["alpha_diversity"].data["group"]) == {ALL_SAMPLES}
     assert plain["beta_pcoa"].color_by is None
 
 
 def test_continuous_labels_are_not_groups(counts):
     values = pd.Series(np.linspace(0, 1, len(counts)), index=counts.index, name="Tag")
-    figs = {f.name: f for f in overview_figures(counts, CANONICAL, values, "continuous")}
-    assert figs["composition_bars"].group_by is None
+    figs = {f.name: f for f in overview_figures(counts, CANONICAL, values, "continuous", split_violin=True)}
+    assert "group" not in figs["composition_pie"].data and VIOLIN not in figs
 
 
 def test_samples_missing_from_the_labels_are_shown_as_no_label(counts, labels):
@@ -184,10 +178,29 @@ def test_edge_cases_zero_reads_few_samples_and_identical_samples():
     assert "beta_pcoa" not in {f.name for f in overview_figures(same, CANONICAL)}  # nothing to separate
 
 
-def test_many_taxa_are_summed_as_other():
+def test_many_phyla_are_summed_as_other():
     table = _table({f"Phylum{i:02d}": [i + 1, 30 - i] for i in range(30)})
     bars = overview_figures(table, CANONICAL)[0]
-    assert bars.data["phylum"].nunique() == TOP_TAXA + 1 and OTHER in set(bars.data["phylum"])
+    assert bars.data["phylum"].nunique() == TOP_PHYLA + 1 and OTHER in set(bars.data["phylum"])
+
+
+def test_options_dataset_name_palette_and_split_violin(counts, labels):
+    figs = {f.name: f for f in overview_figures(counts, CANONICAL, labels.values, labels.kind, dataset="gut study",
+                                                palette="colorblind", split_violin=True)}
+    assert figs["composition_bars"].suptitle == "gut study"
+    assert set(dict(figs["composition_bars"].colors).values()) <= {*PALETTES["colorblind"], OTHER_GREY}
+    names = list(figs)
+    assert names.index(VIOLIN) == names.index("composition_pie") + 1
+    violin = figs[VIOLIN]
+    assert list(dict.fromkeys(violin.data["group"])) == ["Tag 0", "Tag 1"]  # group A is the left half
+    assert OTHER not in set(violin.data["phylum"]) and "Tag 0 vs Tag 1" in violin.title
+    assert dict(violin.colors) == dict(figs["alpha_diversity"].colors)  # a group keeps its colour
+
+
+def test_a_log_transformed_table_gets_no_composition(counts):
+    logged = np.log10(counts + 0.1)  # negative values: not abundances
+    names = {f.name for f in overview_figures(logged, CANONICAL)}
+    assert "composition_bars" not in names and "composition_pie" not in names and "alpha_diversity" in names
 
 
 def test_sparsity_figures(grouped, counts):
@@ -213,7 +226,7 @@ def test_every_format_is_written_in_print_resolution(exported):
             assert (out / fig.files[fmt]).stat().st_size > 0
     # The width from the PNG header (Pillow is not used: on Windows it can stop PyTorch loading later).
     width = int.from_bytes((out / "composition_bars.png").read_bytes()[16:20], "big")
-    assert width >= 2000  # 10 inches at 200 dpi
+    assert width >= 4500  # 16 inches at 300 dpi (as the lab's figure scripts)
     assert "<text" in (out / "alpha_diversity.svg").read_text(encoding="utf-8")  # editable text
 
 
@@ -231,8 +244,10 @@ def test_wide_figures_take_the_whole_row(exported):
 
 def test_interactive_versions(grouped):
     bars = to_plotly(grouped["composition_bars"])
-    assert bars.layout.barmode == "stack" and len(bars.data) == TOP_TAXA + 1
-    assert {t.marker.color for t in bars.data} == set(dict(grouped["composition_bars"].colors).values())
+    shown = grouped["composition_bars"].data["phylum"].nunique()
+    assert bars.layout.barmode == "stack" and len(bars.data) == 2 * shown  # samples panel + mean panel
+    assert {t.marker.color for t in bars.data} == {dict(grouped["composition_bars"].colors)[t.name] for t in bars.data}
+    assert bars.layout.legend.orientation == "h" and bars.layout.meta["panels"] == "side by side"
     pies = to_plotly(grouped["composition_pie"])
     assert [t.type for t in pies.data] == ["pie", "pie"]
     boxes = to_plotly(grouped["alpha_diversity"])
@@ -241,7 +256,7 @@ def test_interactive_versions(grouped):
 
 
 def test_pie_percentages_are_readable_on_every_slice():
-    for colour in (*TAXON_PALETTE, OTHER_COLOR):
+    for colour in (*PALETTES["lab"], *PALETTES["colorblind"], OTHER_GREY):
         ink = figures._ink(colour)
         assert _contrast(ink, colour) >= 4.5, colour
 
@@ -259,7 +274,9 @@ def test_drawing_the_overview_leaves_pytorch_loadable():
         "from microplatform.reports import figures, overview",
         "c = count_matrix(read_table(EXAMPLE_COUNTS))",
         "l = profile_labels(read_table(EXAMPLE_TAGS, index_col=0), list(c.index))",
-        "figures.export(overview.overview_figures(c, CANONICAL, l.values, l.kind), pathlib.Path(tempfile.mkdtemp()))",
+        "figs = overview.overview_figures(c, CANONICAL, l.values, l.kind, split_violin=True)",
+        "assert 'composition_violin' in [f.name for f in figs]",
+        "figures.export(figs, pathlib.Path(tempfile.mkdtemp()))",
         "import torch",
         "print('loaded')",
     ])

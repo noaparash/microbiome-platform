@@ -3,7 +3,7 @@
 A ``Figure`` holds the exact table that is plotted plus how to draw it.
 ``export`` writes, for each figure:
 
-    <name>.png    for slides and documents (200 dpi)
+    <name>.png    for slides and documents (200 dpi; composition figures 300 dpi)
     <name>.svg    vector, with editable text (for Illustrator or Inkscape)
     <name>.html   interactive (hover, zoom); standalone and works offline
     <name>.json   the interactive figure, for embedding in the results page
@@ -61,7 +61,9 @@ BOX_LINE = "#3f4a4a"  # box outlines and medians
 # plot's data to Chart Studio online. Uploads may be clinical, so it is always off.
 PLOTLY_CONFIG = {"displaylogo": False, "showSendToCloud": False, "responsive": True}
 
-Kind = Literal["bar", "histogram", "barh", "column", "scatter", "line", "stacked", "pie", "box"]
+Kind = Literal["bar", "histogram", "barh", "column", "scatter", "line", "stacked", "pie", "box", "composition",
+               "violin"]
+HIGH_DPI = 300  # composition figures, as in the lab's own figure scripts
 Section = Literal["quality", "findings", "overview"]
 
 
@@ -80,6 +82,11 @@ class Figure:
                form a last block (e.g. one average bar per group)
     pie        shares ``y`` of each ``x``; one pie per value of ``group_by`` if given
     box        a box per value of ``group_by`` with every point of ``y`` on it; one panel per ``facet`` value
+    composition  two panels (5:1): one stacked bar per distinct ``x`` (in row order), segments ``y``
+               coloured by ``color_by`` in ``colors`` order; rows whose ``x`` is in ``summary`` form
+               the right panel ("Average"); legend below; ``suptitle`` above (the lab's fig_1B style)
+    violin     per ``x``, the spread of ``y``: the first ``group_by`` value as the left half of a
+               violin, the second as the right half, medians marked
 
     ``colors`` fixes the colour of each value (of ``color_by``, of the pie's ``x``, or of the box's
     ``group_by``), so a taxon or a group keeps one colour across figures.
@@ -107,6 +114,7 @@ class Figure:
     summary: tuple[str, ...] = ()  # stacked: the group_by values that form the last block
     facet: str | None = None  # box: one panel per value of this column (each with its own y axis)
     colors: tuple[tuple[str, str], ...] = ()  # (value, colour) pairs; see above
+    suptitle: str | None = None  # composition: a bold heading above both panels (e.g. the dataset's name)
 
 
 @dataclass(frozen=True)
@@ -202,7 +210,7 @@ def load_manifest(figures_dir: Path) -> list[ExportedFigure]:
 
 
 def _is_wide(fig: Figure) -> bool:
-    if fig.kind == "stacked":
+    if fig.kind in ("stacked", "composition", "violin"):
         return True
     if fig.kind == "box":
         return fig.facet is not None and fig.data[fig.facet].nunique() > 1
@@ -231,7 +239,8 @@ def _color_map(fig: Figure, column: str) -> dict[str, str]:
     """The figure's fixed colours, or colours by order of appearance."""
     if fig.colors:
         return dict(fig.colors)
-    return taxon_colors(fig.data[column]) if fig.kind in ("stacked", "pie") else group_colors(fig.data[column])
+    return (taxon_colors(fig.data[column]) if fig.kind in ("stacked", "pie", "composition")
+            else group_colors(fig.data[column]))
 
 
 def _stacked_layout(fig: Figure) -> tuple[dict[str, tuple[float, float]], list[tuple[float, str]]]:
@@ -290,6 +299,10 @@ def _group_colors(fig: Figure) -> tuple[list[str], list[tuple[str, str]]]:
 
 def _write_static(fig: Figure, out_dir: Path) -> None:
     # The object-oriented matplotlib API (no pyplot) is safe inside a web server.
+    if fig.kind in ("composition", "violin"):
+        with matplotlib.rc_context({"svg.fonttype": "none"}):
+            (_write_composition if fig.kind == "composition" else _write_violin)(fig, out_dir)
+        return
     height = max(3.5, 0.26 * len(fig.data) + 1.4) if fig.kind == "barh" else 4
     width = 10 if _is_wide(fig) else 7
     with matplotlib.rc_context({"svg.fonttype": "none", "font.size": 10}):
@@ -370,9 +383,77 @@ def _write_static(fig: Figure, out_dir: Path) -> None:
         _save(mpl, fig, out_dir)
 
 
-def _save(mpl: MplFigure, fig: Figure, out_dir: Path) -> None:
+def _save(mpl: MplFigure, fig: Figure, out_dir: Path, dpi: int = 200, tight: bool = False) -> None:
     for fmt in ("png", "svg"):
-        mpl.savefig(out_dir / f"{fig.name}.{fmt}", dpi=200)
+        mpl.savefig(out_dir / f"{fig.name}.{fmt}", dpi=dpi, bbox_inches="tight" if tight else None)
+
+
+def _write_composition(fig: Figure, out_dir: Path) -> None:
+    """The lab's fig_1B layout: samples (left, 5 parts) and their mean (right, 1 part), legend below."""
+    colors = _color_map(fig, fig.color_by)
+    wide = fig.data.pivot(index=fig.x, columns=fig.color_by, values=fig.y)
+    order = [t for t in colors if t in wide.columns]
+    bars = list(dict.fromkeys(fig.data[fig.x]))
+    samples = wide.loc[[b for b in bars if b not in fig.summary], order]
+    means = wide.loc[[b for b in bars if b in fig.summary], order]
+    mpl = MplFigure(figsize=(16, 6))
+    ax_samples, ax_mean = mpl.subplots(1, 2, gridspec_kw={"width_ratios": [5, 1]})
+    for ax, table in ((ax_samples, samples), (ax_mean, means)):
+        bottom = np.zeros(len(table))
+        for taxon in order:
+            values = table[taxon].fillna(0).to_numpy()
+            ax.bar(range(len(table)), values, bottom=bottom, width=0.9, color=colors[taxon], edgecolor="none",
+                   label=taxon)
+            bottom += values
+        ax.set_ylim(0, 100)
+        ax.spines[["top", "right"]].set_visible(False)
+    ax_samples.set_ylabel(fig.y_label, fontsize=12)
+    ax_samples.set_xticks([])
+    ax_samples.set_xlim(-0.6, len(samples) - 0.4)
+    ax_samples.set_title(f"Samples (n={len(samples):,})", fontsize=13)
+    ax_mean.set_xticks(range(len(means)), list(means.index), fontsize=11)
+    ax_mean.set_title("Average", fontsize=13)
+    ax_mean.spines["left"].set_visible(False)
+    ax_mean.yaxis.set_visible(False)
+    mpl.legend(handles=[Rectangle((0, 0), 1, 1, color=colors[t], label=t) for t in order], loc="lower center",
+               bbox_to_anchor=(0.5, -0.12), ncol=4, frameon=False, fontsize=9)
+    mpl.suptitle(fig.suptitle or fig.title, fontsize=16, fontweight="bold")
+    mpl.tight_layout(rect=[0, 0.12, 1, 1])
+    _save(mpl, fig, out_dir, dpi=HIGH_DPI, tight=True)
+
+
+def _write_violin(fig: Figure, out_dir: Path) -> None:
+    """Split violins as in the lab's fig_1B scripts: one group's half on the left, the other's on the right."""
+    taxa = list(dict.fromkeys(fig.data[fig.x]))
+    groups = list(dict.fromkeys(fig.data[fig.group_by]))[:2]
+    colors = _color_map(fig, fig.group_by)
+    mpl = MplFigure(figsize=(max(14, len(taxa) * 0.8), 7))
+    ax = mpl.add_subplot()
+    for i, taxon in enumerate(taxa):
+        for group, keep in zip(groups, (np.minimum, np.maximum)):
+            values = fig.data.loc[(fig.data[fig.x] == taxon) & (fig.data[fig.group_by] == group), fig.y].dropna()
+            if len(values) < 2 or values.nunique() < 2:  # a violin needs a spread
+                continue
+            parts = ax.violinplot([values.to_numpy()], positions=[i], widths=0.8, showmeans=False,
+                                  showmedians=True, showextrema=False)
+            for body in parts["bodies"]:
+                body.set_facecolor(colors[group])
+                body.set_edgecolor("black")
+                body.set_alpha(0.7)
+                verts = body.get_paths()[0].vertices
+                verts[:, 0] = keep(verts[:, 0], i)
+            median = parts["cmedians"]
+            median.set_color("black")
+            median.set_linewidth(1.2)
+            # The median line spans only its own half.
+            median.set_segments([np.column_stack([keep(s[:, 0], i), s[:, 1]]) for s in median.get_segments()])
+    ax.set_xticks(range(len(taxa)), taxa, rotation=45, ha="right")
+    ax.set_ylabel(fig.y_label)
+    ax.set_title(fig.title, loc="left", fontweight="bold")
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.legend(handles=[Patch(facecolor=colors[g], edgecolor="black", label=g) for g in groups], frameon=False)
+    mpl.tight_layout()
+    _save(mpl, fig, out_dir, dpi=HIGH_DPI, tight=True)
 
 
 def _write_pies(fig: Figure, mpl: MplFigure, out_dir: Path) -> None:
@@ -447,6 +528,10 @@ def to_plotly(fig: Figure) -> go.Figure:
         return _plotly_pies(fig)
     if fig.kind == "box":
         return _plotly_boxes(fig)
+    if fig.kind == "composition":
+        return _plotly_composition(fig)
+    if fig.kind == "violin":
+        return _plotly_violin(fig)
     out = go.Figure()
     if fig.kind == "stacked":
         bars, ticks = _stacked_layout(fig)
@@ -542,6 +627,50 @@ def _plotly_pies(fig: Figure) -> go.Figure:
         ))
     out.update_layout(title={"text": fig.title, "x": 0, "xanchor": "left"}, template="simple_white",
                       margin={"l": 20, "r": 20, "t": 50, "b": 20}, legend={"title": {"text": fig.x.capitalize()}})
+    return out
+
+
+def _plotly_composition(fig: Figure) -> go.Figure:
+    colors = _color_map(fig, fig.color_by)
+    bars = list(dict.fromkeys(fig.data[fig.x]))
+    samples = [b for b in bars if b not in fig.summary]
+    out = make_subplots(rows=1, cols=2, column_widths=[5 / 6, 1 / 6], shared_yaxes=True, horizontal_spacing=0.02,
+                        subplot_titles=(f"Samples (n={len(samples):,})", "Average"))
+    for taxon, color in colors.items():
+        rows = fig.data[fig.data[fig.color_by] == taxon]
+        if rows.empty:
+            continue
+        for col, part in ((1, rows[~rows[fig.x].isin(fig.summary)]), (2, rows[rows[fig.x].isin(fig.summary)])):
+            out.add_trace(go.Bar(x=part[fig.x], y=part[fig.y], name=taxon, legendgroup=taxon, showlegend=col == 1,
+                                 marker={"color": color, "line": {"width": 0}}, hovertemplate=fig.hover),
+                          row=1, col=col)
+    out.update_xaxes(categoryorder="array", categoryarray=samples, showticklabels=False, ticks="", row=1, col=1)
+    out.update_xaxes(ticks="", row=1, col=2)
+    out.update_yaxes(range=[0, 100], title_text=fig.y_label, row=1, col=1)
+    out.update_yaxes(range=[0, 100], visible=False, row=1, col=2)
+    out.update_layout(
+        title={"text": fig.suptitle or fig.title, "x": 0.5, "xanchor": "center"}, barmode="stack", bargap=0.1,
+        template="simple_white", margin={"l": 60, "r": 20, "t": 70, "b": 20},
+        legend={"orientation": "h", "x": 0.5, "xanchor": "center", "y": -0.04, "yanchor": "top"},
+        meta={"panels": "side by side"},  # app.js: keep the Average beside the samples, also on phones
+    )
+    return out
+
+
+def _plotly_violin(fig: Figure) -> go.Figure:
+    groups = list(dict.fromkeys(fig.data[fig.group_by]))[:2]
+    colors = _color_map(fig, fig.group_by)
+    out = go.Figure()
+    for group, side in zip(groups, ("negative", "positive")):
+        rows = fig.data[fig.data[fig.group_by] == group]
+        out.add_trace(go.Violin(x=rows[fig.x], y=rows[fig.y], name=str(group), side=side, legendgroup=str(group),
+                                fillcolor=colors[group], line={"color": "black", "width": 1}, opacity=0.7,
+                                points=False, box={"visible": True, "width": 0.15}, meanline={"visible": False},
+                                spanmode="hard", hovertemplate=fig.hover))
+    out.update_layout(title={"text": fig.title, "x": 0, "xanchor": "left"}, violinmode="overlay",
+                      template="simple_white", yaxis_title=fig.y_label, margin={"l": 60, "r": 20, "t": 50, "b": 80},
+                      legend={"orientation": "h", "x": 0, "y": 1.02, "yanchor": "bottom"})
+    out.update_xaxes(tickangle=-45)
     return out
 
 

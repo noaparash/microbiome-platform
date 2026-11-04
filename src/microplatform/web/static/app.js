@@ -90,11 +90,23 @@ if (figureGrid) {
               el.style.aspectRatio = "3 / 4";
             }
             // Two panels side by side (e.g. Shannon and richness) are too narrow: stack them, one above the other.
-            if (fig.layout.xaxis2 && fig.layout.yaxis2) {
+            // (Not the composition figure: its narrow Average bar belongs beside the samples.)
+            const sideBySide = fig.layout.meta && fig.layout.meta.panels === "side by side";
+            if (fig.layout.xaxis2 && fig.layout.yaxis2 && !sideBySide) {
               Object.assign(fig.layout.xaxis, { domain: [0, 1] });
               Object.assign(fig.layout.xaxis2, { domain: [0, 1] });
               Object.assign(fig.layout.yaxis, { domain: [0.6, 1] });
               Object.assign(fig.layout.yaxis2, { domain: [0, 0.4] });
+              el.style.aspectRatio = "3 / 4";
+            }
+            if (sideBySide) {
+              // Panel titles in small type, so "Samples" and "Average" fit side by side; a short axis title
+              // ("%", the caption says the rest), so the bars and the legend get the width: the legend in two
+              // columns under the bars, with the height that takes (no scrolling inside the legend).
+              for (const note of fig.layout.annotations || []) note.font = { ...note.font, size: 11 };
+              fig.layout.yaxis = { ...fig.layout.yaxis, title: { text: "%" } };
+              fig.layout.legend = { ...fig.layout.legend, x: -0.14, xanchor: "left", entrywidth: 0.45,
+                                    entrywidthmode: "fraction", font: { size: 10 } };
               el.style.aspectRatio = "3 / 4";
             }
             for (const name of axes) {
