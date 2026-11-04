@@ -42,6 +42,11 @@ All notable changes to `microplatform`. The format follows
   (internal, not in the public API).
 - A table that cannot be relative abundance (negative or non-finite values) gets no
   composition figures instead of wrong ones.
+- One phylum→colour map everywhere: `figures.taxon_colors` (used by any per-phylum figure built
+  without explicit colours) now returns `composition.phylum_colors`; the old Okabe-Ito fallback
+  (`TAXON_PALETTE`) and its separate grey (`OTHER_COLOR`, #BBBBBB) were removed. A test on the
+  authors' GIMIC example (16 phyla) checks that bars and pies use the same map and draw "Other"
+  grey and last (data, SVG legend and interactive traces).
 - Four scoped library adjustments let mimic-da 1.0.1's plot mode run on Python 3.13's
   libraries without changing the package: SciPy 1.18's `kstest(x, 'norm', args=...)` bug,
   matplotlib's removed `cm.get_cmap`, NumPy 2.2's empty-array truth value (in the tree

@@ -50,11 +50,8 @@ CONTRAST = "#b45309"  # the second group, distinguishable from teal (also for co
 MARKER = "#b42318"
 # Groups beyond two: distinct hues that stay apart for common colour blindness.
 PALETTE = (ACCENT, CONTRAST, "#6d28d9", "#0369a1", "#be185d", "#4d7c0f", "#57534e")
-# Taxa in composition figures: the Okabe-Ito palette (Okabe & Ito 2008), designed to stay apart for every
-# common colour blindness and widely used in journals; mid-tones, so they read on light and dark pages.
-TAXON_PALETTE = ("#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#F0E442")
+# Taxa in composition figures take their colours from one global map, reports/composition.py.
 OTHER = "Other"
-OTHER_COLOR = "#BBBBBB"
 BOX_LINE = "#3f4a4a"  # box outlines and medians
 
 # Interactive files: plotly.js shows a "Share chart" button by default, which uploads the
@@ -224,10 +221,14 @@ def _values(fig: Figure, column: str | None) -> list:
 # --- composition figures: shared layout --------------------------------------------------
 
 def taxon_colors(taxa) -> dict[str, str]:
-    """A colour per taxon, in the given order (most abundant first); "Other" is always grey."""
-    named = [t for t in dict.fromkeys(taxa) if t != OTHER]
-    colors = {t: TAXON_PALETTE[i % len(TAXON_PALETTE)] for i, t in enumerate(named)}
-    return colors | {OTHER: OTHER_COLOR}
+    """The global phylum→colour map (``composition.phylum_colors``, lab palette); "Other" grey and last.
+
+    The one place per-taxon colours come from, so a figure built without explicit ``colors``
+    still matches every other composition figure.
+    """
+    from microplatform.reports.composition import phylum_colors  # it imports this module
+
+    return phylum_colors(taxa)
 
 
 def group_colors(groups) -> dict[str, str]:
