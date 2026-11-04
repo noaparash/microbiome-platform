@@ -15,8 +15,9 @@ Runs the authors' ``apply_mimic`` unchanged, fed from the shared ``Dataset``
 - it runs inside ``work_dir``, because miMic always writes .pkl files into the
   current folder.
 
-miMic's own plot mode is not used (it stops at a debug print that current
-SciPy rejects); results are drawn through ``reports.figures`` instead.
+miMic's own plot mode is not used here; results are drawn through
+``reports.figures`` instead. The authors' full bundle (their tables, diagnostic
+plots and cladogram) is made by ``engines/mimic_authors.py``, outside the website.
 """
 
 from __future__ import annotations

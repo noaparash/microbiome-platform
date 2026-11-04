@@ -8,6 +8,21 @@ All notable changes to `microplatform`. The format follows
 
 ## [Unreleased]
 
+### Added
+- `engines/mimic_authors.py`: miMic's full standard output bundle, made by the authors'
+  own code from end to end (`apply_mimic` test mode with `samba.micro2matrix`, then plot
+  mode): their result tables (`df_corrs.csv`, `miMic&Utest.csv`, `u_test_without_mimic.csv`,
+  `just_mimic.csv`), their diagnostic plots and their cladogram (`correlations_tree` as SVG,
+  PNG and PDF). One run per seed plus a repeat of the main seed, so the effect of miMic's
+  label shuffling is visible; `run.json` records versions, input checksums, settings, the
+  authors' function behind each output and the library adjustments. Command line:
+  `python -m microplatform.engines.mimic_authors processed.csv tag.csv out_dir`. Not used
+  by the website.
+- Four scoped library adjustments let mimic-da 1.0.1's plot mode run on Python 3.13's
+  libraries without changing the package: SciPy 1.18's `kstest(x, 'norm', args=...)` bug,
+  matplotlib's removed `cm.get_cmap`, NumPy 2.2's empty-array truth value (in the tree
+  drawer only), and no interactive tree window.
+
 ## [0.3.0] — 2026-11-04
 
 All five of the lab's tools are now available. LOCATE runs natively on Python 3.13

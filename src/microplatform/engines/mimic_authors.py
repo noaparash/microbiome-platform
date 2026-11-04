@@ -1,0 +1,314 @@
+"""miMic's full standard output bundle, made by the authors' own code from end to end.
+
+The website's engine (``engines/mimic.py``) runs only miMic's test step and draws its own
+figures. This module runs the whole published pipeline, exactly as the authors' README does:
+
+1. ``apply_mimic(folder, tag, mode="test", processed=..., apply_samba=True, save=True)``:
+   ``samba.micro2matrix`` builds the iMic images, then the a-priori nested ANOVA (or GLM) and
+   the post-hoc tests along the taxonomy tree. With ``save=True`` the authors write their own
+   result tables into ``folder``: ``df_corrs.csv`` (every significant taxon), ``miMic&Utest.csv``
+   (found by both the tree path and the leaf test), ``u_test_without_mimic.csv`` and
+   ``just_mimic.csv``.
+2. ``apply_mimic(folder, tag, mode="plot", tax=<start level>, samba_output=...)``: their
+   diagnostic plots (``tax_vs_rp_sp_anova_p.png``, ``rsp_vs_beta.png``, ``hist.png``,
+   ``corrs_within_family.png``, ``interaction.png``) and their cladogram
+   (``correlations_tree.svg``), written to ``plots/``. The SP counts come from re-running the
+   tests on shuffled labels (``np.random.shuffle``), so they depend on the random seed.
+
+Nothing statistical is reimplemented and the authors' package is never modified. mimic-da
+1.0.1 was written for older libraries, so ``compatible()`` makes four small, scoped
+adjustments for the libraries installed here (Python 3.13), each restoring the behaviour the
+authors' code was written against, plus two for running without a screen. They are listed in
+``ADJUSTMENTS`` and recorded with every run.
+
+Run it: ``python -m microplatform.engines.mimic_authors processed.csv tag.csv out_dir``.
+"""
+
+from __future__ import annotations
+
+import argparse
+import contextlib
+import hashlib
+import io
+import json
+import os
+import random
+import shutil
+import sys
+import types
+from copy import deepcopy
+from importlib.metadata import version
+from pathlib import Path
+
+import pandas as pd
+
+from microplatform.core.contract import LABEL_COLUMN
+from microplatform.core.errors import UserFacingError
+from microplatform.core.profiler import _label_kind
+from microplatform.engines.labels import native_tag
+from microplatform.engines.mimic import EVALS, SISTER_CORRECTION, THRESHOLD_P, CORRECT_FIRST, load_mimic
+
+SEED = 42  # the fixed seed of the main result
+EXTRA_SEEDS = (0, 1, 2, 3)  # more runs, so that the seed's effect is visible
+THRESHOLD_EDGE = 0.5  # the authors' default edge threshold of the interaction plot
+COLORFUL = True  # the authors' default: colour the tree and the family plot by family
+IMAGES = "images"  # the folder handed to miMic (iMic images and the authors' tables)
+PLOTS = "plots"  # where miMic's plot mode always writes (relative to the current folder)
+TABLES = ("df_corrs.csv", "miMic&Utest.csv", "u_test_without_mimic.csv", "just_mimic.csv")
+TREE_FORMATS = ("svg", "png", "pdf")
+
+ADJUSTMENTS = {
+    "kstest": "SciPy 1.18 raises TypeError on kstest(x, 'norm', args=(loc, scale)); miMic calls it only "
+              "to print a normality check while drawing hist.png. It is run as the documented equivalent "
+              "kstest(x, norm(loc, scale).cdf), which gives the same result.",
+    "get_cmap": "matplotlib 3.9 removed cm.get_cmap(name); miMic uses it for the family colours. It is "
+                "served by matplotlib.colormaps[name], the same colormap.",
+    "index_truth": "NumPy 2.2 made `if <empty array>:` an error; miMic's cladogram drawer tests "
+                   "`if index != None:` and relied on the old result (empty -> False, one element -> its "
+                   "value). Inside the drawer only, that comparison gives the old result.",
+    "tree_formats": "miMic renders correlations_tree.svg with ete3; the same tree and style are also "
+                    "rendered by ete3 to .png and .pdf (inside the drawer only).",
+    "no_window": "miMic opens the tree in an interactive window (ete3 show) before saving it; without a "
+                 "screen that window is skipped (the saved files are unchanged).",
+    "offscreen": "Qt draws offscreen (QT_QPA_PLATFORM=offscreen), as miMic forces the Qt5Agg backend.",
+}
+
+
+def run_bundle(processed: pd.DataFrame, tags: pd.DataFrame, out_dir: str | Path, seed: int = SEED) -> dict:
+    """Run the authors' miMic test and plot modes on ``processed`` + ``tags`` in ``out_dir``.
+
+    ``processed`` is a MIPMLP-processed table (samples × taxa); ``tags`` has the labels in a
+    ``Tag`` column (one differently named column is accepted). Returns the run's record.
+    """
+    tag, coding, test, processed = _prepare(processed, tags)
+    out_dir = Path(out_dir)
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
+    (out_dir / IMAGES).mkdir(parents=True)
+    apply_mimic, _ = load_mimic()
+    log = io.StringIO()
+    with compatible() as seen, contextlib.chdir(out_dir), contextlib.redirect_stdout(log):
+        random.seed(seed)
+        _numpy().random.seed(seed)
+        start, samba_output = apply_mimic(
+            IMAGES, tag, eval=test, sis=SISTER_CORRECTION, correct_first=CORRECT_FIRST, mode="test",
+            threshold_p=THRESHOLD_P, processed=processed, apply_samba=True, save=True,
+        )
+        if start != "nosignificant":
+            apply_mimic(
+                IMAGES, tag, eval=test, sis=SISTER_CORRECTION, correct_first=CORRECT_FIRST, mode="plot",
+                tax=start, threshold_p=THRESHOLD_P, THRESHOLD_edge=THRESHOLD_EDGE, colorful=COLORFUL,
+                samba_output=samba_output, save=False,
+            )
+        _close_figures()
+    (out_dir / "mimic_log.txt").write_text(log.getvalue(), encoding="utf-8")
+    if seen.get("rp_sp") is not None:
+        seen["rp_sp"].to_csv(out_dir / "rp_sp.csv", index_label="level")
+    # Everything but the iMic images (one file per sample); the authors' tables sit beside them.
+    files = sorted(str(p.relative_to(out_dir)).replace("\\", "/") for p in out_dir.rglob("*")
+                   if p.is_file() and (p.suffix == ".csv" or not p.is_relative_to(out_dir / IMAGES)))
+    return {
+        "seed": seed, "eval": test, "label_coding": coding, "samples": len(tag),
+        "taxa": processed.shape[1], "post_hoc_start": str(start), "files": files,
+        "sha256": {f: _sha256(out_dir / f) for f in files},
+    }
+
+
+def run(processed_csv: str | Path, tag_csv: str | Path, out_dir: str | Path,
+        seeds: tuple[int, ...] = (SEED, *EXTRA_SEEDS)) -> dict:
+    """The whole bundle: one run per seed under ``seeds/seed_<n>/``, plus the first seed once more
+    (``seed_<n>_repeat``: does the same seed give the same files?). The first seed's tables and
+    plots are also copied to ``out_dir`` itself. Writes and returns ``run.json``."""
+    out_dir = Path(out_dir)
+    processed = pd.read_csv(processed_csv, index_col=0)  # as in the authors' README
+    tags = pd.read_csv(tag_csv, index_col=0)
+    runs = [run_bundle(processed, tags, out_dir / "seeds" / f"seed_{s}", s) for s in seeds]
+    repeat = run_bundle(processed, tags, out_dir / "seeds" / f"seed_{seeds[0]}_repeat", seeds[0])
+    main = out_dir / "seeds" / f"seed_{seeds[0]}"
+    for name in TABLES:
+        if (main / IMAGES / name).exists():
+            shutil.copy2(main / IMAGES / name, out_dir / name)
+    if (out_dir / PLOTS).exists():
+        shutil.rmtree(out_dir / PLOTS)
+    if (main / PLOTS).exists():
+        shutil.copytree(main / PLOTS, out_dir / PLOTS)
+    for extra in ("rp_sp.csv", "mimic_log.txt"):
+        if (main / extra).exists():
+            shutil.copy2(main / extra, out_dir / extra)
+    record = {
+        "tool": "miMic", "package": "mimic-da", "version": version("mimic-da"),
+        "samba-metric": version("samba-metric"), "MIPMLP": version("MIPMLP"),
+        "python": sys.version.split()[0],
+        "libraries": {n: version(n) for n in ("numpy", "pandas", "scipy", "matplotlib", "statsmodels",
+                                                "ete3", "PyQt5", "networkx")},
+        "inputs": {Path(p).name: _sha256(Path(p)) for p in (processed_csv, tag_csv)},
+        "settings": {"eval": runs[0]["eval"], "sis": SISTER_CORRECTION, "correct_first": CORRECT_FIRST,
+                     "threshold_p": THRESHOLD_P, "THRESHOLD_edge": THRESHOLD_EDGE, "colorful": COLORFUL,
+                     "apply_samba": True},
+        "calls": CALLS, "adjustments": ADJUSTMENTS,
+        "main_seed": seeds[0], "seeds": list(seeds), "runs": runs, "repeat_of_main_seed": repeat,
+        # Byte-for-byte comparisons. PDFs are left out: they embed their creation time.
+        "same_in_every_seed": _compared(runs, same=True),
+        "differs_between_seeds": _compared(runs, same=False),
+        "differs_on_repeat_of_main_seed": _compared([runs[0], repeat], same=False),
+    }
+    (out_dir / "run.json").write_text(json.dumps(record, indent=2), encoding="utf-8")
+    return record
+
+
+# Which of the authors' functions make each output (recorded with every run).
+CALLS = {
+    "iMic images (images/*.npy, bact_names.npy)": "samba.micro2matrix, called by apply_mimic(mode='test', "
+                                                  "apply_samba=True, save=True)",
+    "a-priori test": "mimic_da.miMic_test.apply_nested_anova (inside apply_mimic)",
+    "df_corrs.csv, miMic&Utest.csv, u_test_without_mimic.csv, just_mimic.csv":
+        "mimic_da.apply_mimic(mode='test', save=True) -> calculate_all_imgs_tag_corr",
+    "plots/tax_vs_rp_sp_anova_p.png": "apply_mimic(mode='plot') -> plot_rp_sp_anova_p",
+    "plots/rsp_vs_beta.png": "apply_mimic(mode='plot') -> calculate_rsp",
+    "plots/hist.png, plots/corrs_within_family.png": "apply_mimic(mode='plot') -> calculate_all_imgs_tag_corr"
+                                                     "(mode='plot')",
+    "plots/interaction.png": "calculate_all_imgs_tag_corr(mode='plot') -> build_interactions",
+    "plots/correlations_tree.svg/.png/.pdf": "calculate_all_imgs_tag_corr(mode='plot') -> creare_tree_view "
+                                             "(ete3 TreeNode.render)",
+    "rp_sp.csv": "the RP/SP table apply_mimic(mode='plot') passes to calculate_rsp",
+}
+
+
+@contextlib.contextmanager
+def compatible():
+    """The ``ADJUSTMENTS``, applied to miMic's module only for the duration of a run."""
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    load_mimic()
+    import ete3
+    import matplotlib
+    import mimic_da.miMic_test as mt
+    from scipy import stats
+
+    seen: dict = {}
+    saved = {"stats": mt.stats, "cm": mt.cm, "creare_tree_view": mt.creare_tree_view,
+             "calculate_rsp": mt.calculate_rsp}
+    show, render, index_ne = ete3.TreeNode.show, ete3.TreeNode.render, pd.Index.__ne__
+
+    class Stats(types.ModuleType):
+        def __getattr__(self, name):
+            return getattr(stats, name)
+
+        @staticmethod
+        def kstest(rvs, cdf, args=(), **kwargs):
+            if isinstance(cdf, str) and args:
+                return stats.kstest(rvs, getattr(stats, cdf)(*args).cdf, **kwargs)
+            return stats.kstest(rvs, cdf, args=args, **kwargs)
+
+    class Colormaps(types.ModuleType):
+        def __getattr__(self, name):
+            return getattr(saved["cm"], name)
+
+        @staticmethod
+        def get_cmap(name=None, lut=None):
+            cmap = matplotlib.colormaps[name]
+            return cmap.resampled(lut) if lut is not None else cmap
+
+    def old_truth(self, other):
+        result = index_ne(self, other)
+        if other is None:
+            if result.size > 1:
+                raise ValueError("The truth value of an array with more than one element is ambiguous.")
+            return bool(result.size and result[0])
+        return result
+
+    def render_formats(self, file_name, *args, tree_style=None, **kwargs):
+        out = render(self, file_name, *args, tree_style=deepcopy(tree_style), **kwargs)
+        stem, _, ext = str(file_name).rpartition(".")
+        for other in TREE_FORMATS:
+            if other != ext:
+                render(self, f"{stem}.{other}", *args, tree_style=deepcopy(tree_style), **kwargs)
+        return out
+
+    def tree_view(*args, **kwargs):
+        pd.Index.__ne__, ete3.TreeNode.render = old_truth, render_formats
+        try:
+            return saved["creare_tree_view"](*args, **kwargs)
+        finally:
+            pd.Index.__ne__, ete3.TreeNode.render = index_ne, render
+
+    def rsp(df, save):
+        seen["rp_sp"] = df.copy()
+        return saved["calculate_rsp"](df, save)
+
+    mt.stats, mt.cm = Stats("stats"), Colormaps("cm")
+    mt.creare_tree_view, mt.calculate_rsp = tree_view, rsp
+    ete3.TreeNode.show = lambda self, *a, **k: None
+    try:
+        yield seen
+    finally:
+        for name, value in saved.items():
+            setattr(mt, name, value)
+        ete3.TreeNode.show, ete3.TreeNode.render, pd.Index.__ne__ = show, render, index_ne
+
+
+def _prepare(processed: pd.DataFrame, tags: pd.DataFrame) -> tuple[pd.DataFrame, dict, str, pd.DataFrame]:
+    """Labels as miMic needs them, for the samples that have both (in the table's order), the test
+    for the label type, and the table for those samples."""
+    if LABEL_COLUMN not in tags.columns:
+        if tags.shape[1] != 1:
+            raise UserFacingError(f"The labels table needs a column named '{LABEL_COLUMN}'.",
+                                  f"Name the label column '{LABEL_COLUMN}'.")
+        tags = tags.rename(columns={tags.columns[0]: LABEL_COLUMN})
+    processed, tags = processed.copy(), tags.copy()
+    processed.index, tags.index = processed.index.astype(str), tags.index.astype(str)
+    for name, table in (("abundance table", processed), ("labels", tags)):
+        if table.index.duplicated().any():
+            raise UserFacingError(f"The {name} has repeated sample IDs.", "Give every sample one row.")
+    numbers = processed.apply(pd.to_numeric, errors="coerce")
+    if numbers.isna().any().any() or not numbers.abs().lt(float("inf")).all().all():
+        raise UserFacingError("The abundance table must hold numbers only (no gaps or infinities).",
+                              "Use MIPMLP's processed output as it is.")
+    labels = tags[LABEL_COLUMN].dropna()
+    labels = labels[labels.index.isin(processed.index)]
+    labels = labels.loc[[i for i in processed.index if i in labels.index]]
+    kind = _label_kind(labels)
+    if kind not in EVALS:
+        raise UserFacingError("miMic's test for three or more groups is broken in mimic-da 1.0.1.",
+                              "Use two groups or a continuous label.")
+    tag, coding = native_tag(labels.rename(LABEL_COLUMN), kind)
+    return tag, coding, EVALS[kind], numbers.loc[tag.index]
+
+
+def _compared(runs: list[dict], same: bool) -> list[str]:
+    names = sorted(set().union(*(r["sha256"] for r in runs)))
+    return [f for f in names if not f.endswith(".pdf")
+            and (len({r["sha256"].get(f) for r in runs}) == 1) == same]
+
+
+def _numpy():
+    import numpy
+
+    return numpy
+
+
+def _close_figures() -> None:
+    import matplotlib.pyplot as plt
+
+    plt.close("all")
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
+    parser.add_argument("processed", help="MIPMLP-processed table (CSV, first column = sample IDs)")
+    parser.add_argument("tag", help="labels (CSV, first column = sample IDs, a 'Tag' column)")
+    parser.add_argument("out_dir")
+    parser.add_argument("--seeds", type=int, nargs="+", default=[SEED, *EXTRA_SEEDS],
+                        help="the first is the main result")
+    args = parser.parse_args(argv)
+    record = run(args.processed, args.tag, args.out_dir, tuple(args.seeds))
+    print(json.dumps({k: record[k] for k in ("version", "seeds", "same_in_every_seed",
+                                             "differs_between_seeds")}, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -20,6 +20,9 @@ uploads/
 cache/
 results/
 
+# Blind validation inputs (held for an outside grader; never committed)
+blind_input/
+
 # Secrets
 .env
 
