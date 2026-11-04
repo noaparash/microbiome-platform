@@ -14,10 +14,12 @@ abstract: >-
   A Python package (with a thin website) that profiles microbiome count
   tables, preprocesses them once with MIPMLP, recommends the right tool for
   the question and runs the authors' own code: miMic (differential abundance
-  along the taxonomy tree), iMic (prediction from tree images) and GIMIC
-  (sample distances). LOCATE (microbiome-metabolome) is planned.
-version: 0.2.0
-date-released: "2026-10-28"
+  along the taxonomy tree), iMic (prediction from tree images), GIMIC
+  (sample distances) and LOCATE (microbiome-metabolome links, in a validated
+  Python 3.13 conversion). Every analysis also ends with a descriptive data
+  overview (composition, diversity, sparsity).
+version: 0.3.0
+date-released: "2026-11-04"
 authors:
   - name: "Prof. Yoram Louzoun's lab, Bar-Ilan University"  # placeholder: authors to be confirmed
 keywords:
@@ -26,6 +28,7 @@ keywords:
   - preprocessing
   - differential abundance
   - machine learning
+  - metabolomics
 references:
   - type: article
     title: "Microbiome Preprocessing Machine Learning Pipeline"

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "microplatform"
-version = "0.2.0"  # keep equal to microplatform.__version__ (a test checks)
+version = "0.3.0"  # keep equal to microplatform.__version__ (a test checks)
 description = "The Louzoun lab's microbiome tools (MIPMLP, miMic, iMic, GIMIC; LOCATE planned) behind one interface."
 readme = "README.md"
 requires-python = ">=3.13"

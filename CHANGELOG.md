@@ -8,6 +8,13 @@ All notable changes to `microplatform`. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-11-04
+
+All five of the lab's tools are now available. LOCATE runs natively on Python 3.13
+(a validated conversion of the authors' code), metabolite tables can be uploaded,
+every analysis ends with a descriptive data overview, and long runs on the lab
+server are never cut short.
+
 ### Added
 - **LOCATE is available** ("Link bacteria to metabolites"), on the website and in
   the package. Its validation was accepted by the project owner (2026-11-02) under
@@ -62,6 +69,10 @@ All notable changes to `microplatform`. The format follows
   PCoA needs 3 samples that differ. Continuous labels are not grouped.
 - Figure kinds `stacked`, `pie` and `box`; `Figure.colors` fixes the colour of each
   value; `ExportedFigure.wide` lets a figure take the whole row.
+- A run-time table measured on a laptop (`docs/run-times.md`, made by
+  `benchmarks/`): every tool takes under 2 minutes on the example datasets; on two
+  large public datasets (about 44,000 features) miMic, iMic and GIMIC take over an
+  hour and miMic/GIMIC use 7.5 GB or more, so large datasets need the lab server.
 
 ### Changed
 - "How widespread each taxon is" (`taxa_prevalence`) moved from "Data quality"
@@ -78,6 +89,22 @@ All notable changes to `microplatform`. The format follows
   existing calls are unchanged.
 - Uploads: up to three files (counts, labels, metabolites). Two files of the same
   kind are refused with a message naming both.
+- **Long runs are never cut short.** On `systemctl stop`/`restart` (or a reboot) the
+  worker now waits up to 4 hours for the analysis in progress (`TimeoutStopSec=4h`,
+  was 30 minutes); nothing else limits a run's time.
+- **A running analysis is never wrongly marked "interrupted".** The worker's lock
+  now records its host, process ID and process start time, and a run whose heartbeat
+  is late is left alone while that same process is still alive (a reused process ID
+  does not count). This holds with any number of workers on one server.
+- Deployment guide: the lab server needs at least 16 GB of RAM.
+
+### Known limits
+- LOCATE's metabolite preparation uses a reconstructed log base and pseudocount
+  (log10, 1e-6: not stated in the paper), recorded with every run. One engine run is
+  reported, while the paper's figures keep the best of 16 runs per metabolite.
+- iMic predicts with dropout on (as published) and takes two-group labels only.
+- miMic's categorical mode is broken upstream and is refused with a reason.
+- Email notifications are built but off until the lab provides SMTP settings.
 
 ## [0.2.0] — 2026-10-28
 

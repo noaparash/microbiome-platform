@@ -16,7 +16,7 @@ website's "Docs & API" page (generated from these docstrings). Changes to it
 are recorded in CHANGELOG.md.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 from microplatform.core.contract import Dataset
 from microplatform.core.errors import UserFacingError
