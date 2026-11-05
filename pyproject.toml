@@ -5,9 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "microplatform"
 version = "0.3.0"  # keep equal to microplatform.__version__ (a test checks)
-description = "The Louzoun lab's microbiome tools (MIPMLP, miMic, iMic, GIMIC; LOCATE planned) behind one interface."
+description = "The Louzoun lab's microbiome tools (MIPMLP, miMic, iMic, GIMIC, LOCATE) behind one interface."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = "==3.13.*"  # every tool, LOCATE included, is validated on 3.13
 keywords = ["microbiome", "16S", "preprocessing", "differential abundance", "machine learning"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -19,6 +19,8 @@ classifiers = [
 dependencies = [
     "pandas>=2.2,<3",  # MIPMLP 1.2.19 uses to_numeric(errors="ignore"), removed in pandas 3
     "MIPMLP>=1.2.19",
+    # PyTorch (used by MIPMLP, iMic and LOCATE) from its CPU-only index: see [tool.uv.sources] below.
+    "torch>=2.14,<2.15",  # LOCATE's validated predictions are pinned to torch 2.14 (tests/test_reproduction.py)
     "matplotlib>=3.9",  # static figures (PNG, SVG)
     "plotly>=6.0",      # interactive figures
     "scikit-bio>=0.7.4,<0.8",  # PERMANOVA and PERMDISP for the beta-diversity figure
@@ -40,6 +42,35 @@ dev = [
 server = [
     "flask>=3.1",
     "gunicorn>=23.0; platform_system != 'Windows'",
+]
+
+# For uv: installed by a plain `uv sync` (the "dev" group is uv's default), so a lab member
+# gets the website and the tests without extra flags. pip users use the extras above.
+[dependency-groups]
+dev = [
+    "flask>=3.1",
+    "pytest>=8.0",
+]
+
+# uv: `uv sync` builds the environment from uv.lock (every version pinned), with Python 3.13
+# (.python-version). PyTorch comes from its CPU-only index, so uv never pulls the large GPU build.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true  # only the packages assigned to it below come from this index
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[tool.uv]
+# The lock reproduces the environment every test and validation ran in (2026-11-05): where a
+# newer release exists, these keep the tested version. Change one only on purpose, then re-run
+# the full test suite (the reproduction tests compare results exactly).
+constraint-dependencies = [
+    "filelock==4.2.0", "fonttools==4.67.0", "multidict==7.1.0", "narwhals==2.27.1", "numba==0.68.0",
+    "pillow==12.3.0", "pynndescent==0.6.0", "pyqt5-qt5==5.15.2", "pytest==9.1.1",
+    "python-dateutil==2.9.0.post0", "pytz==2026.5", "setuptools==84.0.0", "sewar==0.4.9",
+    "texttable==1.7.1", "threadpoolctl==3.7.0", "tzdata==2026.5", "wrapt==2.5.2rc1",
 ]
 
 [tool.setuptools.packages.find]
