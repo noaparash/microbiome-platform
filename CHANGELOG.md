@@ -24,6 +24,11 @@ All notable changes to `microplatform`. The format follows
     results ZIP. Groups with fewer than 3 samples are not tested.
 - Figure options `brackets`, `panel_titles`, `ellipses`, `subtitle` and `stats`;
   `figures.ellipse_outline`.
+- **uv**: `uv.lock` pins every dependency at the version the tests and validations ran
+  with (`[tool.uv] constraint-dependencies` holds back 17 packages where newer releases
+  exist), `.python-version` = 3.13, and PyTorch comes from the CPU-only index
+  (`[tool.uv.sources]`). `uv sync` installs the package, the website and the tests (a `dev`
+  dependency group); `uv run flask --app microplatform.web run` starts the site.
 - Dependency: `scikit-bio>=0.7.4,<0.8` (a Python 3.13 wheel; adds biom-format, h5py and
   requests).
 - `engines/mimic_authors.py`: miMic's full standard output bundle, made by the authors'
@@ -50,6 +55,8 @@ All notable changes to `microplatform`. The format follows
   per-phylum split violins when the samples form two groups.
 
 ### Changed
+- `requires-python` is now `==3.13.*` (was `>=3.13`): every tool is validated on 3.13.
+  `torch>=2.14,<2.15` is a direct dependency (LOCATE's validated predictions depend on it).
 - The data overview is "mostly descriptive": the two diversity figures with group tests
   end with `EXPLORATORY` ("not corrected across this report, and not a tool's finding");
   every other caption still ends with `DESCRIPTIVE`. The page note and ZIP README say so.

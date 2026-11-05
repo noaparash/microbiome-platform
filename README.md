@@ -13,7 +13,24 @@ explains why, and asks you for as little as possible. It is a Python package
 | **GIMIC** | *How do my samples group?* | Available |
 | **LOCATE** | *How do my bacteria relate to my metabolites?* | Available (with a metabolite table; Python 3.13 version, validated: `validation/locate/`) |
 
-## Quick start (Windows, PowerShell)
+## Quick start with uv (recommended)
+
+[uv](https://docs.astral.sh/uv/) builds the exact environment the project was tested in:
+Python 3.13 (`.python-version`) and every package at the version pinned in `uv.lock`, with
+PyTorch from its CPU-only index (no large GPU download).
+
+```powershell
+git clone https://github.com/noaparash/microbiome-platform.git   # private: ask the lab for access
+cd microbiome-platform
+uv sync                       # the package, the website and the tests (first time: a few minutes)
+uv run pytest                 # optional: the full test suite (about 15 minutes)
+uv run flask --app microplatform.web run
+```
+
+Then open http://127.0.0.1:5000. If uv is not installed yet: `py -3.13 -m pip install --user uv`
+(then use `py -3.13 -m uv` in place of `uv`, or add uv's folder to PATH).
+
+## Quick start with pip (Windows, PowerShell)
 
 ```powershell
 python -m venv .venv
@@ -23,7 +40,8 @@ python -m pytest
 ```
 
 `[dev]` includes the website and the tests. For the analysis package alone,
-`python -m pip install -e .` is enough; add `[web]` for the website.
+`python -m pip install -e .` is enough; add `[web]` for the website. pip does not read
+`uv.lock`, so it may pick newer versions than the tested ones.
 
 Run the website, then open http://127.0.0.1:5000:
 

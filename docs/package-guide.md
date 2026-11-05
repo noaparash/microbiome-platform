@@ -5,7 +5,23 @@ guide is for using the package from Python and for adding to it.
 
 ## Install
 
-The source is in a private GitHub repository (ask the lab for access):
+The source is in a private GitHub repository (ask the lab for access). With
+[uv](https://docs.astral.sh/uv/), one command builds the tested environment
+(Python 3.13, every version from `uv.lock`, PyTorch CPU-only):
+
+```powershell
+git clone https://github.com/noaparash/microbiome-platform.git
+cd microbiome-platform
+uv sync
+uv run pytest
+```
+
+**Changing a dependency:** edit `pyproject.toml`, run `uv lock`, then the full test
+suite (the reproduction tests compare results exactly), and commit `uv.lock` with it.
+`[tool.uv] constraint-dependencies` keeps a few packages at their tested version where a
+newer release exists; `[tool.uv.sources]` sends `torch` to the CPU-only index.
+
+Or with pip:
 
 ```powershell
 git clone https://github.com/noaparash/microbiome-platform.git
