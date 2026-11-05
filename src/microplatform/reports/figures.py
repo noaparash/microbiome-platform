@@ -8,6 +8,7 @@ A ``Figure`` holds the exact table that is plotted plus how to draw it.
     <name>.html   interactive (hover, zoom); standalone and works offline
     <name>.json   the interactive figure, for embedding in the results page
     <name>.csv    the underlying data, so the figure can be re-made or edited
+    <name>_tests.csv   the statistical tests shown on the figure, if any (``Figure.stats``)
 
 Every engine draws through this module, so all results look and download alike.
 """
@@ -87,6 +88,11 @@ class Figure:
 
     ``colors`` fixes the colour of each value (of ``color_by``, of the pie's ``x``, or of the box's
     ``group_by``), so a taxon or a group keeps one colour across figures.
+
+    Statistics on a figure: ``brackets`` (box) are significance bars between two groups of a
+    panel; ``panel_titles`` (box) name each panel's test; ``ellipses`` (scatter) draws, for each
+    colour group of at least 3 points, the normal-theory ellipse holding that share of its points;
+    ``subtitle`` is a line under the title; ``stats`` is the table of tests, saved beside the data.
     """
 
     name: str  # file stem, e.g. "reads_per_sample"
@@ -112,6 +118,11 @@ class Figure:
     facet: str | None = None  # box: one panel per value of this column (each with its own y axis)
     colors: tuple[tuple[str, str], ...] = ()  # (value, colour) pairs; see above
     suptitle: str | None = None  # composition: a bold heading above both panels (e.g. the dataset's name)
+    subtitle: str | None = None  # a line under the title (e.g. a test's result)
+    brackets: tuple[tuple[str | None, str, str, str], ...] = ()  # box: (panel, group, group, label)
+    panel_titles: tuple[tuple[str, str], ...] = ()  # box: (panel, title), e.g. the test used
+    ellipses: float | None = None  # scatter: coverage of each group's ellipse (e.g. 0.95)
+    stats: pd.DataFrame | None = None  # the tests behind the figure, written as <name>_tests.csv
 
 
 @dataclass(frozen=True)
@@ -182,14 +193,20 @@ def export(figures: list[Figure], out_dir: Path) -> list[ExportedFigure]:
     exported = []
     for fig in figures:
         fig.data.to_csv(out_dir / f"{fig.name}.csv", index=False)
+        files = {f: f"{fig.name}.{f}" for f in (*FORMATS, "json")}
+        stats_file = out_dir / f"{fig.name}_tests.csv"
+        if fig.stats is not None:
+            fig.stats.to_csv(stats_file, index=False)
+            files["tests"] = stats_file.name
+        else:
+            stats_file.unlink(missing_ok=True)  # a re-run without groups must not keep old tests
         _write_static(fig, out_dir)
         interactive = to_plotly(fig)
         interactive.write_html(out_dir / f"{fig.name}.html", include_plotlyjs=True, full_html=True,
                                config=PLOTLY_CONFIG)
         (out_dir / f"{fig.name}.json").write_text(interactive.to_json(), encoding="utf-8")
         exported.append(ExportedFigure(
-            fig.name, fig.title, fig.caption, {f: f"{fig.name}.{f}" for f in (*FORMATS, "json")},
-            fig.section, tall=fig.kind == "barh", wide=_is_wide(fig),
+            fig.name, fig.title, fig.caption, files, fig.section, tall=fig.kind == "barh", wide=_is_wide(fig),
         ))
     names = {e.name for e in exported}
     kept = [e for e in load_manifest(out_dir) if e.name not in names]
@@ -355,6 +372,8 @@ def _write_static(fig: Figure, out_dir: Path) -> None:
             colors, legend = _group_colors(fig)
             ax.scatter(fig.data[fig.x], fig.data[fig.y], c=colors, s=28, alpha=0.85, edgecolors="white",
                        linewidths=0.5)
+            for group, color, (ex, ey) in _ellipses(fig):
+                ax.plot(ex, ey, color=color, linestyle="--", linewidth=1.5, alpha=0.8)
             if legend:
                 ax.legend(handles=[Patch(color=c, label=g) for g, c in legend], frameon=False)
         elif fig.kind == "line":
@@ -377,11 +396,61 @@ def _write_static(fig: Figure, out_dir: Path) -> None:
             ax.axhline(fig.hline[0], color=MARKER, linestyle="--", linewidth=1)
             ax.annotate(fig.hline[1], (0, fig.hline[0]), xycoords=("axes fraction", "data"),
                         xytext=(4, 4), textcoords="offset points", ha="left", color=MARKER)
-        ax.set_title(fig.title, loc="left", fontweight="bold")
+        if fig.subtitle:
+            mpl.suptitle(fig.title, x=0.02, ha="left", fontweight="bold")
+            ax.set_title(fig.subtitle, loc="left", fontsize=9)
+        else:
+            ax.set_title(fig.title, loc="left", fontweight="bold")
         ax.set_xlabel(fig.x_label)
         ax.set_ylabel(fig.y_label)
         ax.spines[["top", "right"]].set_visible(False)
         _save(mpl, fig, out_dir)
+
+
+def ellipse_outline(x, y, coverage: float, points: int = 120) -> tuple[np.ndarray, np.ndarray] | None:
+    """The normal-theory ellipse that holds ``coverage`` of the points (x, y), as an outline.
+
+    Its centre is the mean, its shape the covariance, and its size the chi-square quantile with
+    2 degrees of freedom (95%: 2.45 standard deviations). None with fewer than 3 points or no spread.
+    """
+    from scipy.stats import chi2
+
+    xy = np.column_stack([np.asarray(x, float), np.asarray(y, float)])
+    if len(xy) < 3:
+        return None
+    values, vectors = np.linalg.eigh(np.cov(xy, rowvar=False))
+    if not np.all(np.isfinite(values)) or values.max() <= 0:
+        return None
+    radius = np.sqrt(chi2.ppf(coverage, df=2))
+    angle = np.linspace(0, 2 * np.pi, points)
+    circle = np.vstack([np.cos(angle), np.sin(angle)])
+    outline = vectors @ (np.sqrt(np.clip(values, 0, None))[:, None] * circle) * radius
+    centre = xy.mean(axis=0)
+    return outline[0] + centre[0], outline[1] + centre[1]
+
+
+def _ellipses(fig: Figure) -> list[tuple[str, str, tuple[np.ndarray, np.ndarray]]]:
+    """(group, colour, outline) for each colour group of a scatter that gets an ellipse."""
+    if not fig.ellipses or not fig.color_by:
+        return []
+    lookup = _color_map(fig, fig.color_by)
+    out = []
+    for group in dict.fromkeys(fig.data[fig.color_by]):
+        rows = fig.data[fig.data[fig.color_by] == group]
+        outline = ellipse_outline(rows[fig.x], rows[fig.y], fig.ellipses)
+        if outline is not None:
+            out.append((str(group), lookup[group], outline))
+    return out
+
+
+def _bracket_levels(fig: Figure, panel, groups: list) -> list[tuple[int, int, str, int]]:
+    """The panel's brackets as (from index, to index, label, level): short spans low, wide ones above,
+    and a bracket whose label names a test (an overall test, e.g. "Kruskal-Wallis **") on top."""
+    where = {g: i for i, g in enumerate(groups)}
+    found = [(where[a], where[b], label) for p, a, b, label in fig.brackets
+             if p == panel and a in where and b in where]
+    found.sort(key=lambda bracket: (" " in bracket[2], abs(bracket[1] - bracket[0]), bracket[0]))
+    return [(min(a, b), max(a, b), label, level) for level, (a, b, label) in enumerate(found)]
 
 
 def _save(mpl: MplFigure, fig: Figure, out_dir: Path, dpi: int = 200, tight: bool = False) -> None:
@@ -515,6 +584,19 @@ def _write_boxes(fig: Figure, mpl: MplFigure, out_dir: Path) -> None:
         ax.set_xticks(range(len(groups)), [f"{g}\n(n={len(v)})" if g is not None else f"n={len(v)}"
                                            for g, v in zip(groups, values)])
         ax.set_xlim(-0.6, len(groups) - 0.4)
+        levels = _bracket_levels(fig, panel, groups)
+        if levels:
+            low, high = float(rows[fig.y].min()), float(rows[fig.y].max())
+            step = (high - low or 1.0) * 0.09
+            for a, b, label, level in levels:
+                y = high + step * (level + 0.6)
+                ax.plot([a, a, b, b], [y - step * 0.25, y, y, y - step * 0.25], color=BOX_LINE, linewidth=1)
+                ax.text((a + b) / 2, y, label, ha="center", va="bottom", fontsize=9, color=BOX_LINE,
+                        fontweight="normal" if label.endswith("ns") else "bold")
+            ax.set_ylim(top=high + step * (len(levels) + 1.2))
+        titles = dict(fig.panel_titles)
+        if panel in titles:
+            ax.set_title(titles[panel], fontsize=9, loc="left")
         ax.set_ylabel(panel if panel is not None else fig.y_label)
         ax.set_xlabel(fig.x_label)
         ax.spines[["top", "right"]].set_visible(False)
@@ -573,6 +655,9 @@ def to_plotly(fig: Figure) -> go.Figure:
                 text=rows[fig.label] if fig.label else None, hovertemplate=fig.hover,
                 showlegend=group is not None,
             ))
+        for group, color, (ex, ey) in _ellipses(fig):
+            out.add_trace(go.Scatter(x=ex, y=ey, mode="lines", hoverinfo="skip", showlegend=False,
+                                     line={"color": color, "width": 1.5, "dash": "dash"}, name=f"{group} ellipse"))
     elif fig.kind == "line":
         out.add_trace(go.Scatter(x=fig.data[fig.x], y=fig.data[fig.y], mode="lines",
                                  line={"color": ACCENT, "width": 2}, hovertemplate=fig.hover, showlegend=False))
@@ -594,7 +679,7 @@ def to_plotly(fig: Figure) -> go.Figure:
                       annotation_text=fig.hline[1], annotation_font_color=MARKER)
     height = max(360, 22 * len(fig.data) + 120) if fig.kind == "barh" else None
     out.update_layout(
-        title={"text": fig.title, "x": 0, "xanchor": "left"},
+        title={"text": _title(fig), "x": 0, "xanchor": "left"},
         xaxis_title=fig.x_label, yaxis_title=fig.y_label,
         template="simple_white", margin={"l": 60, "r": 20, "t": 50, "b": 50},
         bargap={"bar": 0.05, "histogram": 0.05, "stacked": 0}.get(fig.kind, 0.25), height=height,
@@ -629,6 +714,11 @@ def _plotly_pies(fig: Figure) -> go.Figure:
     out.update_layout(title={"text": fig.title, "x": 0, "xanchor": "left"}, template="simple_white",
                       margin={"l": 20, "r": 20, "t": 50, "b": 20}, legend={"title": {"text": fig.x.capitalize()}})
     return out
+
+
+def _title(fig: Figure) -> str:
+    """The interactive title: the title, and the subtitle as a smaller second line."""
+    return f"{fig.title}<br><sup>{fig.subtitle}</sup>" if fig.subtitle else fig.title
 
 
 def _plotly_composition(fig: Figure) -> go.Figure:
@@ -679,13 +769,19 @@ def _plotly_boxes(fig: Figure) -> go.Figure:
     panels = _values(fig, fig.facet)
     groups = _values(fig, fig.group_by)
     colors = _color_map(fig, fig.group_by) if fig.group_by else {None: ACCENT}
-    out = make_subplots(rows=1, cols=len(panels), horizontal_spacing=0.12)
+    titles = dict(fig.panel_titles)
+    out = make_subplots(rows=1, cols=len(panels), horizontal_spacing=0.12,
+                        subplot_titles=[titles.get(p, "") for p in panels] if titles else None)
+    for annotation in out.layout.annotations:  # panel titles: small, left-aligned, as in the PNG
+        annotation.update(font={"size": 11})
     for col, panel in enumerate(panels, start=1):
         rows = fig.data if panel is None else fig.data[fig.data[fig.facet] == panel]
+        names = []
         for group in groups:
             members = rows if group is None else rows[rows[fig.group_by] == group]
+            names.append(f"{group} (n={len(members)})" if group is not None else f"n={len(members)}")
             out.add_trace(go.Box(
-                y=members[fig.y], name=f"{group} (n={len(members)})" if group is not None else f"n={len(members)}",
+                y=members[fig.y], name=names[-1],
                 boxpoints="all", jitter=0.45, pointpos=0, text=members[fig.label] if fig.label else None,
                 marker={"color": colors[group], "size": 6, "opacity": 0.8, "line": {"color": "white", "width": 0.5}},
                 line={"color": BOX_LINE, "width": 1}, fillcolor="rgba(0,0,0,0)", hovertemplate=fig.hover,
@@ -693,6 +789,24 @@ def _plotly_boxes(fig: Figure) -> go.Figure:
             ), row=1, col=col)
         out.update_yaxes(title_text=panel if panel is not None else fig.y_label, row=1, col=col)
         out.update_xaxes(title_text=fig.x_label, row=1, col=col)
-    out.update_layout(title={"text": fig.title, "x": 0, "xanchor": "left"}, template="simple_white",
+        levels = _bracket_levels(fig, panel, groups)
+        if levels:
+            low, high = float(rows[fig.y].min()), float(rows[fig.y].max())
+            step = (high - low or 1.0) * 0.09
+            axis = "" if col == 1 else str(col)
+            for a, b, label, level in levels:
+                y = high + step * (level + 0.6)
+                out.add_shape(type="path", path=_bracket_path(a, b, y, step * 0.25),
+                              xref=f"x{axis}", yref=f"y{axis}", line={"color": BOX_LINE, "width": 1},
+                              fillcolor="rgba(0,0,0,0)")  # a line, not a filled shape
+                out.add_annotation(x=(a + b) / 2, y=y, text=label, showarrow=False, yanchor="bottom",
+                                   xref=f"x{axis}", yref=f"y{axis}", font={"color": BOX_LINE, "size": 11})
+            out.update_yaxes(range=[low - step, high + step * (len(levels) + 1.2)], row=1, col=col)
+    out.update_layout(title={"text": _title(fig), "x": 0, "xanchor": "left"}, template="simple_white",
                       margin={"l": 60, "r": 20, "t": 50, "b": 50})
     return out
+
+
+def _bracket_path(a: int, b: int, y: float, drop: float) -> str:
+    """An SVG path for a significance bracket between two boxes (by position: 0, 1, … on a category axis)."""
+    return f"M {a},{y - drop} L {a},{y} L {b},{y} L {b},{y - drop}"

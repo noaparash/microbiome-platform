@@ -9,6 +9,23 @@ All notable changes to `microplatform`. The format follows
 ## [Unreleased]
 
 ### Added
+- **Group tests on the diversity figures**, as in the lab's reference analysis
+  (louzounlab/Early-Pregnancy-Oral-Microbiome), only when the samples form groups
+  (`reports/diversity_stats.py`):
+  - alpha diversity: the test chosen by Shapiro-Wilk normality per group (Student's t /
+    Mann-Whitney U; with more groups an overall one-way ANOVA / Kruskal-Wallis plus every
+    pair), Benjamini-Hochberg (FDR) correction, significance brackets (*** ** * ns) on the
+    corrected p-values, Cohen's d, each panel titled with its test;
+  - beta diversity: PERMANOVA (scikit-bio, 999 permutations, seed 42) with pseudo-F and p in
+    the subtitle, η² (between/total sums of squares on all PCoA axes) and PERMANOVA's R²,
+    PERMDISP (scikit-bio, spatial medians, on a PCoA with every axis) in the caption, and
+    95% normal-theory ellipses per group;
+  - each figure's tests saved as `<figure>_tests.csv`, linked as "Tests (CSV)" and in the
+    results ZIP. Groups with fewer than 3 samples are not tested.
+- Figure options `brackets`, `panel_titles`, `ellipses`, `subtitle` and `stats`;
+  `figures.ellipse_outline`.
+- Dependency: `scikit-bio>=0.7.4,<0.8` (a Python 3.13 wheel; adds biom-format, h5py and
+  requests).
 - `engines/mimic_authors.py`: miMic's full standard output bundle, made by the authors'
   own code from end to end (`apply_mimic` test mode with `samba.micro2matrix`, then plot
   mode): their result tables (`df_corrs.csv`, `miMic&Utest.csv`, `u_test_without_mimic.csv`,
@@ -33,6 +50,9 @@ All notable changes to `microplatform`. The format follows
   per-phylum split violins when the samples form two groups.
 
 ### Changed
+- The data overview is "mostly descriptive": the two diversity figures with group tests
+  end with `EXPLORATORY` ("not corrected across this report, and not a tool's finding");
+  every other caption still ends with `DESCRIPTIVE`. The page note and ZIP README say so.
 - The composition bars are now the fig_1B layout: every sample sorted by Firmicutes (else
   the top phylum) and one mean bar, no longer grouped by label (the pies still are, and the
   split violins compare two groups). 12 phyla instead of 7, in the lab's palette instead of

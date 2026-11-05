@@ -94,8 +94,10 @@ Templates of all three are on the website (in every error message, and under
   files.
 - **A data overview**, the same for every task, at the end of the results. It
   holds the standard figures that describe a microbiome dataset. They are
-  **descriptive, not statistical tests**: a difference you see there is not
-  evidence by itself.
+  **mostly descriptive**. When your samples form groups (a labels file with
+  two or more groups), the two diversity figures add the lab's group tests.
+  These are **exploratory**: computed on your uploaded data, not corrected
+  across the whole report, and not the tools' findings.
   - **Composition of each sample** (in the lab's figure style): on the left a
     stacked bar per sample, by phylum, sorted by Firmicutes; on the right one
     bar with the mean of all samples. The 12 phyla with the highest mean get a
@@ -104,9 +106,19 @@ Templates of all three are on the website (in every error message, and under
     the image (PNG at 300 dpi, and SVG).
   - **Average composition:** a pie, one per group. The colours match the bars.
   - **Alpha diversity:** Shannon index and richness, as a box per group with
-    every sample shown.
+    every sample shown. With groups: the test is chosen by normality
+    (Shapiro-Wilk in each group: t-test or ANOVA if every group looks normal,
+    otherwise Mann-Whitney U or Kruskal-Wallis; with three or more groups an
+    overall test plus every pair). Brackets show Benjamini-Hochberg (FDR)
+    corrected p-values (*** < 0.001, ** < 0.01, * < 0.05, ns). "Tests (CSV)"
+    has every p-value, corrected p-value and Cohen's d. Richness is counted
+    without rarefaction, so it also reflects sequencing depth.
   - **Beta diversity:** a PCoA map of Bray-Curtis distances, coloured by
-    group.
+    group. With groups: PERMANOVA (999 permutations) with its pseudo-F and p,
+    an effect size η² (and PERMANOVA's R²), dashed ellipses where about 95% of
+    each group's points would fall, and PERMDISP, which says whether the
+    groups also differ in spread (if they do, part of a PERMANOVA result can
+    come from spread rather than position). "Tests (CSV)" has every number.
   - **Sparsity:** taxa detected per sample (rows) and in how many samples each
     taxon appears (columns).
 

@@ -21,6 +21,7 @@ from microplatform.reports.figures import FORMATS, OTHER, export, to_plotly
 from microplatform.reports.overview import (
     ALL_SAMPLES,
     DESCRIPTIVE,
+    EXPLORATORY,
     FIGURE_NAMES,
     NO_LABEL,
     RICHNESS,
@@ -108,11 +109,17 @@ def test_pcoa_is_the_same_every_time(counts):
 
 # --- the figures ---------------------------------------------------------------------------
 
-def test_every_figure_is_made_and_labelled_descriptive(grouped):
+def test_every_figure_is_made_and_labelled_honestly(grouped, plain):
+    """With groups, the two diversity figures carry tests and say they are exploratory; the rest
+    (and every figure without groups) say they are descriptive."""
     assert tuple(grouped) == FIGURE_NAMES
+    tested = {"alpha_diversity", "beta_pcoa"}
     for fig in grouped.values():
         assert fig.section == "overview"
-        assert fig.caption.endswith(DESCRIPTIVE), fig.name
+        assert fig.caption.endswith(EXPLORATORY if fig.name in tested else DESCRIPTIVE), fig.name
+        assert (fig.stats is not None) == (fig.name in tested), fig.name
+    for fig in plain.values():
+        assert fig.caption.endswith(DESCRIPTIVE) and fig.stats is None, fig.name
 
 
 def test_composition_bars_are_the_samples_and_their_mean(grouped, counts):
@@ -310,7 +317,8 @@ def test_every_analysis_gets_the_overview_and_the_zip_has_it(finished_run):
         names = set(zf.namelist())
         for name in FIGURE_NAMES:
             assert {f"figures/{name}.{fmt}" for fmt in FORMATS} <= names
-        assert "not statistical tests" in zf.read("README.txt").decode()
+        readme = zf.read("README.txt").decode()
+        assert "mostly descriptive" in readme and "Exploratory" in readme
 
 
 def test_the_results_page_shows_the_overview_as_descriptive(tmp_path):
@@ -323,6 +331,6 @@ def test_the_results_page_shows_the_overview_as_descriptive(tmp_path):
     section = page.split('<section class="data-overview section-break" aria-labelledby="overview-heading">', 1)[1]
     section = section.split("</section>", 1)[0]
     assert '<h3 id="overview-heading">Data overview</h3>' in section
-    assert "Descriptive, not statistical tests." in section
+    assert "Mostly descriptive." in section and "<strong>exploratory</strong>" in section
     assert 'class="figure figure-wide"' in section and "Composition of each sample (phylum)" in section
     assert page.index("overview-heading") < page.index("Reproducibility record")

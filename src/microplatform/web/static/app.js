@@ -97,6 +97,10 @@ if (figureGrid) {
               Object.assign(fig.layout.xaxis2, { domain: [0, 1] });
               Object.assign(fig.layout.yaxis, { domain: [0.6, 1] });
               Object.assign(fig.layout.yaxis2, { domain: [0, 0.4] });
+              // Panel titles (e.g. the test used) sit above their own panel again.
+              const titles = (fig.layout.annotations || []).filter(
+                (note) => note.xref === "paper" && note.yref === "paper" && note.y === 1);
+              titles.forEach((note, i) => Object.assign(note, { x: 0.5, y: i === 0 ? 1 : 0.4 }));
               el.style.aspectRatio = "3 / 4";
             }
             if (sideBySide) {

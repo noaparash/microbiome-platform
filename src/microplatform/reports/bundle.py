@@ -28,7 +28,11 @@ figures/<name>.png / .svg     figures (SVG text stays editable)
 figures/<name>.html           interactive figures; open them in any browser, works offline
 figures/<name>.csv            the exact data behind each figure
                               (composition_*, alpha_diversity, beta_pcoa, taxa_*: the data overview,
-                              descriptive figures of the data itself, not statistical tests)
+                              figures of the data itself, mostly descriptive)
+figures/<name>_tests.csv      the group tests shown on a figure, if any (alpha_diversity: Shapiro-Wilk,
+                              t-test / Mann-Whitney / ANOVA / Kruskal-Wallis, FDR, Cohen's d;
+                              beta_pcoa: PERMANOVA, eta squared, PERMDISP). Exploratory: not corrected
+                              across the report, and not the analysis tool's findings
 inputs/                       the files you uploaded
 
 Preprocessing settings

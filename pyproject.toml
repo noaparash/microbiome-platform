@@ -21,6 +21,7 @@ dependencies = [
     "MIPMLP>=1.2.19",
     "matplotlib>=3.9",  # static figures (PNG, SVG)
     "plotly>=6.0",      # interactive figures
+    "scikit-bio>=0.7.4,<0.8",  # PERMANOVA and PERMDISP for the beta-diversity figure
     "mimic-da==1.0.1",  # miMic; exact version: its reproduction test pins the behaviour
     "pytorch-lightning>=2.2,<3",  # LOCATE for Lightning 2 (src/locate_lightning2), validated on 2.2.5 and 2.6.6
     # ete3 (pulled in by mimic-da) imports `cgi`, which Python 3.13 removed; this restores it.

@@ -284,14 +284,17 @@
     </table>
   </div>
 
-  {# The same for every tool: what the data looks like. Descriptive, so it says so before the figures. #}
+  {# The same for every tool: what the data looks like. Mostly descriptive; it says so, and says which
+     figures carry exploratory group tests, before the figures. #}
   {% if view.overview_figures %}
     <section class="data-overview section-break" aria-labelledby="overview-heading">
       <h3 id="overview-heading">Data overview</h3>
-      <p class="overview-note"><strong>Descriptive, not statistical tests.</strong> These figures show what your
-        data looks like (composition, diversity and sparsity), computed from the raw counts, with composition as
-        relative abundance (%). They are the same whichever task you ran. A difference between groups seen here
-        is not evidence by itself; to test one, run “Find bacteria that differ” (miMic).</p>
+      <p class="overview-note"><strong>Mostly descriptive.</strong> These figures show what your data looks like
+        (composition, diversity and sparsity), computed from your uploaded table, with composition as relative
+        abundance (%). They are the same whichever task you ran. When your samples form groups, the two
+        diversity figures add group tests: these are <strong>exploratory</strong> (computed on the uploaded
+        data, not corrected across this report, and not the tools' findings). To find which bacteria differ,
+        run “Find bacteria that differ” (miMic).</p>
       {{ figure_grid(view.run.id, view.overview_figures) }}
     </section>
   {% endif %}
