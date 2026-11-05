@@ -18,7 +18,6 @@ from microplatform.core.inputs import InputError
 from microplatform.engines import ENGINES
 from microplatform.engines.mipmlp import MipmlpEngine
 from microplatform.examples import EXAMPLE_COUNTS, EXAMPLE_TAGS
-from microplatform.notify import EmailNotifier, EmailSettings, finished_message
 
 
 @pytest.fixture(scope="module")
@@ -311,47 +310,7 @@ def test_a_mail_server_failure_does_not_break_the_run(root, new_run, cache):
     assert run.meta()["notify"] is None and run.meta()["notified"] == "failed"
 
 
-def test_email_settings_come_from_the_environment():
-    assert EmailSettings.from_env({}) is None
-    assert EmailSettings.from_env({"MICROPLATFORM_SMTP_HOST": "smtp.x"}) is None  # no sender
-    settings = EmailSettings.from_env({
-        "MICROPLATFORM_SMTP_HOST": "smtp.lab.ac.il", "MICROPLATFORM_SMTP_SENDER": "platform@lab.ac.il",
-        "MICROPLATFORM_SMTP_PORT": "2525", "MICROPLATFORM_SMTP_USER": "u", "MICROPLATFORM_SMTP_PASSWORD": "p",
-        "MICROPLATFORM_SMTP_TLS": "0",
-    })
-    assert settings == EmailSettings("smtp.lab.ac.il", "platform@lab.ac.il", 2525, "u", "p", False)
-
-
-def test_email_notifier_talks_to_the_mail_server(monkeypatch):
-    calls = []
-
-    class FakeSMTP:
-        def __init__(self, host, port, timeout):
-            calls.append(("connect", host, port))
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *exc):
-            calls.append(("quit",))
-
-        def starttls(self):
-            calls.append(("starttls",))
-
-        def login(self, user, password):
-            calls.append(("login", user, password))
-
-        def send_message(self, message):
-            calls.append(("send", message["From"], message["To"], message["Subject"], message.get_content()))
-
-    monkeypatch.setattr("smtplib.SMTP", FakeSMTP)
-    subject, body = finished_message("data.csv", "done", "https://site/runs/abc")
-    EmailNotifier(EmailSettings("smtp.lab", "from@lab", 587, "u", "p")).send("to@lab", subject, body)
-    assert calls[0] == ("connect", "smtp.lab", 587)
-    assert ("starttls",) in calls and ("login", "u", "p") in calls
-    send = next(c for c in calls if c[0] == "send")
-    assert send[1:4] == ("from@lab", "to@lab", "Your microbiome analysis is ready")
-    assert "https://site/runs/abc" in send[4]
+# The email settings and the mail-server conversation are tested in tests/test_notify.py.
 
 
 # --- the worker as a thread and as a program ----------------------------------------------

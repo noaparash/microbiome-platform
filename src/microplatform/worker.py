@@ -48,9 +48,9 @@ def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")  # no screen on a server
     os.environ.setdefault("MPLBACKEND", "Agg")
-    settings = EmailSettings.from_env()
-    log.info("email notifications: %s", "on" if settings else "off (no SMTP settings)")
     instance = args.instance.resolve()
+    settings = EmailSettings.load(instance)
+    log.info("email notifications: %s", f"on, {settings.describe()}" if settings else "off (no SMTP settings)")
     worker = Worker(instance / "runs", instance / "cache",
                     EmailNotifier(settings) if settings else None, poll_seconds=args.poll)
     install_graceful_stop(worker)

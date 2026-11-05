@@ -105,7 +105,12 @@ sudo nano /etc/microplatform/microplatform.env
 בקובץ ממלאים:
 - `MICROPLATFORM_SECRET_KEY=` ← הערך שהודפס. **לעולם לא לשים אותו ב-Git או לשלוח במייל.**
 - `MICROPLATFORM_PUBLIC_URL=` ← `https://<כתובת האתר>`
-- את הגדרות ה-SMTP **משאירים ריקות** עד שהמעבדה תספק אותן (המייל כבוי עד אז).
+- הגדרות המייל (SMTP) — **ריקות עד שה-IT יספק אותן** (המייל כבוי עד אז). כשיש פרטים:
+  `MICROPLATFORM_SMTP_HOST` (שרת), `MICROPLATFORM_SMTP_SENDER` (כתובת השולח), `MICROPLATFORM_SMTP_SECURITY`
+  (`starttls` — פורט 587, הרגיל; `ssl` — פורט 465; `none` — פורט 25, רק ברשת פנימית), `MICROPLATFORM_SMTP_PORT`
+  (ריק = הפורט הרגיל של מצב האבטחה), ואם השרת דורש התחברות: `MICROPLATFORM_SMTP_USER`, `MICROPLATFORM_SMTP_PASSWORD`.
+  **את הסיסמה מקלידים רק בקובץ הזה בשרת** — לא ב-Git, לא בצ'אט ולא במייל. בדיקה במייל אחד:
+  `sudo -u microplatform bash -c 'set -a; . /etc/microplatform/microplatform.env; set +a; /opt/microplatform/.venv/bin/python -m microplatform.notify --to <המייל שלך>'`
 - `MICROPLATFORM_JOBS=external` כבר מוגדר — האתר רק מכניס לתור, ה"עובד" מריץ.
 
 בדיקה שהאתר נטען עם ההגדרות (בלי להפעיל אותו):

@@ -20,7 +20,7 @@ see deploy/microplatform.env.example):
     MICROPLATFORM_PUBLIC_URL     the address users open (for results links in emails)
     MICROPLATFORM_TRUST_PROXY    1 behind a reverse proxy (nginx) that terminates HTTPS
     MICROPLATFORM_COOKIE_SECURE  1 to send cookies over HTTPS only
-    MICROPLATFORM_SMTP_*         optional email (see microplatform.notify)
+    MICROPLATFORM_SMTP_*         optional email (see microplatform.notify; or <instance>/email.env)
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         RUNS_DIR=instance / "runs",
         CACHE_DIR=instance / "cache",
         JOBS=os.environ.get("MICROPLATFORM_JOBS", "thread"),
-        EMAIL=EmailSettings.from_env(),  # None: email notifications are off
+        EMAIL=EmailSettings.load(instance),  # environment + <instance>/email.env; None: email is off
         PUBLIC_URL=os.environ.get("MICROPLATFORM_PUBLIC_URL") or None,
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
