@@ -5,7 +5,11 @@ guide is for using the package from Python and for adding to it.
 
 ## Install
 
+The source is in a private GitHub repository (ask the lab for access):
+
 ```powershell
+git clone https://github.com/noaparash/microbiome-platform.git
+cd microbiome-platform
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
