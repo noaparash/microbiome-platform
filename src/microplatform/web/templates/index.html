@@ -1,30 +1,70 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
 {% block content %}
-<section class="hero">
-  <p class="eyebrow">Five published methods · one place</p>
-  <h1>Understand your microbiome data</h1>
-  <p class="lead">
-    Upload a table. We work out what's in it, choose the right method from
-    the lab's published tools, and explain every step.
-  </p>
+<section class="hero" aria-labelledby="hero-heading">
+  <div class="intro">
+    <p class="kicker"><span class="kicker-dot" aria-hidden="true"></span>Five published methods, one place</p>
+    <h1 id="hero-heading">Understand your microbiome data</h1>
+    <p class="lead">
+      Upload your data once. We work out what's in it, choose the right method from
+      the lab's published tools, and explain every step. No code needed.
+    </p>
+    <div class="cta">
+      <form action="{{ url_for('main.example') }}" method="post">
+        {% if chosen %}<input type="hidden" name="goal" value="{{ chosen.id }}">{% endif %}
+        <button class="btn" type="submit">Try the example</button>
+      </form>
+      <a class="btn btn-secondary" href="#upload-section">Start an analysis</a>
+    </div>
+    <p class="trust">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 6 9 17l-5-5"/></svg>
+      Your data stays on this server. Nothing is sent elsewhere.
+    </p>
+  </div>
+
+  {# A picture of what a result looks like: decoration only, so screen readers skip it. #}
+  <div class="stage" aria-hidden="true">
+    <div class="stage-glow"></div>
+    <div class="preview">
+      <div class="preview-back"></div>
+      <div class="preview-card">
+        <div class="preview-head"><span class="glow-dot"></span> Results <span class="preview-pill">Example</span></div>
+        <div class="preview-chart">
+          <svg viewBox="0 0 300 108" focusable="false">
+            <line class="axis" x1="8" y1="60" x2="292" y2="60"/>
+            <rect class="up" x="16" y="30" width="18" height="30" rx="3"/>
+            <rect class="up" x="46" y="16" width="18" height="44" rx="3"/>
+            <rect class="up" x="76" y="38" width="18" height="22" rx="3"/>
+            <rect class="down" x="106" y="60" width="18" height="16" rx="3"/>
+            <rect class="up" x="136" y="22" width="18" height="38" rx="3"/>
+            <rect class="down" x="166" y="60" width="18" height="28" rx="3"/>
+            <rect class="up" x="196" y="34" width="18" height="26" rx="3"/>
+            <rect class="down" x="226" y="60" width="18" height="13" rx="3"/>
+            <rect class="up" x="256" y="26" width="18" height="34" rx="3"/>
+          </svg>
+        </div>
+        <p class="preview-caption">Your results, ready to download</p>
+      </div>
+      <div class="preview-chip">
+        <span class="ok"><svg viewBox="0 0 24 24" focusable="false"><path d="M20 6 9 17l-5-5"/></svg></span>
+        Reproduced
+      </div>
+    </div>
+  </div>
 </section>
 
-{% set current = 1 %}
-{% include "_stepper.html" %}
-
 <section class="questions" aria-labelledby="questions-heading">
-  <h2 id="questions-heading">What do you want to learn? <span class="muted optional">Optional — we can also suggest</span></h2>
+  <p class="eyebrow">Start from your question</p>
+  <h2 id="questions-heading">What do you want to learn?</h2>
+  <p class="section-sub">Pick a question and we'll ask only for the files it needs. Optional: we can also suggest one.</p>
   <ul class="question-grid">
     {% for goal in goals %}
       <li>
         <a class="question-card{% if chosen and chosen.id == goal.id %} is-chosen{% endif %}"
-           href="{{ url_for('main.index', goal=goal.id) }}#upload"
+           href="{{ url_for('main.index', goal=goal.id) }}#upload-section"
            {% if chosen and chosen.id == goal.id %}aria-current="true"{% endif %}>
-          <span class="question-head">
-            <span class="icon-badge">{{ icon(goal.id) }}</span>
-            <span class="question-text">{{ goal.question }}</span>
-          </span>
+          <span class="icon-badge">{{ icon(goal.id) }}</span>
+          <span class="question-text">{{ goal.question }}</span>
           <span class="question-meta">
             <span class="question-tool">{{ goal.tool }}</span>
             {# A badge only says something when a tool is not available yet. #}
@@ -38,35 +78,43 @@
         </a>
       </li>
     {% endfor %}
+    <li>
+      <a class="question-card is-guide" href="{{ url_for('main.index') }}#upload-section">
+        <span class="icon-badge">{{ icon("guide") }}</span>
+        <span class="question-text">Not sure yet?</span>
+        <span class="question-desc">Upload your table and we'll suggest the best method for it.</span>
+        <span class="question-meta"><span class="question-tool">We'll recommend</span></span>
+      </a>
+    </li>
   </ul>
 </section>
 
-<form class="dropzone" id="upload" action="{{ url_for('main.upload') }}"
-      method="post" enctype="multipart/form-data">
-  {% if chosen %}<input type="hidden" name="goal" value="{{ chosen.id }}">{% endif %}
-  <input class="file-input" type="file" name="files" id="files"
-         accept=".csv,.tsv,.txt" multiple>
-  <label for="files" class="dropzone-label">
-    <svg class="dropzone-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-    </svg>
-    <span class="dropzone-title">Drop your files here, or <span class="link">browse</span></span>
-    {% if chosen %}
-      <span class="dropzone-hint dropzone-needs">For “{{ chosen.question }}” upload <strong>{{ needs }}</strong>, as CSV or TSV</span>
-    {% else %}
-      <span class="dropzone-hint">A counts table (required), plus a labels file or a metabolite table if you have them, as CSV or TSV</span>
-    {% endif %}
-    <span class="dropzone-busy">Reading your files…</span>
-  </label>
-  <noscript><button class="btn" type="submit">Upload</button></noscript>
-</form>
+<section class="upload-section" id="upload-section" aria-labelledby="upload-heading">
+  <h2 id="upload-heading">Upload your data</h2>
+  {% set current = 1 %}
+  {% include "_stepper.html" %}
 
-<form class="example" action="{{ url_for('main.example') }}" method="post">
-  {% if chosen %}<input type="hidden" name="goal" value="{{ chosen.id }}">{% endif %}
-  <span class="muted">No data at hand?</span>
-  <button class="btn btn-secondary" type="submit">Try the example dataset</button>
-</form>
+  <form class="dropzone" id="upload" action="{{ url_for('main.upload') }}"
+        method="post" enctype="multipart/form-data">
+    {% if chosen %}<input type="hidden" name="goal" value="{{ chosen.id }}">{% endif %}
+    <input class="file-input" type="file" name="files" id="files"
+           accept=".csv,.tsv,.txt" multiple>
+    <label for="files" class="dropzone-label">
+      <svg class="dropzone-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+      </svg>
+      <span class="dropzone-title">Drop your files here, or <span class="link">browse</span></span>
+      {% if chosen %}
+        <span class="dropzone-hint dropzone-needs">For “{{ chosen.question }}” upload <strong>{{ needs }}</strong>, as CSV or TSV</span>
+      {% else %}
+        <span class="dropzone-hint">A counts table (required), plus a labels file or a metabolite table if you have them, as CSV or TSV</span>
+      {% endif %}
+      <span class="dropzone-busy">Reading your files…</span>
+    </label>
+    <noscript><button class="btn" type="submit">Upload</button></noscript>
+  </form>
 
-{% set open_format = get_flashed_messages(category_filter=["error"]) %}
-{% include "_format_help.html" %}
+  {% set open_format = get_flashed_messages(category_filter=["error"]) %}
+  {% include "_format_help.html" %}
+</section>
 {% endblock %}

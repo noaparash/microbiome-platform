@@ -25,6 +25,7 @@ see deploy/microplatform.env.example):
 
 from __future__ import annotations
 
+import mimetypes
 import os
 import secrets
 from pathlib import Path
@@ -40,6 +41,8 @@ def _flag(name: str) -> bool:
 
 
 def create_app(test_config: dict | None = None) -> Flask:
+    # The site's own fonts (static/fonts): Windows' registry may not know .woff2.
+    mimetypes.add_type("font/woff2", ".woff2")
     instance = Path(os.environ.get("MICROPLATFORM_INSTANCE", Path.cwd() / "instance")).resolve()
     app = Flask(__name__, instance_path=str(instance))
     app.config.from_mapping(

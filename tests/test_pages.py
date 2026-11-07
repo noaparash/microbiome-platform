@@ -1,5 +1,6 @@
 """The site's content pages: Example, Methods, Docs & API, About, and the navigation."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -50,7 +51,44 @@ def test_lab_logo_is_served(client):
 
 def test_question_cards_have_icons(client):
     page = client.get("/").get_data(as_text=True)
-    assert page.count('class="icon-badge"') == 5
+    assert page.count('class="icon-badge"') == 6  # five questions and "Not sure yet?"
+    assert page.count("<svg") > 6  # every badge holds a drawn icon
+
+
+STATIC = Path(microplatform.web.__file__).parent / "static"
+FONT_FILES = ["sora-latin-wght-normal.woff2", "sora-latin-ext-wght-normal.woff2",
+              "mulish-latin-wght-normal.woff2", "mulish-latin-ext-wght-normal.woff2",
+              "mulish-latin-wght-italic.woff2", "mulish-latin-ext-wght-italic.woff2"]
+
+
+@pytest.mark.parametrize("name", FONT_FILES)
+def test_fonts_are_served_by_the_site_itself(client, name):
+    """Privacy: Sora and Mulish come from this server, never from Google Fonts or another site."""
+    response = client.get(f"/static/fonts/{name}")
+    assert response.status_code == 200 and response.mimetype == "font/woff2"
+    assert response.data[:4] == b"wOF2"
+    response.close()
+    css = (STATIC / "style.css").read_text(encoding="utf-8")
+    assert f'url("fonts/{name}")' in css
+
+
+def test_nothing_is_loaded_from_another_site(client):
+    """No font, stylesheet or script from outside: every src/href in a page is local or a plain link."""
+    css = (STATIC / "style.css").read_text(encoding="utf-8")
+    assert "http" not in css.split("*/")[-1] and "@import" not in css
+    for path in PAGES:
+        page = client.get(path).get_data(as_text=True)
+        assert "fonts.googleapis" not in page and "fonts.gstatic" not in page
+        assert not [src for src in re.findall(r'\bsrc="([^"]+)"', page) if "//" in src]
+        assert not [href for href in re.findall(r'<link [^>]*href="([^"]+)"', page) if "//" in href]
+    for licence in ("Sora-OFL.txt", "Mulish-OFL.txt"):  # the SIL Open Font License travels with the fonts
+        assert "SIL Open Font License" in (STATIC / "fonts" / licence).read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("path", PAGES)
+def test_there_is_no_sign_in(client, path):
+    """There are no accounts: the mockup's "Sign in" button is left out."""
+    assert "sign in" not in client.get(path).get_data(as_text=True).lower()
 
 
 def test_stylesheet_never_resets_transforms_globally():

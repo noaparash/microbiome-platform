@@ -77,7 +77,7 @@ constraint-dependencies = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-microplatform = ["examples/*.csv", "web/templates/*.html", "web/static/*", "web/static/img/*"]
+microplatform = ["examples/*.csv", "web/templates/*.html", "web/static/*", "web/static/img/*", "web/static/fonts/*"]
 locate_lightning2 = ["LICENSE.txt", "CHANGES.md"]
 
 [tool.pytest.ini_options]

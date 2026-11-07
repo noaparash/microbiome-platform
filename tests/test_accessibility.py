@@ -115,11 +115,12 @@ def _contrast(a: str, b: str) -> float:
 
 
 # Every text colour on every background it is used on (WCAG AA for normal text: 4.5:1).
-TEXT_ON = [("text", "bg"), ("text", "surface"), ("text", "surface-2"), ("text", "accent-soft"),
-           ("text", "warning-soft"), ("muted", "bg"), ("muted", "surface"), ("muted", "surface-2"),
-           ("accent", "bg"), ("accent", "surface"), ("accent-strong", "surface"), ("accent-strong", "surface-2"),
-           ("accent-strong", "accent-soft"), ("on-accent", "accent"), ("error", "error-soft"),
-           ("warning", "warning-soft")]
+# The bright --accent / --accent-2 are fills only (buttons, dots, glows): text in the accent
+# colour, links and focus rings use --accent-ink.
+BACKGROUNDS = ("bg", "bg-2", "surface", "surface-2", "accent-soft")
+TEXT_ON = ([(fg, bg) for fg in ("text", "muted", "accent-ink") for bg in BACKGROUNDS]
+           + [("text", "warning-soft"), ("on-accent", "accent"), ("on-accent", "accent-2"),
+              ("error", "error-soft"), ("warning", "warning-soft")])
 
 
 @pytest.mark.parametrize("theme", ["light", "dark"])
@@ -131,6 +132,20 @@ def test_text_colours_meet_wcag_aa_in_both_themes(theme):
     failing = {f"{fg} on {bg}": round(_contrast(tokens[fg], tokens[bg]), 2) for fg, bg in TEXT_ON
                if _contrast(tokens[fg], tokens[bg]) < 4.5}
     assert not failing, failing
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_focus_rings_stand_out_and_the_bright_accent_is_never_text(theme):
+    """WCAG 1.4.11: a focus ring needs 3:1 against what is around it. The bright accent is too
+    light for text (2.4–2.9:1 in the light theme), so no rule may use it as a text colour."""
+    css = (STATIC / "style.css").read_text(encoding="utf-8")
+    tokens = _tokens(css.split(":root {", 1)[1].split("}", 1)[0])
+    if theme == "dark":
+        tokens |= _tokens(css.split(':root[data-theme="dark"] {', 1)[1].split("}", 1)[0])
+    assert all(_contrast(tokens["accent-ink"], tokens[bg]) >= 3 for bg in BACKGROUNDS)
+    rings = re.findall(r"outline:\s*3px solid var\(--([\w-]+)\)", css)
+    assert rings and set(rings) == {"accent-ink"}
+    assert not re.search(r"(?<![-\w])color:\s*var\(--accent(-2)?\)", css)
 
 
 def test_every_page_starts_with_a_skip_link(client, mimic_page):
