@@ -34,3 +34,22 @@ seeds side by side), on the shared server.
 The server's exact predictions for seeds 10–12 become the exact-match reference for that
 machine (`tests/data/locate_reference/` per machine), so its test checks the server and the
 laptop keeps its own. After a FAIL: LOCATE stays off on the server; findings are written up.
+
+## Amendment 2 (recorded 2026-11-07, after the FAIL in RESULTS-peptibase10.md, before any run below)
+
+The owner's decision: re-test with more seeds, so the rule can tell "equivalent" from "different"
+(with 20 seeds the 90% interval's half-width was about 0.018, so any mean shift beyond about
+±0.002 failed, in either direction).
+
+- **New seeds only: 30–69 (40 seeds).** Seeds 10–29 are not reused or pooled.
+- **The original (A)** runs as in V2: `run_all.ps1 -Setups A -Examples E2 -Seeds (30..69)
+  -Folder runs-amend2`, in the Python 3.10 reference setup on the laptop (LOCATE-model 0.0.3,
+  torch 1.13.0+cpu, default lstsq driver), unchanged.
+- **The server (S)** runs as before: `server_check.py run SEED OUT` on peptibase10, 4 threads per
+  run, low priority, the same code commit as the deployed product.
+- **The rule is V2's, with the interval for 40 seeds:** d = S − A per seed (mean test Spearman,
+  `compare_v2.mean_test_spearman`); PASS if mean(d) ± t(0.95, 39) × SD / √40 lies within ±0.02,
+  with t(0.95, 39) = 1.685. Direction reported as in V2. The margin is unchanged.
+- This result is final for the server: after a PASS, LOCATE is enabled there and the server's exact
+  predictions for seeds 10–12 become its exact-match reference; after a FAIL, LOCATE stays off on
+  the server and no further amendment is made without a new decision by the owner.
