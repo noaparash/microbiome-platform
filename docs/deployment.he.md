@@ -6,6 +6,59 @@
 
 ---
 
+## 🟢 המצב היום: peptibase10, התקנה ברמת משתמש (בלי sudo) — גישה פנימית בלבד
+
+הפלטפורמה מותקנת ורצה על **peptibase10** (AlmaLinux 9.8, ‏96 ליבות, ‏250GB זיכרון) תחת החשבון `parashn`, **בלי הרשאות מנהל**, וכל הקבצים בתיקיית הבית בלבד:
+
+| מה | איפה |
+|---|---|
+| הקוד | `~/microbiome-platform` (עותק Git; מתעדכן ב-push מהמחשב הנייד ל-`~/git/microbiome-platform.git`) |
+| הסביבה (uv, פייתון 3.13, PyTorch ל-CPU) | `~/microbiome-platform/.venv`, ‏uv ב-`~/.local/bin/uv` |
+| ההגדרות (כולל המפתח הסודי) | `~/.config/microplatform/microplatform.env` (הרשאות 600) |
+| הנתונים (העלאות, תוצאות, מטמון) | `~/microplatform-instance` (700) |
+| ה"שקע" של האתר | `~/microplatform-run/web.sock` (התיקייה 700) |
+| יומנים | `~/microplatform-logs/web.log`, `worker.log` (700) |
+| השירותים | `~/.config/systemd/user/microplatform-web.service`, `microplatform-worker.service` (מ-`deploy/systemd-user/`) |
+
+**גישה פנימית בלבד:** האתר לא מאזין לשום פורט רשת — רק לקובץ שקע בתיקייה פרטית, כך שגם משתמשים אחרים באותו שרת לא מגיעים אליו. פותחים אותו דרך מנהרת SSH מהמחשב הנייד (PowerShell), ומשאירים את החלון פתוח:
+
+```powershell
+ssh -N -L 8000:/home/parashn/microplatform-run/web.sock peptibase10
+```
+ואז בדפדפן: http://127.0.0.1:8000
+
+**פקודות שימושיות (בטרמינל של peptibase10):**
+
+| מה | פקודה |
+|---|---|
+| מצב השירותים | `systemctl --user status microplatform-web microplatform-worker` |
+| הפעלה מחדש (אחרי שינוי הגדרות או קוד) | `systemctl --user restart microplatform-web microplatform-worker` |
+| עצירה | `systemctl --user stop microplatform-web microplatform-worker` |
+| יומנים | `tail -f ~/microplatform-logs/worker.log` |
+| עדכון קוד | מהמחשב הנייד: `git push peptibase10 main`; בשרת: `cd ~/microbiome-platform && git pull && ~/.local/bin/uv sync --locked --extra server` ואז הפעלה מחדש |
+
+**חשוב — עד שה-IT יאפשר "lingering":** שירותי משתמש נעצרים כשנסגר החיבור האחרון של `parashn` לשרת, ולא עולים מחדש אחרי אתחול. כרגע הם רצים כל עוד יש חיבור פתוח (למשל חלון VS Code).
+
+**התאמות לשרת משותף:** כל ניתוח מוגבל ל-16 ליבות (`OMP_NUM_THREADS` ושות' בקובץ ההגדרות). אפשר לכבות משימה בשרת עם `MICROPLATFORM_DISABLED_GOALS` (למשל `metabolites`) — היא תוצג "Not on this server".
+
+**LOCATE בשרת:** מעבד אחר מעגל מספרים אחרת, ולכן LOCATE אומת מחדש בשרת לפי אותו כלל שאושר (V2): בניסיון הראשון (20 זרעים) נכשל בהפרש 0.001; לפי Amendment 2 (שנרשם לפני ההרצה) — ‏40 זרעים חדשים — **עבר** (ממוצע ‎−0.0020, רווח סמך ‎[−0.0121, +0.0082]‎). פרטים: `validation/locate/SERVER-peptibase10-PLAN.md`, `RESULTS-peptibase10*.md`.
+
+### ✅ רשימה ל-IT (peptibase10)
+
+1. **Lingering** לחשבון `parashn`: ‏`sudo loginctl enable-linger parashn` — כדי שהשירותים ירוצו גם בלי חיבור פתוח ויעלו לבד אחרי אתחול.
+2. **תוויות SELinux בתיקיית הבית:** ‏`/home/parashn` מסומנת `unlabeled_t` (תיקנו רק את `~/.ssh`). כדאי ‏`restorecon -R /home/parashn` (או לבדוק למה תיקיות הבית בשרת לא מתויגות).
+3. **אישור אחסון נתונים:** האם מותר לשמור בשרת משותף זה נתונים שעשויים להיות קליניים? (התיקיות פרטיות למשתמש, אבל מנהלי השרת יכולים לקרוא הכול.) ומה מדיניות הגיבוי של `/home`.
+4. **רק כשהמעבדה תחליט לפתוח לרשת המעבדה / VPN (לא עכשיו):**
+   - שם שרת (DNS), למשל `microbiome.<lab>.math.biu.ac.il`, ותעודת HTTPS של האוניברסיטה;
+   - nginx (‏`dnf install nginx`) לפי `deploy/nginx/`, עם הגבלה לטווחי הכתובות (CIDR) של רשת המעבדה וה-VPN;
+   - SELinux: היתר ל-nginx להתחבר לשקע של האתר (למשל להעביר את השקע ל-`/run/microplatform` עם תווית מתאימה, או `setsebool -P httpd_can_network_connect 1` אם עוברים לפורט מקומי);
+   - **firewalld:** לפתוח רק את 443 (ו-80 להפניה) ורק לטווחים האלה — לעולם לא לכל האינטרנט.
+5. **מייל (לא חובה):** שרת SMTP, פורט, מצב אבטחה (STARTTLS/SSL), כתובת שולח, ואם צריך — משתמש וסיסמה; והיתר יציאה מהשרת לפורט הזה. את הסיסמה מקלידים רק בקובץ ההגדרות בשרת.
+
+המשך המדריך למטה מתאר התקנה **עם** הרשאות מנהל (חשבון שירות, `/opt`, שירותי מערכת, nginx) — לשרת ייעודי בעתיד.
+
+---
+
 ## ✅ רשימת החלטות — מה צריך מהמעבדה לפני ההתקנה
 
 | # | החלטה | ממי | למה זה חשוב | הערך שנבחר |
