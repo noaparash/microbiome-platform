@@ -43,6 +43,8 @@ ssh -N -L 8000:/home/parashn/microplatform-run/web.sock peptibase10
 
 **LOCATE בשרת:** מעבד אחר מעגל מספרים אחרת, ולכן LOCATE אומת מחדש בשרת לפי אותו כלל שאושר (V2): בניסיון הראשון (20 זרעים) נכשל בהפרש 0.001; לפי Amendment 2 (שנרשם לפני ההרצה) — ‏40 זרעים חדשים — **עבר** (ממוצע ‎−0.0020, רווח סמך ‎[−0.0121, +0.0082]‎). פרטים: `validation/locate/SERVER-peptibase10-PLAN.md`, `RESULTS-peptibase10*.md`.
 
+**פקודות מדויקות למנהל השרת (באנגלית):** `docs/admin-peptibase10.md` — שירותים תמידיים, תעודת HTTPS, nginx על פורט 443 בלבד, חומת אש לטווחי המעבדה/VPN בלבד.
+
 ### ✅ רשימה ל-IT (peptibase10)
 
 1. **Lingering** לחשבון `parashn`: ‏`sudo loginctl enable-linger parashn` — כדי שהשירותים ירוצו גם בלי חיבור פתוח ויעלו לבד אחרי אתחול.

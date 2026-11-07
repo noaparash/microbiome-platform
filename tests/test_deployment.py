@@ -225,3 +225,15 @@ def test_nginx_template_is_https_and_restricted_by_default():
     assert "deny  all;" in nginx and "allow <LAB_NETWORK_CIDR>;" in nginx
     assert "$request_uri" not in nginx.split("log_format", 1)[1].split(";", 1)[0]  # no addresses in logs
     assert "client_max_body_size 100m" in nginx
+
+
+def test_almalinux_nginx_template_is_https_only_and_restricted():
+    """The AlmaLinux/RHEL template (peptibase10): port 443 on the server's address only, no port 80
+    (another service may hold it), lab/VPN ranges only, the private log and the upload limit."""
+    nginx = (DEPLOY / "nginx" / "microplatform.almalinux.conf").read_text(encoding="utf-8")
+    listens = [line.strip() for line in nginx.splitlines() if line.strip().startswith("listen")]
+    assert listens == ["listen <SERVER_IP>:443 ssl http2;"]
+    assert "deny  all;" in nginx and "allow <LAB_NETWORK_CIDR>;" in nginx and "allow <VPN_CIDR>;" in nginx
+    assert "$request_uri" not in nginx.split("log_format", 1)[1].split(";", 1)[0]
+    assert "client_max_body_size 100m" in nginx and "proxy_pass http://127.0.0.1:8000;" in nginx
+    assert "/etc/pki/tls/private/<HOSTNAME>.key" in nginx
