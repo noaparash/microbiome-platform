@@ -12,3 +12,12 @@ published (Python 3.10 reference environment, never shipped), on example E2, see
   predictions on those seeds (torch 2.14.1, Lightning 2.6.6). The product is deterministic,
   so it must reproduce them exactly; if a library upgrade changes them, re-run the
   validation in validation/locate/ before accepting the upgrade.
+
+## Other platforms (`platforms/<os>-<cpu>/`)
+
+Different processors round floating-point arithmetic differently, and training amplifies that,
+so the exact predictions above hold on the laptop (Windows, x86-64) only. Another platform gets
+its own folder after passing the same rule against the original on its own runs: `scores.csv`
+(seed, A, S) and its exact predictions for seeds 10-12. Linux x86-64 (the lab server
+peptibase10): Amendment 2, seeds 30-69, PASS (validation/locate/RESULTS-peptibase10-amend2.md).
+A platform without a folder skips the exact-match test with a message: re-validate there first.

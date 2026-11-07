@@ -280,16 +280,20 @@ def _exact_reference(seed: int) -> tuple[Path, Path]:
 
 
 def test_locate_on_other_platforms_passed_the_same_rule():
-    """Every platform with its own exact reference also passed V2's rule against the original (A)."""
+    """Every platform with its own exact reference passed V2's rule against the original (A), on the
+    seeds its plan names (``scores.csv``: seed, A, S; e.g. the lab server: Amendment 2, seeds 30-69)."""
     import math
 
-    original = pd.read_csv(LOCATE_REFERENCE / "v2_scores.csv").set_index("seed")["A"]
-    for scores_file in sorted((LOCATE_REFERENCE / "platforms").glob("*/v2_scores.csv")):
-        scores = pd.read_csv(scores_file).set_index("seed")["score"]
-        assert list(scores.index) == list(range(10, 30)), scores_file
-        d = scores - original
-        half = 1.729 * d.std(ddof=1) / math.sqrt(len(d))
-        assert -0.02 <= d.mean() - half and d.mean() + half <= 0.02, scores_file
+    from scipy.stats import t as student_t
+
+    folders = sorted((LOCATE_REFERENCE / "platforms").glob("*/"))
+    assert folders, "the lab server's reference is recorded"
+    for folder in folders:
+        scores = pd.read_csv(folder / "scores.csv")
+        assert len(scores) >= 20 and scores["seed"].is_unique, folder
+        d = scores["S"] - scores["A"]
+        half = student_t.ppf(0.95, len(d) - 1) * d.std(ddof=1) / math.sqrt(len(d))
+        assert -0.02 <= d.mean() - half and d.mean() + half <= 0.02, folder
 
 
 @pytest.mark.slow
