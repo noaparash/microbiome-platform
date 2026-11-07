@@ -227,6 +227,22 @@ def test_nginx_template_is_https_and_restricted_by_default():
     assert "client_max_body_size 100m" in nginx
 
 
+def test_admin_sheet_interim_certificate_and_narrow_ranges():
+    """peptibase10's admin sheet: the interim self-signed certificate signs step 2's own request
+    (same key, so IT's certificate later replaces one file), with -extfile, which works on OpenSSL
+    1.1 and 3 (-copy_extensions does not exist in 1.1); an empty VPN range drops its allow line
+    (an empty "allow ;" breaks nginx -t); a range added later goes into nginx and the firewall."""
+    sheet = (DEPLOY.parent / "docs" / "admin-peptibase10.md").read_text(encoding="utf-8")
+    assert "## 2b. Interim: a self-signed certificate" in sheet
+    assert "-in /root/$HOST.csr -signkey /etc/pki/tls/private/$HOST.key" in sheet
+    assert "-extfile /root/$HOST.ext" in sheet and "-copy_extensions" not in sheet
+    assert "-fingerprint -sha256" in sheet and "Swapping in IT's certificate" in sheet
+    assert """[ -z "$VPN" ] && sudo sed -i '/<VPN_CIDR>/d'""" in sheet
+    assert 'sudo sed -i "/^ *deny  all;/i\\    allow $NEW;"' in sheet
+    assert 'source address=\\"$NEW\\"' in sheet
+    assert "**Never** a wide range" in sheet
+
+
 def test_almalinux_nginx_template_is_https_only_and_restricted():
     """The AlmaLinux/RHEL template (peptibase10): port 443 on the server's address only, no port 80
     (another service may hold it), lab/VPN ranges only, the private log and the upload limit."""
