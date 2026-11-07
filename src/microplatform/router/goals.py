@@ -175,8 +175,38 @@ def recommend(options: list[GoalOption], requested: str | None = None) -> Recomm
         reasons.append("Every analysis starts with MIPMLP preprocessing; the cleaned table is included in the results.")
 
     unlock: dict[InputKind, list[str]] = {}
+    unlock_tools: dict[InputKind, list[str]] = {}
     for option in options:
         for kind in option.missing:
             if kind in ADDABLE and option.goal.status == "available" and option.goal.id not in switched_off():
                 unlock.setdefault(kind, []).append(option.goal.title)
+                unlock_tools.setdefault(kind, []).append(option.goal.tool)
+    if any("labels" in o.missing for o in options):
+        reasons.extend(_without_labels(by_id, unlock_tools))
     return Recommendation(chosen, reasons, unlock)
+
+
+# What a table can do without labels, in the user's words (only tasks that can run are named).
+WITHOUT_LABELS = {"preprocess": "clean and normalise it (MIPMLP)",
+                  "group": "see how your samples group (GIMIC)",
+                  "metabolites": "link your bacteria to your metabolites (LOCATE)"}
+
+
+def _join(words: list[str]) -> str:
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
+
+
+def _without_labels(by_id: dict[str, GoalOption], unlock_tools: dict[InputKind, list[str]]) -> list[str]:
+    """No labels file is not a problem: say what runs without one, and what a labels file would add."""
+    can = [text for goal_id, text in WITHOUT_LABELS.items() if goal_id in by_id and by_id[goal_id].enabled]
+    lines = [f"No labels file, and that's fine: with your table alone you can {_join(can)}. Every analysis "
+             "also ends with a data overview (composition, diversity and sparsity), described without "
+             "group tests."]
+    if tools := unlock_tools.get("labels"):
+        verb = "needs" if len(tools) == 1 else "need"
+        lines.append(f"Comparing groups or predicting an outcome ({_join(tools)}) {verb} a labels file, which "
+                     "says which group each sample belongs to. You can add one below without starting over.")
+    if tools := unlock_tools.get("metabolites"):
+        lines.append(f"Linking bacteria to metabolites ({_join(tools)}) needs a metabolite table; "
+                     "you can add that below too.")
+    return lines

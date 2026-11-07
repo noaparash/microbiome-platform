@@ -45,6 +45,34 @@ def test_missing_inputs_are_named():
     assert "metabolite table" in locate.reason
 
 
+def test_a_table_without_labels_is_explained_kindly_not_as_an_error():
+    """Counts only: the plan names what runs (MIPMLP, GIMIC, the data overview) and what each
+    missing file would add (labels: miMic, iMic; metabolites: LOCATE), without sounding like a fault."""
+    rec = recommend(goal_options(COUNTS))
+    text = " ".join(rec.reasons)
+    assert rec.goal_id == "preprocess"
+    assert "No labels file, and that's fine" in text
+    assert "clean and normalise it (MIPMLP) and see how your samples group (GIMIC)" in text
+    assert "data overview (composition, diversity and sparsity)" in text and "without group tests" in text
+    assert "(miMic and iMic) need a labels file" in text and "add one below without starting over" in text
+    assert "(LOCATE) needs a metabolite table" in text
+    assert not any(word in text.lower() for word in ("error", "cannot", "invalid"))
+    # With a metabolite table but no labels, LOCATE is among what can run.
+    with_metabolites = " ".join(recommend(goal_options(COUNTS | {"metabolites"})).reasons)
+    assert "link your bacteria to your metabolites (LOCATE)" in with_metabolites
+    assert "needs a metabolite table" not in with_metabolites
+
+
+def test_with_labels_there_is_no_note_about_labels():
+    assert not any("labels file" in r for r in recommend(goal_options(COUNTS_AND_LABELS, "binary")).reasons)
+
+
+def test_a_switched_off_tool_is_not_promised(monkeypatch):
+    monkeypatch.setenv("MICROPLATFORM_DISABLED_GOALS", "differ,group")
+    text = " ".join(recommend(goal_options(COUNTS)).reasons)
+    assert "(iMic) needs a labels file" in text and "miMic" not in text and "GIMIC" not in text
+
+
 def test_requirement_text_is_readable():
     assert requirement_text(get_goal("preprocess")) == "a counts table"
     assert requirement_text(get_goal("differ")) == "a counts table and a labels file"

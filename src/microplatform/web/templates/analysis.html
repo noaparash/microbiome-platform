@@ -43,7 +43,7 @@
   <ul class="facts">
     {% for line in profile.summary() %}<li>{{ line }}</li>{% endfor %}
     {% if view.labels %}{% for line in view.labels.summary() %}<li>{{ line }}</li>{% endfor %}
-    {% else %}<li>No labels file, so only tasks that need just the counts can run.</li>{% endif %}
+    {% else %}<li>No labels file (it is optional): the plan below shows what you can run without one.</li>{% endif %}
     {% if view.metabolites %}{% for line in view.metabolites.summary() %}<li>Metabolite table: {{ line }}</li>{% endfor %}{% endif %}
   </ul>
   {% if view.show_results %}</details>{% endif %}

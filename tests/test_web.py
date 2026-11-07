@@ -1,6 +1,8 @@
 """The website is a thin layer: these tests check that pages show what the package returns."""
 
+import html
 import io
+import json
 import re
 from pathlib import Path
 
@@ -105,6 +107,25 @@ def test_counts_only_preselects_preprocessing(client):
     page = client.get(upload(client, EXAMPLE[0]).headers["Location"]).get_data(as_text=True)
     assert re.search(r'value="preprocess"\s+checked', page)
     assert "Unlocks: Find bacteria that differ between groups" in page
+    # No labels is explained kindly, not as a problem; GIMIC stays a choice that can run.
+    assert "No labels file (it is optional)" in page
+    assert "No labels file, and that's fine" in html.unescape(page)
+    assert re.search(r'value="group"\s*>', page)  # GIMIC: offered, not disabled
+    assert 'class="issue issue-error"' not in page and 'class="alert alert-error"' not in page
+
+
+def test_counts_only_runs_the_overview_and_gimic_without_errors(client):
+    """No labels: the data overview is drawn, descriptive only (no group tests), and GIMIC runs."""
+    url = upload(client, EXAMPLE[0]).headers["Location"]
+    page = client.post(f"{url}/run", data={"goal": "group"}, follow_redirects=True).get_data(as_text=True)
+    assert "run-failed" not in page and "See how samples group (GIMIC)" in page
+    run = Path(client.application.config["RUNS_DIR"]) / url.rsplit("/", 1)[1]
+    figures = json.loads((run / "figures" / "figures.json").read_text(encoding="utf-8"))
+    entries = figures if isinstance(figures, list) else list(figures.values())
+    overview = [f for f in entries if f.get("section") == "overview"]
+    assert len(overview) == 6 and any(f.get("name", "") == "gimic_map" or "gimic_map" in str(f) for f in entries)
+    assert all("Descriptive only, not a statistical test." in f["caption"] for f in overview)
+    assert not list((run / "figures").glob("*_tests.csv"))  # no group tests without groups
 
 
 def test_home_is_entered_by_question(client):
