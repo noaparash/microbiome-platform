@@ -40,8 +40,8 @@
     <span class="icon-badge">{{ icon(tool.name) }}</span>
     <h3 id="tool-{{ loop.index }}">{{ tool.name }}</h3>
     {% if status[tool.name] != "available" %}
-    <span class="chip chip-{{ status[tool.name] }}">
-      {{ {"next": "Coming next", "planned": "Planned"}[status[tool.name]] }}
+    <span class="chip chip-{{ "planned" if status[tool.name] == "off" else status[tool.name] }}">
+      {{ {"next": "Coming next", "planned": "Planned", "off": "Not on this server"}[status[tool.name]] }}
     </span>
     {% endif %}
   </div>

@@ -29,7 +29,7 @@ from microplatform.core.inputs import MIN_METABOLITE_COLUMNS, sort_uploads
 from microplatform.core.metabolites import MIN_PAIRED
 from microplatform.examples import DOWNLOADS, EXAMPLE_SOURCE
 from microplatform.reports.figures import MEDIA_TYPES, PLOTLY_JS
-from microplatform.router.goals import GOALS, get_goal, requirement_text
+from microplatform.router.goals import GOALS, get_goal, requirement_text, switched_off
 
 bp = Blueprint("main", __name__)
 
@@ -41,7 +41,8 @@ bp.add_app_template_filter(lambda n: f"{int(n):,}", "count")  # 55882 → 55,882
 @bp.app_context_processor
 def format_rules():
     """The input rules the format help states, from the package (never re-typed in templates)."""
-    return {"min_metabolite_columns": MIN_METABOLITE_COLUMNS, "min_paired": MIN_PAIRED}
+    return {"min_metabolite_columns": MIN_METABOLITE_COLUMNS, "min_paired": MIN_PAIRED,
+            "switched_off": switched_off()}  # tasks this server does not offer
 
 
 @bp.get("/")
@@ -102,7 +103,7 @@ def example_page():
 
 @bp.get("/methods")
 def methods():
-    status = {goal.tool: goal.status for goal in GOALS}
+    status = {goal.tool: "off" if goal.id in switched_off() else goal.status for goal in GOALS}
     return render_template("methods.html", tools=TOOLS, status=status, settings=CANONICAL,
                            allowed=sorted(ALLOWED_VARIATIONS))
 

@@ -5,6 +5,10 @@ only a counts table; miMic and iMic also need a labels file; LOCATE needs a
 metabolite table. ``label_kinds`` limits a task to the label types its tool
 handles. A task that cannot run says why, and what to add.
 
+A server can switch tasks off with ``MICROPLATFORM_DISABLED_GOALS`` (task ids, comma-separated,
+e.g. ``metabolites``): they are then listed as not offered on this server, with that reason, and
+cannot run (the website, the worker and ``mp.analyze`` all go through ``goal_options``).
+
 ``recommend`` picks the pre-selected task and explains why in plain language:
 what the user asked for if it can run; otherwise LOCATE when a usable
 metabolite table was uploaded (that is why anyone uploads one); otherwise miMic
@@ -13,6 +17,7 @@ when there are usable labels; otherwise preprocessing.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Literal
 
@@ -26,6 +31,9 @@ COUNTS_AND_METABOLITES: frozenset[InputKind] = frozenset({"counts", "metabolites
 
 # Inputs that can already be added to an existing run from the Plan step.
 ADDABLE: frozenset[InputKind] = frozenset({"labels", "metabolites"})
+
+DISABLED_SETTING = "MICROPLATFORM_DISABLED_GOALS"
+SWITCHED_OFF = "Not offered on this server: its administrators have switched it off."
 
 LABEL_WORDS = {"binary": "two groups", "categorical": "three or more groups", "continuous": "a continuous label"}
 
@@ -91,6 +99,16 @@ def get_goal(goal_id: str | None) -> Goal | None:
     return next((g for g in GOALS if g.id == goal_id), None)
 
 
+def switched_off(env=os.environ) -> frozenset[str]:
+    """The tasks this server does not offer (``MICROPLATFORM_DISABLED_GOALS``); unknown ids are refused."""
+    ids = frozenset(i.strip() for i in env.get(DISABLED_SETTING, "").split(",") if i.strip())
+    unknown = ids - {g.id for g in GOALS}
+    if unknown:
+        raise ValueError(f"{DISABLED_SETTING} names unknown tasks {sorted(unknown)}; "
+                         f"the tasks are {', '.join(g.id for g in GOALS)}")
+    return ids
+
+
 def requirement_text(goal: Goal) -> str:
     """'a counts table and a labels file' — for the upload box."""
     return " and ".join(INPUT_NAMES[k] for k in INPUT_KINDS if k in goal.requires)
@@ -99,10 +117,13 @@ def requirement_text(goal: Goal) -> str:
 def goal_options(available: frozenset[InputKind], label_kind: LabelKind | None = None) -> list[GoalOption]:
     """Each goal, enabled or not, given the inputs provided and the label type."""
     options = []
+    off = switched_off()
     for goal in GOALS:
         missing = tuple(k for k in INPUT_KINDS if k in goal.requires - available)
         needs = f"Needs {' and '.join(INPUT_NAMES[k] for k in missing)}." if missing else ""
-        if goal.status != "available":
+        if goal.id in off:
+            options.append(GoalOption(goal, False, SWITCHED_OFF))
+        elif goal.status != "available":
             reason = " ".join(filter(None, ["Coming next." if goal.status == "next" else "Planned.", needs]))
             options.append(GoalOption(goal, False, reason, missing))
         elif missing:
@@ -156,6 +177,6 @@ def recommend(options: list[GoalOption], requested: str | None = None) -> Recomm
     unlock: dict[InputKind, list[str]] = {}
     for option in options:
         for kind in option.missing:
-            if kind in ADDABLE and option.goal.status == "available":
+            if kind in ADDABLE and option.goal.status == "available" and option.goal.id not in switched_off():
                 unlock.setdefault(kind, []).append(option.goal.title)
     return Recommendation(chosen, reasons, unlock)

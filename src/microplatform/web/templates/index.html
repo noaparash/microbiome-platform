@@ -28,9 +28,10 @@
           <span class="question-meta">
             <span class="question-tool">{{ goal.tool }}</span>
             {# A badge only says something when a tool is not available yet. #}
-            {% if goal.status != "available" %}
-            <span class="chip chip-{{ goal.status }}">
-              {{ {"next": "Coming next", "planned": "Planned"}[goal.status] }}
+            {% set state = "off" if goal.id in switched_off else goal.status %}
+            {% if state != "available" %}
+            <span class="chip chip-{{ "planned" if state == "off" else state }}">
+              {{ {"next": "Coming next", "planned": "Planned", "off": "Not on this server"}[state] }}
             </span>
             {% endif %}
           </span>

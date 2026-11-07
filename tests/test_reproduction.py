@@ -261,19 +261,52 @@ def test_locate_product_passes_the_approved_rule_against_the_original():
     assert -0.02 <= d.mean() - half and d.mean() + half <= 0.02
 
 
+def _platform() -> str:
+    import platform
+
+    return f"{platform.system()}-{platform.machine()}".lower()
+
+
+def _exact_reference(seed: int) -> tuple[Path, Path]:
+    """This platform's recorded predictions: the laptop's (Windows, the V2 evidence) or one re-validated
+    under the same rule on another platform (``platforms/<os>-<cpu>/``, e.g. the lab server)."""
+    if _platform() == "windows-amd64":
+        return LOCATE_REFERENCE / f"C_pred_val_seed{seed}.csv", LOCATE_REFERENCE / f"C_run_seed{seed}.json"
+    folder = LOCATE_REFERENCE / "platforms" / _platform()
+    if not folder.exists():
+        pytest.skip(f"No LOCATE reference recorded for {_platform()}: different processors round differently, "
+                    "so re-validate there first (validation/locate/server_check.py, the approved V2 rule).")
+    return folder / f"pred_val_seed{seed}.csv", folder / f"seed{seed}.json"
+
+
+def test_locate_on_other_platforms_passed_the_same_rule():
+    """Every platform with its own exact reference also passed V2's rule against the original (A)."""
+    import math
+
+    original = pd.read_csv(LOCATE_REFERENCE / "v2_scores.csv").set_index("seed")["A"]
+    for scores_file in sorted((LOCATE_REFERENCE / "platforms").glob("*/v2_scores.csv")):
+        scores = pd.read_csv(scores_file).set_index("seed")["score"]
+        assert list(scores.index) == list(range(10, 30)), scores_file
+        d = scores - original
+        half = 1.729 * d.std(ddof=1) / math.sqrt(len(d))
+        assert -0.02 <= d.mean() - half and d.mean() + half <= 0.02, scores_file
+
+
 @pytest.mark.slow
 @pytest.mark.parametrize("seed", [10, 11, 12])
 def test_locate_product_still_gives_its_validated_output(seed, tmp_path, monkeypatch):
-    """The product is deterministic; any change (e.g. a library upgrade) means: re-validate first."""
+    """The product is deterministic on a given platform; any change (e.g. a library upgrade, or another
+    processor) means: re-validate first. Each platform keeps its own recorded predictions."""
     import json
 
     from microplatform.engines.locate import fit_and_predict
 
+    predictions, run_info = _exact_reference(seed)
     read = lambda name: pd.read_csv(LOCATE_EXAMPLE / f"{name}.csv", index_col=0, float_precision="round_trip")
     monkeypatch.chdir(tmp_path)  # the tool writes lightning_logs/ into the current folder
     out = fit_and_predict(read("X_train"), read("Y_train"), read("X_val"), read("Y_val"), seed=seed)
-    saved = pd.read_csv(LOCATE_REFERENCE / f"C_pred_val_seed{seed}.csv", index_col=0, float_precision="round_trip")
-    info = json.loads((LOCATE_REFERENCE / f"C_run_seed{seed}.json").read_text())
+    saved = pd.read_csv(predictions, index_col=0, float_precision="round_trip")
+    info = json.loads(run_info.read_text())
     assert out["epochs"] == info["epochs"]
     # LOCATE computes in float32; the file keeps 9 significant digits, which recover each float32 exactly.
     np.testing.assert_array_equal(out["pred_val"].to_numpy(dtype="float32"), saved.to_numpy().astype("float32"))
