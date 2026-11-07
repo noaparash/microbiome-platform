@@ -20,6 +20,10 @@ Restart=on-failure
 RestartSec=5
 # Files it creates are private to you (uploads may be clinical data).
 UMask=0077
+# Logs in a private folder you can read (a shared server's journal may not show user services).
+# Create it first: mkdir -m 700 -p ~/microplatform-logs
+StandardOutput=append:%h/microplatform-logs/web.log
+StandardError=append:%h/microplatform-logs/web.log
 NoNewPrivileges=true
 
 [Install]
