@@ -139,3 +139,30 @@ def test_loading_mimic_keeps_pytorch_working():
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=300)
     assert result.returncode == 0, result.stderr[-500:]
     assert result.stdout.strip().endswith("1.0")
+
+
+def test_mimic_loads_on_a_server_without_a_screen():
+    """On Linux without a display, matplotlib refuses miMic's ``matplotlib.use('Qt5Agg')`` ("headless")
+    and the import failed on the lab server; load_mimic keeps the screen-less backend there.
+
+    A fresh process makes matplotlib refuse Qt5Agg the way it does on such a server (Windows and
+    desktops never refuse), then loads miMic.
+    """
+    code = "\n".join([
+        "import matplotlib",
+        "real = matplotlib.use",
+        "refused = []",
+        "def refuse(backend, *a, **k):",
+        "    if str(backend).lower() == 'qt5agg':",
+        "        refused.append(backend)",
+        "        raise ImportError(\"Cannot load backend 'Qt5Agg' which requires the 'qt' interactive framework, \"",
+        "                          \"as 'headless' is currently running\")",
+        "    return real(backend, *a, **k)",
+        "matplotlib.use = refuse",
+        "from microplatform.engines.mimic import load_mimic",
+        "apply_mimic, apply_nested_anova = load_mimic()",
+        "assert callable(apply_mimic) and matplotlib.use is refuse  # restored afterwards",
+        "print('loaded; refused:', refused)",
+    ])
+    done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=300)
+    assert done.returncode == 0 and "loaded; refused: ['Qt5Agg']" in done.stdout, done.stderr[-2000:]

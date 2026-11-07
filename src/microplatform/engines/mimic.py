@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import logging
 import math
 import os
 import warnings
@@ -37,6 +38,8 @@ from microplatform.core.errors import UserFacingError
 from microplatform.engines.base import Engine, EngineResult
 from microplatform.engines.labels import native_tag
 from microplatform.reports.figures import Figure
+
+log = logging.getLogger(__name__)
 
 # The authors' defaults, recorded with every result.
 THRESHOLD_P = 0.05
@@ -56,12 +59,33 @@ def load_mimic():
     On Windows, PyTorch fails to load if Qt (pulled in by ete3) is loaded first,
     so MIPMLP (which loads PyTorch) is imported before miMic. Qt and matplotlib
     are set to draw without a screen.
+
+    miMic's module runs ``matplotlib.use('Qt5Agg')`` when imported. On a Linux server
+    without a screen, matplotlib refuses that ("headless") and the import fails. miMic
+    needs Qt5Agg only to show windows (``plt.show``), never to save its figures, so
+    there the screen-less backend is kept; with a screen, the call goes through as before.
     """
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     os.environ.setdefault("MPLBACKEND", "Agg")
     import MIPMLP  # noqa: F401  (PyTorch first)
-    from mimic_da import apply_mimic
-    from mimic_da.miMic_test import apply_nested_anova
+    import matplotlib
+
+    use = matplotlib.use
+
+    def use_unless_headless(backend, *args, **kwargs):
+        try:
+            return use(backend, *args, **kwargs)
+        except ImportError as exc:
+            if "headless" not in str(exc):
+                raise
+            log.info("No screen: keeping matplotlib's %s backend instead of %s.", matplotlib.get_backend(), backend)
+
+    matplotlib.use = use_unless_headless  # only while miMic's module is first imported
+    try:
+        from mimic_da import apply_mimic
+        from mimic_da.miMic_test import apply_nested_anova
+    finally:
+        matplotlib.use = use
 
     return apply_mimic, apply_nested_anova
 
