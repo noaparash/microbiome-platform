@@ -1,0 +1,24 @@
+# Microbiome Platform — the worker (runs the queued analyses, one at a time), as a *user*
+# service. Install with the website: see microplatform-web.service in this folder.
+
+[Unit]
+Description=Microbiome Platform analysis worker (user service)
+
+[Service]
+Type=simple
+WorkingDirectory=%h/microbiome-platform
+EnvironmentFile=%h/.config/microplatform/microplatform.env
+# The instance folder comes from MICROPLATFORM_INSTANCE in the settings file.
+ExecStart=%h/microbiome-platform/.venv/bin/python -m microplatform.worker
+Restart=always
+RestartSec=10
+# Graceful stop: a stop or restart waits for the analysis in progress (up to 4 hours), as on
+# the system service. To stop at once (the run is marked interrupted):
+#   systemctl --user kill microplatform-worker
+KillSignal=SIGTERM
+TimeoutStopSec=4h
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,26 @@
+# Microbiome Platform — the website (gunicorn), as a *user* service: for a shared server where
+# the platform runs under your own account, without administrator rights.
+# It listens only on a socket file in a folder only you can open (MICROPLATFORM_BIND), so other
+# users of the machine cannot reach it either; you open it through an SSH tunnel.
+# Install (no sudo):
+#   mkdir -p ~/.config/systemd/user && cp deploy/systemd-user/*.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now microplatform-web microplatform-worker
+# Without "lingering" (loginctl enable-linger, an administrator step) user services stop when
+# your last session on the server ends and do not start at boot.
+
+[Unit]
+Description=Microbiome Platform website (gunicorn, user service)
+
+[Service]
+Type=simple
+WorkingDirectory=%h/microbiome-platform
+EnvironmentFile=%h/.config/microplatform/microplatform.env
+ExecStart=%h/microbiome-platform/.venv/bin/gunicorn -c %h/microbiome-platform/deploy/gunicorn.conf.py microplatform.web.wsgi:app
+Restart=on-failure
+RestartSec=5
+# Files it creates are private to you (uploads may be clinical data).
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
