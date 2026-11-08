@@ -93,7 +93,7 @@
     <ul class="facts">{% for reason in rec.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
   </div>
 
-  <form method="post" action="{{ url_for('main.run_goal', run_id=view.run.id) }}"
+  <form method="post" action="{{ url_for('main.run_goal', run_id=view.run.id) }}" id="run-form"
         data-busy="Starting…">
     <fieldset class="goals">
       <legend class="goals-legend">Or choose another task</legend>
@@ -140,17 +140,15 @@
         {% endfor %}
       </details>
     {% endif %}
-
-    {% if email_enabled %}
-      <div class="email-field">
-        <label for="notify-email">Email me when it is ready <span class="muted">(optional)</span></label>
-        <input type="email" id="notify-email" name="email" autocomplete="email" placeholder="name@example.com">
-        <p class="muted field-hint">We send only the results link, never data, and delete your address once it is sent.</p>
-      </div>
-    {% endif %}
-    <button class="btn" type="submit">Run</button>
   </form>
 
+  {# Optional files come before Run, so they are seen before running. They are forms of their own
+     (forms cannot be nested): the email field and the Run button below belong to the run form
+     through their form="run-form" attribute, and Run stays the last element of the step. #}
+  {% if rec.unlock %}
+  <div class="optional-uploads">
+    <p class="goals-legend">Have more files? Add them before you run <span class="muted">(optional)</span></p>
+  {% endif %}
   {% if "labels" in rec.unlock %}
   <form class="dropzone dropzone-compact" action="{{ url_for('main.add_labels', run_id=view.run.id) }}"
         method="post" enctype="multipart/form-data">
@@ -179,6 +177,20 @@
     <noscript><button class="btn btn-secondary" type="submit">Add</button></noscript>
   </form>
   {% endif %}
+  {% if rec.unlock %}
+  </div>
+  {% endif %}
+
+  <div class="run-bar">
+    {% if email_enabled %}
+      <div class="email-field">
+        <label for="notify-email">Email me when it is ready <span class="muted">(optional)</span></label>
+        <input type="email" id="notify-email" name="email" form="run-form" autocomplete="email" placeholder="name@example.com">
+        <p class="muted field-hint">We send only the results link, never data, and delete your address once it is sent.</p>
+      </div>
+    {% endif %}
+    <button class="btn" type="submit" form="run-form">Run</button>
+  </div>
 </section>
 {% endif %}
 

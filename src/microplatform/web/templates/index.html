@@ -9,12 +9,13 @@
       Upload your data once. We work out what's in it, choose the right method from
       the lab's published tools, and explain every step. No code needed.
     </p>
+    {# The main action is starting a run with your own data; the example is the quieter second choice. #}
     <div class="cta">
+      <a class="btn" href="#upload-section">Start an analysis</a>
       <form action="{{ url_for('main.example') }}" method="post">
         {% if chosen %}<input type="hidden" name="goal" value="{{ chosen.id }}">{% endif %}
-        <button class="btn" type="submit">Try the example</button>
+        <button class="btn btn-secondary" type="submit">See an example</button>
       </form>
-      <a class="btn btn-secondary" href="#upload-section">Start an analysis</a>
     </div>
     <p class="trust">
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 6 9 17l-5-5"/></svg>

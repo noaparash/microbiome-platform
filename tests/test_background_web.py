@@ -109,7 +109,7 @@ def test_a_failed_run_shows_why_and_offers_run_again(tmp_path, monkeypatch):
     page = client.post(f"{url}/run", data={"goal": "preprocess"}, follow_redirects=True).get_data(as_text=True)
     assert "The analysis did not finish" in page and "Your data broke the tool." in page
     assert "Try other data." in page
-    assert 'type="submit">Run</button>' in page  # the plan is offered again
+    assert 'type="submit" form="run-form">Run</button>' in page  # the plan is offered again
     assert "Results:" not in page
 
 

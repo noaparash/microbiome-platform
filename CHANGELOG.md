@@ -66,6 +66,10 @@ All notable changes to `microplatform`. The format follows
   GIMIC, the descriptive data overview) and what a labels file or a metabolite table would add.
 
 ### Changed
+- **Website:** the home page leads with "Start an analysis" (primary) and offers "See an example"
+  as the secondary button. In the Plan step the optional "Add a labels file" / "Add a metabolite
+  table" boxes now come before Run, under "Have more files? Add them before you run"; the email
+  field and Run (last) belong to the run form through `form="run-form"`.
 - **Results emails:** a From name ("Microbiome Platform", or `MICROPLATFORM_SMTP_SENDER_NAME`),
   `Date` and `Message-ID` headers, and the plain text with the same words as HTML beside it
   (multipart/alternative; no images, nothing loaded). A link to 127.0.0.1/localhost says it opens

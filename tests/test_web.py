@@ -179,6 +179,26 @@ def test_counts_only_runs_the_overview_and_gimic_without_errors(client):
     assert not list((run / "figures").glob("*_tests.csv"))  # no group tests without groups
 
 
+def test_home_leads_with_starting_an_analysis(client):
+    """The teal primary button starts an analysis; the example is the secondary, outline one."""
+    page = client.get("/").get_data(as_text=True)
+    cta = re.search(r'<div class="cta">(.*?)</div>', page, re.S).group(1)
+    buttons = re.findall(r'class="(btn[^"]*)"[^>]*>([^<]+)<', cta)
+    assert buttons == [("btn", "Start an analysis"), ("btn btn-secondary", "See an example")]
+
+
+def test_plan_shows_optional_files_before_run_and_run_last(client):
+    """Labels / metabolite boxes come before Run, and Run is the last element of the Plan step,
+    tied to the run form by form="run-form" (forms cannot be nested)."""
+    page = client.get(upload(client, EXAMPLE[0]).headers["Location"]).get_data(as_text=True)
+    plan = page[page.index('id="plan"'):]
+    plan = plan[:plan.index("</section>")]
+    run = plan.index('<button class="btn" type="submit" form="run-form">Run</button>')
+    assert plan.index("Add a labels file") < run and plan.index("Add a metabolite table") < run
+    assert plan.index('id="run-form"') < plan.index("Add a labels file")
+    assert not re.search(r"<(form|input|button|a)\b", plan[run + 10:])  # nothing to act on after Run
+
+
 def test_home_is_entered_by_question(client):
     page = client.get("/").get_data(as_text=True)
     assert "What do you want to learn?" in page

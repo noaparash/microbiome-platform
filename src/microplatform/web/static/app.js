@@ -173,8 +173,11 @@ if (running) {
 // Long-running forms: show what is happening and prevent double submits.
 for (const form of document.querySelectorAll("form[data-busy]")) {
   form.addEventListener("submit", () => {
-    const button = form.querySelector("button");
+    // form.elements also holds a button placed outside the form with form="<id>" (the Plan's Run).
+    const button = [...form.elements].find((el) => el.tagName === "BUTTON" && el.type === "submit");
     form.classList.add("is-busy");
+    if (!button) return;
+    button.classList.add("is-busy");
     button.textContent = form.dataset.busy;
     setTimeout(() => { button.disabled = true; }, 0);
   });
