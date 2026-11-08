@@ -38,6 +38,7 @@ from scipy.spatial.distance import pdist, squareform
 
 from microplatform.core.contract import LABEL_COLUMN, LabelKind
 from microplatform.core.preprocessing import PreprocessSettings
+from microplatform.core.profiler import value_kind
 from microplatform.reports import composition, diversity_stats
 from microplatform.reports.composition import PALETTE_DEFAULT, TOP_PHYLA, CompositionError
 from microplatform.reports.figures import OTHER, Figure, group_colors, taxa_prevalence
@@ -221,10 +222,17 @@ def _alpha_figure(counts: pd.DataFrame, groups: pd.Series, colors: tuple, left_o
     data["value"] = data["value"].round(6)
     labelled = groups[groups != NO_LABEL]
     table = diversity_stats.alpha_tests(alpha.loc[labelled.index], labelled, ordered) if tested else None
-    caption = ("Each point is one sample; the box spans the middle half of the samples and the line is the "
-               "median. Shannon index (natural log) grows with both the number of taxa and how evenly "
-               "reads are spread among them; richness counts the taxa with at least one read. Computed on "
-               "the raw counts without rarefaction, so a deeper-sequenced sample tends to show more taxa.")
+    if value_kind(counts) == "counts":
+        caption = ("Each point is one sample; the box spans the middle half of the samples and the line is the "
+                   "median. Shannon index (natural log) grows with both the number of taxa and how evenly "
+                   "reads are spread among them; richness counts the taxa with at least one read. Computed on "
+                   "the raw counts without rarefaction, so a deeper-sequenced sample tends to show more taxa.")
+    else:  # relative abundances: there are no reads to speak of
+        caption = ("Each point is one sample; the box spans the middle half of the samples and the line is the "
+                   "median. Shannon index (natural log) grows with both the number of taxa and how evenly "
+                   "the abundance is spread among them; richness counts the taxa above zero. Computed on the "
+                   "uploaded values; richness still depends on how deeply each sample was sequenced, which "
+                   "this table (not read counts) does not show.")
     if table is None:
         too_few = (f" Groups are not compared: fewer than two groups have {diversity_stats.MIN_PER_GROUP} or more "
                    "samples.") if tested else ""

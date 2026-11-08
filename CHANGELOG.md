@@ -66,6 +66,12 @@ All notable changes to `microplatform`. The format follows
   GIMIC, the descriptive data overview) and what a labels file or a metabolite table would add.
 
 ### Changed
+- **No sequencing depth for relative abundances.** "Sequencing depth per sample"
+  (`reads_per_sample`, and its CSV) is made only when the values are read counts
+  (`profiler.value_kind`, now public, the same rule that hides the "Median reads" tile); otherwise
+  the results page says why (`CountsProfile.depth_note`). For non-count data the data check no longer
+  warns about depth outliers, an all-zero sample is "all zero" (not "no reads"), and the alpha
+  diversity caption no longer speaks of reads or raw counts.
 - `requires-python` is now `==3.13.*` (was `>=3.13`): every tool is validated on 3.13.
   `torch>=2.14,<2.15` is a direct dependency (LOCATE's validated predictions depend on it).
 - The data overview is "mostly descriptive": the two diversity figures with group tests

@@ -32,6 +32,7 @@ from matplotlib.figure import Figure as MplFigure
 from matplotlib.patches import Patch, Rectangle
 
 from microplatform.core.preprocessing import PreprocessSettings
+from microplatform.core.profiler import value_kind
 
 # Shipped with plotly; the website serves it so interactive figures work offline.
 PLOTLY_JS = Path(plotly.__file__).parent / "package_data" / "plotly.min.js"
@@ -144,8 +145,11 @@ def preprocessing_figures(counts: pd.DataFrame, settings: PreprocessSettings) ->
     """Quality-check figures from the raw counts (samples × taxa, see ``Dataset.raw_counts``).
 
     How widespread each taxon is (``taxa_prevalence``) is part of the data overview (``reports/overview.py``).
+    Sequencing depth exists only for read counts: for relative abundances (each sample adds up to the
+    same total) or transformed values, ``reads_per_sample`` is not made (the same rule as the data
+    check, ``profiler.value_kind``; the page shows ``CountsProfile.depth_note`` instead).
     """
-    return [_reads_per_sample(counts)]
+    return [_reads_per_sample(counts)] if value_kind(counts) == "counts" else []
 
 
 def _reads_per_sample(counts: pd.DataFrame) -> Figure:

@@ -141,6 +141,20 @@ def test_a_table_with_lineages_as_column_names_is_a_counts_table(sep):
     assert not [i for i in profile.issues if i.level == "error"]
 
 
+def test_depth_is_described_only_for_read_counts():
+    assert profile_counts(read_table(EXAMPLE_COUNTS)).depth_note is None  # read counts: depth exists
+    _, content = _headers_table()
+    profile = profile_counts(sort_uploads([("abundances.csv", content)]).counts)
+    assert profile.value_kind == "relative" and "relative-abundance data" in profile.depth_note
+    assert not any("sequencing depth" in i.message for i in profile.issues)
+    assert not any("Sequencing depth" in line for line in profile.summary())
+    # An all-zero sample is "all zero", not "no reads", when there are no reads.
+    lines = content.decode().splitlines()
+    lines[1] = lines[1].split(",")[0] + ",0,0,0,0"
+    zeroed = profile_counts(sort_uploads([("abundances.csv", ("\n".join(lines) + "\n").encode())]).counts)
+    assert any("are all zero" in i.message for i in zeroed.issues)
+
+
 def test_the_shared_format_is_left_alone():
     assert with_taxonomy_row(COUNTS[1]) is None  # it already has a taxonomy row
     assert sort_uploads([COUNTS]).counts_layout == "row"

@@ -260,6 +260,9 @@
   {% if view.quality_figures %}
     <h3>Data quality</h3>
     {{ figure_grid(view.run.id, view.quality_figures) }}
+  {% elif profile.depth_note %}
+    <h3>Data quality</h3>
+    <p class="muted">{{ profile.depth_note }}</p>
   {% endif %}
 
   <div class="results-head subhead">

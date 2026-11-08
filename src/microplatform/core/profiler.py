@@ -32,6 +32,15 @@ DEPTH_OUTLIER = 10
 Severity = Literal["error", "warning"]
 ValueKind = Literal["counts", "relative", "transformed"]
 
+# Read depth (and the "Sequencing depth per sample" figure) exists only for read counts; for other
+# values the page says why it is missing instead.
+DEPTH_UNAVAILABLE: dict[str, str] = {
+    "relative": "Sequencing depth isn't available for relative-abundance data: each sample's values are "
+                "shares that add up to the same total, not read counts.",
+    "transformed": "Sequencing depth isn't available: the values don't look like read counts (they may "
+                   "already be transformed), so they can't be added up into reads per sample.",
+}
+
 
 class ProfileError(UserFacingError):
     """The file cannot be read as a table, or is missing required columns."""
@@ -62,6 +71,11 @@ class CountsProfile:
     @property
     def ok(self) -> bool:
         return not any(i.level == "error" for i in self.issues)
+
+    @property
+    def depth_note(self) -> str | None:
+        """Why there is no read depth (None for read counts, which have it)."""
+        return DEPTH_UNAVAILABLE.get(self.value_kind)
 
     def summary(self) -> list[str]:
         """Plain-language description for the web page."""
@@ -205,17 +219,20 @@ def profile_counts(raw: pd.DataFrame) -> CountsProfile:
             "Add more samples if you can.",
         ))
 
+    kind = value_kind(values)
     reads = values.sum(axis=1)
     empty = int((reads == 0).sum())
     if empty:
         names = [s for s, r in zip(sample_ids, reads) if r == 0][:3]
         issues.append(Issue(
             "warning",
-            f"{empty} samples have no reads at all (e.g. {', '.join(names)}).",
+            f"{empty} samples have no reads at all (e.g. {', '.join(names)})." if kind == "counts" else
+            f"{empty} samples are all zero (e.g. {', '.join(names)}).",
             "Check these samples' sequencing, or remove them.",
         ))
 
-    median = reads.median() if len(reads) else 0
+    # Sequencing depth exists only for read counts (relative abundances all add up to the same total).
+    median = reads.median() if len(reads) and kind == "counts" else 0
     deep = [(s, r) for s, r in zip(sample_ids, reads) if median > 0 and r > DEPTH_OUTLIER * median]
     if deep:
         name, top = max(deep, key=lambda d: d[1])
@@ -236,7 +253,7 @@ def profile_counts(raw: pd.DataFrame) -> CountsProfile:
         has_taxonomy=has_taxonomy,
         taxonomy_depth=depth,
         rank_coverage=coverage,
-        value_kind=_value_kind(values),
+        value_kind=kind,
         zero_fraction=float((values == 0).to_numpy().mean()),
         min_reads=float(reads.min()) if len(reads) else 0.0,
         median_reads=float(reads.median()) if len(reads) else 0.0,
@@ -349,7 +366,7 @@ def _strip_prefix(part: str) -> str:
     return part.split("__", 1)[1].strip() if "__" in part else part
 
 
-def _value_kind(values: pd.DataFrame) -> ValueKind:
+def value_kind(values: pd.DataFrame) -> ValueKind:
     arr = values.to_numpy(dtype=float)
     if (arr < 0).any():
         return "transformed"

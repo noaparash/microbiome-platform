@@ -131,6 +131,40 @@ def test_taxonomy_in_the_column_names_is_accepted_and_said_so(client):
     assert 'class="issue issue-error"' not in page
 
 
+def _relative_with_taxonomy_in_headers() -> bytes:
+    """The example as a lab would export it: lineages as column names, each sample's values as
+    shares adding up to 1 (floating-point sums such as 0.9999999999999999), no taxonomy row."""
+    raw = pd.read_csv(EXAMPLE_COUNTS, dtype=str)
+    lineages = raw.iloc[-1, 1:].tolist()
+    values = raw.iloc[:-1, 1:].astype(float)
+    shares = values.div(values.sum(axis=1), axis=0)
+    shares.columns = lineages
+    shares.insert(0, "ID", ["ERR" + s for s in raw.iloc[:-1, 0]])
+    out = io.StringIO()
+    csv.writer(out, lineterminator="\n").writerows([shares.columns.tolist(), *shares.astype(str).values.tolist()])
+    return out.getvalue().encode()
+
+
+def test_relative_abundance_has_no_sequencing_depth(client):
+    """Relative abundances have no reads: no depth figure (or its CSV), a short note instead, and no
+    'reads' wording in the data check; read counts keep the figure (tests above)."""
+    response = upload(client, ("relative.csv", _relative_with_taxonomy_in_headers()))
+    url = response.headers["Location"]
+    page = html.unescape(client.post(f"{url}/run", data={"goal": "preprocess"},
+                                     follow_redirects=True).get_data(as_text=True))
+    assert "Values are relative abundances" in page and "Median reads" not in page
+    assert "Sequencing depth per sample" not in page and "reads_per_sample" not in page
+    assert "Sequencing depth isn't available for relative-abundance data" in page
+    assert "Sequencing depth: median" not in page and "median sequencing depth" not in page
+    run = Path(client.application.config["RUNS_DIR"]) / url.rsplit("/", 1)[1]
+    assert not list((run / "figures").glob("reads_per_sample*"))
+    assert client.get(f"{url}/figures/reads_per_sample.csv").status_code == 404
+    figures = json.loads((run / "figures" / "figures.json").read_text(encoding="utf-8"))
+    entries = figures if isinstance(figures, list) else list(figures.values())
+    alpha = next(f for f in entries if f.get("name") == "alpha_diversity" or "alpha_diversity" in str(f.get("files", "")))
+    assert "taxa above zero" in alpha["caption"] and "raw counts" not in alpha["caption"]
+
+
 def test_counts_only_runs_the_overview_and_gimic_without_errors(client):
     """No labels: the data overview is drawn, descriptive only (no group tests), and GIMIC runs."""
     url = upload(client, EXAMPLE[0]).headers["Location"]
