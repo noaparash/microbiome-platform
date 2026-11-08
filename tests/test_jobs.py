@@ -302,12 +302,29 @@ def test_a_failed_run_also_emails_the_link(root, new_run, cache, monkeypatch):
     assert "did not finish" in subject and "https://site/runs/abc" in body
 
 
-def test_a_mail_server_failure_does_not_break_the_run(root, new_run, cache):
+def test_a_mail_server_failure_does_not_break_the_run(root, new_run, cache, caplog):
     run = new_run()
     jobs.submit(run, "preprocess", email="me@lab.ac.il", results_url="https://site/r", email_enabled=True)
-    jobs.Worker(root, cache, FakeNotifier(fail=True)).run_once()
+    with caplog.at_level("INFO", logger="microplatform.jobs"):
+        jobs.Worker(root, cache, FakeNotifier(fail=True)).run_once()
     assert run.status == "done"
     assert run.meta()["notify"] is None and run.meta()["notified"] == "failed"
+    assert f"could not send the email for run {run.id} to m***@lab.ac.il" in caplog.text
+    assert "me@lab.ac.il" not in caplog.text
+
+
+def test_every_email_outcome_is_logged_with_the_address_masked(root, new_run, cache, caplog):
+    sent, off = new_run(), new_run()
+    for run in (sent, off):
+        jobs.submit(run, "preprocess", email="lab.member@gmail.com", results_url="https://site/r",
+                    email_enabled=True)
+    with caplog.at_level("INFO", logger="microplatform.jobs"):
+        jobs.process(sent, cache, FakeNotifier()) if jobs.claim(sent, "t") else None
+        jobs.process(off, cache, None) if jobs.claim(off, "t") else None  # a worker without email settings
+    assert f"emailed the results link for run {sent.id} to l***@gmail.com" in caplog.text
+    assert f"no email for run {off.id} to l***@gmail.com: email is off in this worker" in caplog.text
+    assert "lab.member" not in caplog.text
+    assert off.meta()["notify"] is None  # forgotten either way
 
 
 # The email settings and the mail-server conversation are tested in tests/test_notify.py.

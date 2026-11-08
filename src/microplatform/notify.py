@@ -7,6 +7,7 @@ wins over the file. Neither place is in Git; nothing is ever hard-coded.
 
     MICROPLATFORM_SMTP_HOST      mail server, e.g. smtp.example.ac.il   (required to switch on)
     MICROPLATFORM_SMTP_SENDER    the From address                       (required to switch on)
+    MICROPLATFORM_SMTP_SENDER_NAME  the From name (default "Microbiome Platform")
     MICROPLATFORM_SMTP_SECURITY  starttls (default) | ssl | none
     MICROPLATFORM_SMTP_PORT      default by security: starttls 587, ssl 465, none 25
     MICROPLATFORM_SMTP_USER      if the server needs a login
@@ -15,12 +16,19 @@ wins over the file. Neither place is in Git; nothing is ever hard-coded.
 Check the settings with one test email: ``python -m microplatform.notify --to you@lab.ac.il``.
 
 Privacy: an email holds only the results link, never data or results, and the
-address is deleted from the run as soon as the email has been sent.
+address is deleted from the run as soon as the email has been sent. Logs show
+addresses masked (``mask_address``).
+
+Every email has a From name, a Date and a Message-ID, and is sent as plain text with
+the same words as HTML beside it (multipart/alternative): mail filters trust that more
+than a bare address and text alone. The HTML has no images or outside links but the
+results link, so nothing is loaded when it is opened.
 """
 
 from __future__ import annotations
 
 import argparse
+import html
 import os
 import re
 import smtplib
@@ -28,12 +36,16 @@ import ssl
 import sys
 from dataclasses import dataclass, field
 from email.message import EmailMessage
+from email.utils import formataddr, formatdate, make_msgid
 from pathlib import Path
+from urllib.parse import urlsplit
 
 _EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 PREFIX = "MICROPLATFORM_SMTP_"
 SETTINGS_FILE = "email.env"  # inside the instance folder (gitignored, like everything there)
 SECURITY = {"starttls": 587, "ssl": 465, "none": 25}  # each mode and its usual port
+SENDER_NAME = "Microbiome Platform"
+LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 
 @dataclass(frozen=True)
@@ -44,6 +56,7 @@ class EmailSettings:
     user: str | None = None
     password: str | None = field(default=None, repr=False)  # never shown in logs or errors
     security: str = "starttls"
+    sender_name: str = SENDER_NAME
 
     @classmethod
     def from_env(cls, env=os.environ) -> EmailSettings | None:
@@ -61,6 +74,7 @@ class EmailSettings:
             user=env.get(f"{PREFIX}USER") or None,
             password=env.get(f"{PREFIX}PASSWORD") or None,
             security=security,
+            sender_name=(env.get(f"{PREFIX}SENDER_NAME") or SENDER_NAME).strip(),
         )
 
     @classmethod
@@ -73,7 +87,7 @@ class EmailSettings:
     def describe(self) -> str:
         """The settings in words, for logs: never the password."""
         login = f", login as {self.user}" if self.user else ", no login"
-        return f"{self.host}:{self.port} ({self.security}{login}), from {self.sender}"
+        return f"{self.host}:{self.port} ({self.security}{login}), from {self.sender_name} <{self.sender}>"
 
 
 def read_settings_file(path: Path) -> dict[str, str]:
@@ -97,6 +111,17 @@ def is_valid_email(address: str) -> bool:
     return bool(_EMAIL.fullmatch(address.strip()))
 
 
+def mask_address(address: str) -> str:
+    """'lab.member@gmail.com' -> 'l***@gmail.com', for logs."""
+    local, _, domain = str(address).strip().partition("@")
+    return f"{local[:1]}***@{domain}" if domain else "***"
+
+
+def is_local_link(url: str) -> bool:
+    """True for a link that only opens on the server itself (or through an SSH tunnel)."""
+    return (urlsplit(url).hostname or "") in LOCAL_HOSTS
+
+
 def finished_message(analysis_name: str, status: str, url: str) -> tuple[str, str]:
     """Subject and body: the link only, never data or results."""
     if status == "done":
@@ -105,8 +130,10 @@ def finished_message(analysis_name: str, status: str, url: str) -> tuple[str, st
     else:
         subject = "Your microbiome analysis did not finish"
         first = f'Your analysis of "{analysis_name}" did not finish. The page explains what went wrong:'
+    local = ("This link opens only on the computer running the platform, or through an SSH tunnel to it "
+             "(the site has no public address yet).\n\n") if is_local_link(url) else ""
     body = (
-        f"{first}\n\n{url}\n\n"
+        f"{first}\n\n{url}\n\n{local}"
         "This email contains no data. Anyone with the link can open the results, so please do not forward it "
         "outside your team. Your email address has now been deleted from the analysis.\n\n"
         "Microbiome Platform, Prof. Yoram Louzoun Lab, Bar-Ilan University\n"
@@ -114,14 +141,37 @@ def finished_message(analysis_name: str, status: str, url: str) -> tuple[str, st
     return subject, body
 
 
+def as_html(text: str) -> str:
+    """The plain-text body as simple HTML with the same words: paragraphs, and links made clickable."""
+    paragraphs = []
+    for block in (b.strip() for b in text.split("\n\n")):
+        if not block:
+            continue
+        escaped = html.escape(block).replace("\n", "<br>")
+        escaped = re.sub(r"(https?://[^\s<]+)", r'<a href="\1">\1</a>', escaped)
+        paragraphs.append(f"<p>{escaped}</p>")
+    return ('<!doctype html><html><body style="font-family: Arial, sans-serif; font-size: 15px; '
+            f'line-height: 1.5; color: #0f2e33;">{"".join(paragraphs)}</body></html>')
+
+
 class EmailNotifier:
     def __init__(self, settings: EmailSettings) -> None:
         self.settings = settings
 
-    def send(self, to: str, subject: str, body: str) -> None:
+    def message(self, to: str, subject: str, body: str) -> EmailMessage:
+        """The email: From name and address, Date, Message-ID, plain text and the same text as HTML."""
+        s = self.settings
         message = EmailMessage()
-        message["From"], message["To"], message["Subject"] = self.settings.sender, to, subject
+        message["From"] = formataddr((s.sender_name, s.sender))
+        message["To"], message["Subject"] = to, subject
+        message["Date"] = formatdate(localtime=True)
+        message["Message-ID"] = make_msgid(domain=s.sender.rpartition("@")[2] or None)
         message.set_content(body)
+        message.add_alternative(as_html(body), subtype="html")
+        return message
+
+    def send(self, to: str, subject: str, body: str) -> None:
+        message = self.message(to, subject, body)
         s = self.settings
         context = ssl.create_default_context()  # the server's certificate is checked
         if s.security == "ssl":

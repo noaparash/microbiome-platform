@@ -66,6 +66,11 @@ All notable changes to `microplatform`. The format follows
   GIMIC, the descriptive data overview) and what a labels file or a metabolite table would add.
 
 ### Changed
+- **Results emails:** a From name ("Microbiome Platform", or `MICROPLATFORM_SMTP_SENDER_NAME`),
+  `Date` and `Message-ID` headers, and the plain text with the same words as HTML beside it
+  (multipart/alternative; no images, nothing loaded). A link to 127.0.0.1/localhost says it opens
+  only on the server or through an SSH tunnel. The worker now logs every outcome (sent, failed,
+  or not sent and why) with the address masked (`notify.mask_address`).
 - **No sequencing depth for relative abundances.** "Sequencing depth per sample"
   (`reads_per_sample`, and its CSV) is made only when the values are read counts
   (`profiler.value_kind`, now public, the same rule that hides the "Median reads" tile); otherwise

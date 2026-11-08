@@ -36,7 +36,7 @@ from pathlib import Path
 from microplatform import runs, workflows
 from microplatform.core.errors import UserFacingError
 from microplatform.core.inputs import InputError
-from microplatform.notify import EmailNotifier, finished_message, is_valid_email
+from microplatform.notify import EmailNotifier, finished_message, is_valid_email, mask_address
 
 log = logging.getLogger(__name__)
 
@@ -284,16 +284,20 @@ def _notify(run: runs.Run, notifier: EmailNotifier | None) -> None:
     address = meta.get("notify")
     if not address:
         return
+    masked = mask_address(address)  # logs never hold the full address
     try:
         if notifier is not None and meta.get("results_url"):
             subject, body = finished_message(meta["counts_name"], meta["status"], meta["results_url"])
             notifier.send(address, subject, body)
             run.update_meta(notify=None, notified=_now_iso())
+            log.info("emailed the results link for run %s to %s (the mail server accepted it)", run.id, masked)
             return
     except Exception:
-        log.exception("could not send the email for run %s", run.id)
+        log.exception("could not send the email for run %s to %s", run.id, masked)
         run.update_meta(notify=None, notified="failed")
         return
+    log.warning("no email for run %s to %s: %s", run.id, masked,
+                "email is off in this worker" if notifier is None else "the run has no results link")
     run.update_meta(notify=None)
 
 

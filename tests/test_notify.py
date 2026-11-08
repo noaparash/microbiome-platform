@@ -54,7 +54,8 @@ def test_settings_file_in_the_instance_and_the_environment_wins(tmp_path):
 def test_the_password_is_never_shown(tmp_path):
     settings = EmailSettings.from_env(BASE | {"MICROPLATFORM_SMTP_USER": "u", "MICROPLATFORM_SMTP_PASSWORD": "hunter2"})
     assert "hunter2" not in repr(settings) and "hunter2" not in settings.describe()
-    assert settings.describe() == "smtp.lab.ac.il:587 (starttls, login as u), from platform@lab.ac.il"
+    assert settings.describe() == ("smtp.lab.ac.il:587 (starttls, login as u), "
+                                   "from Microbiome Platform <platform@lab.ac.il>")
 
 
 # --- talking to the mail server ---------------------------------------------------------------------
@@ -78,7 +79,8 @@ class FakeSMTP:
         FakeSMTP.calls.append(("login", user, password))
 
     def send_message(self, message):
-        FakeSMTP.calls.append(("send", message["From"], message["To"], message["Subject"], message.get_content()))
+        FakeSMTP.calls.append(("send", message["From"], message["To"], message["Subject"],
+                               message.get_body(("plain",)).get_content(), message))
 
 
 class FakeSMTPSSL(FakeSMTP):
@@ -99,8 +101,37 @@ def test_starttls_with_login_sends_the_link_only(mail_server):
     assert mail_server[0] == ("connect", "FakeSMTP", "smtp.lab", 587, False)
     assert ("starttls", True) in mail_server and ("login", "u", "p") in mail_server  # certificate checked
     send = next(c for c in mail_server if c[0] == "send")
-    assert send[1:4] == ("from@lab", "to@lab", "Your microbiome analysis is ready")
+    assert send[1:4] == ("Microbiome Platform <from@lab>", "to@lab", "Your microbiome analysis is ready")
     assert "https://site/runs/abc" in send[4]
+
+
+def test_the_email_has_a_name_headers_and_text_beside_html():
+    """Fewer spam flags: a From name, Date, Message-ID, and plain text with the same words as HTML."""
+    subject, body = finished_message('data "v2".csv', "done", "https://site.ac.il/runs/abc")
+    message = EmailNotifier(EmailSettings("smtp.lab", "platform@lab.ac.il")).message("to@lab", subject, body)
+    assert message["From"] == "Microbiome Platform <platform@lab.ac.il>"
+    assert message["Date"] and message["Message-ID"].endswith("@lab.ac.il>")
+    assert message.get_content_type() == "multipart/alternative"
+    plain = message.get_body(("plain",)).get_content()
+    rich = message.get_body(("html",)).get_content()
+    assert plain == body
+    assert '<a href="https://site.ac.il/runs/abc">https://site.ac.il/runs/abc</a>' in rich
+    assert "data &quot;v2&quot;.csv" in rich  # escaped, not raw HTML
+    assert "<img" not in rich and "src=" not in rich  # nothing is loaded when it is opened
+    named = EmailSettings.from_env(BASE | {"MICROPLATFORM_SMTP_SENDER_NAME": "Louzoun Lab platform"})
+    assert EmailNotifier(named).message("a@b.c", "s", "b")["From"] == "Louzoun Lab platform <platform@lab.ac.il>"
+
+
+def test_a_local_link_says_where_it_works():
+    _, local = finished_message("d.csv", "done", "http://127.0.0.1:8000/runs/abc")
+    _, public = finished_message("d.csv", "done", "https://microbiome.math.biu.ac.il/runs/abc")
+    assert "opens only on the computer running the platform, or through an SSH tunnel" in local
+    assert "SSH tunnel" not in public
+
+
+def test_addresses_are_masked_for_logs():
+    assert notify.mask_address("lab.member@gmail.com") == "l***@gmail.com"
+    assert notify.mask_address("not an address") == "***"
 
 
 def test_ssl_connects_encrypted_from_the_start(mail_server):
