@@ -1,5 +1,6 @@
 """The website is a thin layer: these tests check that pages show what the package returns."""
 
+import csv
 import html
 import io
 import json
@@ -112,6 +113,22 @@ def test_counts_only_preselects_preprocessing(client):
     assert "No labels file, and that's fine" in html.unescape(page)
     assert re.search(r'value="group"\s*>', page)  # GIMIC: offered, not disabled
     assert 'class="issue issue-error"' not in page and 'class="alert alert-error"' not in page
+
+
+def test_taxonomy_in_the_column_names_is_accepted_and_said_so(client):
+    """A lab table with lineages as column names (no taxonomy row): accepted, preprocessed, and the
+    data check says where the taxonomy came from."""
+    rows = list(csv.reader(io.StringIO(EXAMPLE_COUNTS.read_text(encoding="utf-8"))))
+    taxonomy = next(r for r in rows if r[0] == "taxonomy")
+    body = [r for r in rows[1:] if r is not taxonomy]
+    text = "\n".join(",".join(r) for r in [[rows[0][0], *taxonomy[1:]], *body]) + "\n"
+    response = upload(client, ("lab_table.csv", text.encode()))
+    assert response.status_code == 302, response.get_data(as_text=True)[:500]
+    page = client.post(f"{response.headers['Location']}/run", data={"goal": "preprocess"},
+                       follow_redirects=True).get_data(as_text=True)
+    assert "The taxonomy was read from your column names" in page
+    assert "run-failed" not in page and "Grouped 263 taxa into 144 features" in page
+    assert 'class="issue issue-error"' not in page
 
 
 def test_counts_only_runs_the_overview_and_gimic_without_errors(client):

@@ -42,6 +42,7 @@
   </dl>
   <ul class="facts">
     {% for line in profile.summary() %}<li>{{ line }}</li>{% endfor %}
+    {% if meta.counts_layout == "headers" %}<li>The taxonomy was read from your column names (one lineage per column, as in your file).</li>{% endif %}
     {% if view.labels %}{% for line in view.labels.summary() %}<li>{{ line }}</li>{% endfor %}
     {% else %}<li>No labels file (it is optional): the plan below shows what you can run without one.</li>{% endif %}
     {% if view.metabolites %}{% for line in view.metabolites.summary() %}<li>Metabolite table: {{ line }}</li>{% endfor %}{% endif %}

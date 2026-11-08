@@ -1,13 +1,17 @@
 <details class="format" {% if open_format %}open{% endif %}>
   <summary>What should my files look like?</summary>
   <div class="format-body">
-    <p><strong>Counts table:</strong> one row per sample and one column per bacterium.
-      The first column holds sample IDs, and the <em>last row</em> is named
-      <code>taxonomy</code>.</p>
+    <p><strong>Counts table:</strong> one row per sample and one column per bacterium, with
+      read counts or relative abundances. The first column holds sample IDs. Each column's
+      lineage goes either in a <em>last row</em> named <code>taxonomy</code>:</p>
 <pre>ID,       ASV1,          ASV2,          …
 sample1,  120,           0,             …
 sample2,  37,            5,             …
 taxonomy, k__Bacteria;…, k__Bacteria;…, …</pre>
+    <p>or in the <em>column names</em> themselves (empty ranks such as <code>p__</code> are fine):</p>
+<pre>ID,         k__Bacteria;p__Firmicutes;…, k__Bacteria;p__;c__;…, …
+ERR1549010, 0.0312,                      0,                     …
+ERR1549011, 0,                           0.0047,                …</pre>
     <p><strong>Labels (optional):</strong> sample IDs in the first column and
       the outcome in a column named <code>Tag</code>, for example sick/healthy
       or an age.</p>

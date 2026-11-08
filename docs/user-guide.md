@@ -46,9 +46,11 @@ terminal.
 
 ## File formats
 
-**Counts table** (CSV or TSV): one row per sample, one column per bacterium.
-The first column holds the sample IDs (named `ID`), and the **last row** is
-named `taxonomy` and holds each column's lineage.
+**Counts table** (CSV or TSV): one row per sample, one column per bacterium, with
+read counts or relative abundances. The first column holds the sample IDs (named
+`ID`). Each column's lineage is given in one of two ways.
+
+Either a **last row** named `taxonomy`:
 
 ```
 ID,       ASV1,          ASV2,          …
@@ -56,6 +58,17 @@ sample1,  120,           0,             …
 sample2,  37,            5,             …
 taxonomy, k__Bacteria;…, k__Bacteria;…, …
 ```
+
+or the **column names** themselves (a very common export; empty ranks such as `p__`
+are fine, and the same lineage may appear in two columns):
+
+```
+ID,         k__Bacteria;p__Firmicutes;…, k__Bacteria;p__;c__;…, …
+ERR1549010, 0.0312,                      0,                     …
+ERR1549011, 0,                           0.0047,                …
+```
+
+Both give exactly the same analysis; the data check says which one was found.
 
 **Labels file** (optional): sample IDs in the first column, and the outcome in
 a column named `Tag`. Binary (sick/healthy), categorical (a few groups) and

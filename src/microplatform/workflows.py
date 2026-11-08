@@ -157,6 +157,8 @@ def start_run(root: Path, inputs: Inputs, requested_goal: str | None = None) -> 
     """Store the uploads as a new run; ``requested_goal`` is the question picked on the home page."""
     run = runs.create(root, inputs.counts_name, inputs.counts, inputs.labels_name, inputs.labels,
                       inputs.metabolites_name, inputs.metabolites)
+    if inputs.counts_layout != "row":  # recorded so the data check can say where the taxonomy came from
+        run.update_meta(counts_layout=inputs.counts_layout)
     _remember_request(run, requested_goal)
     return run
 

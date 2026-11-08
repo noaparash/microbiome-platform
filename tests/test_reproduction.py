@@ -43,6 +43,59 @@ def test_mipmlp_matches_the_authors_call(run, tmp_path):
     pd.testing.assert_frame_equal(ours, theirs, check_names=False, check_index_type=False)
 
 
+def _taxonomy_as_column_names(path: Path) -> bytes:
+    """The authors' combined file re-expressed as "taxonomy in the column names": each column is
+    named by its lineage (the text of the taxonomy row) and the taxonomy row is removed."""
+    import csv
+    import io
+
+    rows = list(csv.reader(io.StringIO(path.read_text(encoding="utf-8"))))
+    taxonomy = next(r for r in rows if r[0].strip().lower() == "taxonomy")
+    body = [r for r in rows[1:] if r is not taxonomy]
+    out = io.StringIO()
+    csv.writer(out, lineterminator="\n").writerows([[rows[0][0], *taxonomy[1:]], *body])
+    return out.getvalue().encode()
+
+
+def _features(tmp_path, name, content):
+    run = workflows.start_run(tmp_path / f"runs-{name}", sort_uploads([(name, content)]))
+    # Each side gets its own empty cache: a shared cache would hand back the other side's table.
+    return workflows.build_dataset(run, CANONICAL, tmp_path / f"cache-{name}")[0].features
+
+
+@pytest.mark.parametrize("example", [
+    EXAMPLE_COUNTS,
+    pytest.param(MIMIC_EXAMPLE / "for_process.csv", marks=pytest.mark.slow),  # all 257 samples
+], ids=["example-40", "authors-257"])
+def test_taxonomy_in_column_names_gives_the_same_preprocessed_table(tmp_path, example):
+    """Faithfulness of the "taxonomy in the column names" layout: the authors' example in that
+    layout gives exactly the preprocessed table of the combined (taxonomy row) file."""
+    headers = _taxonomy_as_column_names(example)
+    assert b"\ntaxonomy," not in headers.lower()
+    combined = _features(tmp_path, "combined.csv", example.read_bytes())
+    from_headers = _features(tmp_path, "headers.csv", headers)
+    assert sort_uploads([("headers.csv", headers)]).counts_layout == "headers"
+    pd.testing.assert_frame_equal(from_headers, combined)  # exact: same columns, samples and values
+
+
+def test_a_repeated_lineage_in_the_column_names_is_kept_as_written(tmp_path):
+    """Two columns with the same lineage (pandas would rename the second '….1'): both layouts still
+    give the same preprocessed table. The authors' example has none, so one is made here."""
+    import csv
+    import io
+
+    rows = list(csv.reader(io.StringIO(EXAMPLE_COUNTS.read_text(encoding="utf-8"))))
+    for row in (rows[0], next(r for r in rows if r[0] == "taxonomy")):
+        row[2] = row[1]  # the second bacteria column takes the first one's lineage
+    out = io.StringIO()
+    csv.writer(out, lineterminator="\n").writerows(rows)
+    combined_file = tmp_path / "repeated.csv"
+    combined_file.write_text(out.getvalue(), encoding="utf-8")
+    combined = _features(tmp_path, "combined.csv", combined_file.read_bytes())
+    from_headers = _features(tmp_path, "headers.csv", _taxonomy_as_column_names(combined_file))
+    pd.testing.assert_frame_equal(from_headers, combined)
+
+
 # --- miMic ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="module")

@@ -94,3 +94,68 @@ def test_templates_follow_the_expected_format():
     # Only its size is too small for LOCATE (it is a format example): no other problem.
     assert [i.message for i in profile.issues if i.level == "error"] == [
         f"Only 3 samples are in both the counts and the metabolite table; LOCATE needs at least {MIN_PAIRED}."]
+
+
+# --- taxonomy in the column names (no taxonomy row) ----------------------------------------------
+
+from microplatform.core.inputs import is_lineage, with_taxonomy_row  # noqa: E402
+
+LINEAGES = ["k__Bacteria;p__Actinobacteria;c__Actinobacteria;o__Bifidobacteriales;f__;g__;s__",
+            "k__Bacteria;p__;c__;o__;f__;g__;s__",
+            "k__Bacteria;p__Firmicutes;c__Clostridia",
+            "k__Bacteria;p__Firmicutes;c__Clostridia"]  # the same lineage twice
+
+
+def _headers_table(sep=","):
+    """A typical lab table: ERR sample IDs, lineages as column names (empty ranks, one repeated),
+    relative abundances with many zeros, no taxonomy row."""
+    rng = np.random.default_rng(1)
+    rows = []
+    for i in range(12):
+        values = rng.dirichlet(np.ones(len(LINEAGES))) * (rng.random(len(LINEAGES)) > 0.4)
+        values[0] += 0.01  # never an all-zero sample
+        values = 100 * values / values.sum()  # percentages: each sample adds up to 100
+        rows.append([f"ERR15490{i:02d}", *(repr(float(v)) for v in values)])
+    lines = [sep.join(["ID", *LINEAGES])] + [sep.join(r) for r in rows]
+    return ("abundances.csv" if sep == "," else "abundances.tsv"), ("\n".join(lines) + "\n").encode()
+
+
+@pytest.mark.parametrize(("name", "expected"), [
+    ("k__Bacteria;p__Firmicutes;c__Bacilli", True), ("k__Bacteria;p__;c__", True),
+    ("d__Bacteria; p__Bacillota", True), ("k__Bacteria", True), ("k__Bacteria;", True),
+    ("Tag", False), ("ASV_1", False), ("met1", False), ("Bacteria;Firmicutes", False), ("", False)])
+def test_lineage_names_are_recognised(name, expected):
+    assert is_lineage(name) is expected
+
+
+@pytest.mark.parametrize("sep", [",", "\t"])
+def test_a_table_with_lineages_as_column_names_is_a_counts_table(sep):
+    name, content = _headers_table(sep)
+    inputs = sort_uploads([(name, content), TAGS])
+    assert inputs.counts_layout == "headers" and inputs.counts_name == name
+    raw = inputs.counts
+    assert str(raw.iloc[-1, 0]) == "taxonomy" and len(raw) == 13
+    assert raw.iloc[-1, 1:].tolist() == LINEAGES  # exactly as written, the repeated name too
+    profile = profile_counts(raw)
+    assert profile.has_taxonomy and profile.n_taxa == 4 and profile.value_kind == "relative"
+    assert not [i for i in profile.issues if i.level == "error"]
+
+
+def test_the_shared_format_is_left_alone():
+    assert with_taxonomy_row(COUNTS[1]) is None  # it already has a taxonomy row
+    assert sort_uploads([COUNTS]).counts_layout == "row"
+    assert with_taxonomy_row(TAGS[1]) is None and with_taxonomy_row(METABOLITES[1]) is None
+
+
+def test_a_table_without_any_taxonomy_still_explains_both_layouts():
+    table = b"ID,ASV_1,ASV_2,ASV_3\ns1,1,2,3\ns2,4,5,6\n"
+    with pytest.raises(InputError) as caught:
+        sort_uploads([("plain.csv", table)])
+    assert "column names that are taxonomy strings" in caught.value.message
+    assert "as the column name, or in a last row named 'taxonomy'" in caught.value.fix
+
+
+def test_a_lineage_table_cannot_be_added_as_labels():
+    name, content = _headers_table()
+    with pytest.raises(InputError, match="looks like a counts table"):
+        read_added_upload("labels", name, content)

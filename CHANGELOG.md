@@ -53,6 +53,17 @@ All notable changes to `microplatform`. The format follows
   the composition figure; `palette="colorblind"` for a colour-blind-safer 12-hue set (the
   default "lab" is tab20 + Set3 + Pastel1 without their greys); `split_violin=True` adds the
   per-phylum split violins when the samples form two groups.
+- **Counts tables with the taxonomy in the column names** (no `taxonomy` row): every column
+  after the sample IDs named by its lineage (`k__Bacteria;p__;c__…`, empty ranks allowed; at
+  least `MIN_LINEAGE_SHARE` = 90% of the columns). `sort_uploads` (and so the website and
+  `mp.analyze`) adds the `taxonomy` row from the names exactly as written and reads the result
+  as a combined upload, so everything downstream is unchanged; `Inputs.counts_layout` is
+  `"headers"` and the data check says so. New in `core.inputs`: `is_lineage`,
+  `with_taxonomy_row`. Faithfulness (test_reproduction.py): the authors' example re-expressed this
+  way (40 and all 257 samples, and a variant with a repeated lineage) gives exactly the
+  combined format's preprocessed table.
+- **A table without labels is explained in the Plan**: what runs without labels (MIPMLP,
+  GIMIC, the descriptive data overview) and what a labels file or a metabolite table would add.
 
 ### Changed
 - `requires-python` is now `==3.13.*` (was `>=3.13`): every tool is validated on 3.13.
