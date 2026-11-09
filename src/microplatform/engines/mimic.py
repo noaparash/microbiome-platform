@@ -197,7 +197,8 @@ def _cladogram(work_dir: Path, images: Path, samba_output, tag: pd.DataFrame, st
     return RenderedFigure(
         name="mimic_cladogram",
         title="miMic's cladogram: where on the taxonomy tree the groups differ",
-        caption=("Drawn by miMic itself (mimic-da's own tree drawing, unchanged). The taxonomy tree of the "
+        caption=("Drawn by miMic itself (mimic-da's own tree drawing; for legibility only, the labels are "
+                 "4x larger and the circle is closed). The taxonomy tree of the "
                  f"significant taxa; each node's size grows with -log10(p), and its colour gives the direction ("
                  f"{colours}). Shape: sphere = found by both miMic's tree test and the leaf test, circle = the "
                  "tree test only, square = the leaf test only (not miMic's result; listed separately). The "

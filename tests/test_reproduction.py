@@ -111,6 +111,9 @@ def test_mimic_cladogram_is_the_authors_own_tree(run, tmp_path):
 
     with Image.open(run.figures_dir / "mimic_cladogram.png") as png:  # printable, as the lab's reference
         assert 2000 <= max(png.size) <= 2200, png.size  # 180 mm at 300 dpi (it was once 73,630 px square)
+    svg = ours.read_text()
+    # Legible labels (miMic's 100 pt were ~4 px tall at this size) and a closed circle.
+    assert 'font-size="400pt"' in svg and 'font-size="100pt"' not in svg
     shown = [f.name for f in workflows.describe(run).findings]
     assert shown[0] == "mimic_cladogram"  # the headline figure, before the bars and the a-priori test
 

@@ -95,6 +95,7 @@ All notable changes to `microplatform`. The format follows
   `u_test_without_mimic.csv`). Now the headline, the `significant_taxa` table, the bar figure and the
   record count miMic's tree test only (= `just_mimic.csv`); the leaf-only taxa are a separate
   `leaf_test_only` table, mentioned in one sentence. The reproduction test checks both files.
+- **miMic's cladogram is legible:** its taxa labels are drawn 4× larger (400 pt instead of miMic's 100 pt, which came out about 4 px tall in the 2,125 px PNG because miMic's -log10(p) markers make the tree very wide), and the circle is closed (ete3's default 359° left a wedge cut out). Presentation only, recorded as the `tree_legibility` adjustment; the taxa, markers, sizes and colours are miMic's.
 - **miMic's cladogram PNG** is 180 mm at 300 dpi (2,125 px, as the lab's reference); ete3's default was
   the SVG's size in pixels (73,630 px square on a 64-taxon tree).
 - **The result first, the descriptive overview last, everywhere:** the overview is headed

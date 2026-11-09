@@ -57,6 +57,8 @@ PLOTS = "plots"  # where miMic's plot mode always writes (relative to the curren
 TABLES = ("df_corrs.csv", "miMic&Utest.csv", "u_test_without_mimic.csv", "just_mimic.csv")
 TREE_FORMATS = ("svg", "png", "pdf")
 TREE_PNG_MM, TREE_PNG_DPI = 180, 300  # the PNG's size: as the lab's reference tree (2,125 px square)
+TREE_LABEL_SCALE = 4  # miMic's leaf labels (100 pt) are ~4 px tall at that size; 400 pt reads clearly
+TREE_ARC_SPAN = 360  # ete3's default 359° leaves a cut-out wedge where the circle should close
 
 ADJUSTMENTS = {
     "kstest": "SciPy 1.18 raises TypeError on kstest(x, 'norm', args=(loc, scale)); miMic calls it only "
@@ -70,6 +72,11 @@ ADJUSTMENTS = {
     "tree_formats": "miMic renders correlations_tree.svg with ete3; the same tree and style are also "
                     "rendered by ete3 to .png (180 mm wide at 300 dpi, as the lab's reference tree) and .pdf "
                     "(inside the drawer only).",
+    "tree_legibility": "Presentation only, in the cladogram drawer: the leaf labels are drawn 4x larger "
+                       "(400 pt instead of miMic's 100 pt; miMic's large -log10(p) markers make the tree so "
+                       "wide that 100 pt labels are ~4 px tall at 180 mm) and the circle is closed (arc "
+                       "360°, ete3's default 359° leaves a wedge cut out). The tree, the taxa, the markers' "
+                       "sizes, shapes and colours are miMic's.",
     "no_window": "miMic opens the tree in an interactive window (ete3 show) before saving it; without a "
                  "screen that window is skipped (the saved files are unchanged).",
     "offscreen": "Qt draws offscreen (QT_QPA_PLATFORM=offscreen), as miMic forces the Qt5Agg backend.",
@@ -190,6 +197,7 @@ def compatible():
     saved = {"stats": mt.stats, "cm": mt.cm, "creare_tree_view": mt.creare_tree_view,
              "calculate_rsp": mt.calculate_rsp}
     show, render, index_ne = ete3.TreeNode.show, ete3.TreeNode.render, pd.Index.__ne__
+    text_face = mt.TextFace
 
     class Stats(types.ModuleType):
         def __getattr__(self, name):
@@ -219,6 +227,9 @@ def compatible():
         return result
 
     def render_formats(self, file_name, *args, tree_style=None, **kwargs):
+        if tree_style is not None:
+            tree_style = deepcopy(tree_style)
+            tree_style.arc_span = TREE_ARC_SPAN
         out = render(self, file_name, *args, tree_style=deepcopy(tree_style), **kwargs)
         stem, _, ext = str(file_name).rpartition(".")
         for other in TREE_FORMATS:
@@ -230,12 +241,15 @@ def compatible():
             render(self, f"{stem}.{other}", *args, tree_style=deepcopy(tree_style), **{**kwargs, **size})
         return out
 
+    def legible_text(text, fsize=10, **kwargs):
+        return text_face(text, fsize=fsize * TREE_LABEL_SCALE, **kwargs)
+
     def tree_view(*args, **kwargs):
-        pd.Index.__ne__, ete3.TreeNode.render = old_truth, render_formats
+        pd.Index.__ne__, ete3.TreeNode.render, mt.TextFace = old_truth, render_formats, legible_text
         try:
             return saved["creare_tree_view"](*args, **kwargs)
         finally:
-            pd.Index.__ne__, ete3.TreeNode.render = index_ne, render
+            pd.Index.__ne__, ete3.TreeNode.render, mt.TextFace = index_ne, render, text_face
 
     def rsp(df, save):
         seen["rp_sp"] = df.copy()
