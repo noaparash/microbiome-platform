@@ -128,13 +128,15 @@ def test_mimic_cladogram_is_the_authors_own_tree(run, tmp_path):
     mimic_authors.run_bundle(features.features.loc[tags.index], tags, tmp_path / "authors")
     theirs = tmp_path / "authors" / "plots" / "correlations_tree.svg"
     assert ours.read_bytes() == theirs.read_bytes()
-    # miMic's RP vs SP plot: byte for byte the authors' plot_rp_sp_anova_p (same seed), PNG and SVG.
+    # miMic's RP vs SP check: its own drawing ships unchanged (byte for byte the authors'
+    # plot_rp_sp_anova_p, same seed), and the platform's redraw shows exactly miMic's numbers.
     for ext in ("png", "svg"):
-        mine = (run.figures_dir / f"mimic_rp_sp.{ext}").read_bytes()
+        mine = (run.figures_dir / f"mimic_rp_sp_original.{ext}").read_bytes()
         assert mine == (tmp_path / "authors" / "plots" / f"tax_vs_rp_sp_anova_p.{ext}").read_bytes(), ext
-    rp_sp = pd.read_csv(run.figures_dir / "mimic_rp_sp.csv")
+    redrawn = pd.read_csv(run.figures_dir / "mimic_rp_sp.csv")
     authors = pd.read_csv(tmp_path / "authors" / "rp_sp.csv")
-    assert rp_sp["RP"].tolist() == authors["RP"].tolist() and rp_sp["SP"].tolist() == authors["SP"].tolist()
+    for series, column in (("Real labels (RP)", "RP"), ("Shuffled labels (SP)", "SP")):
+        assert redrawn.loc[redrawn["labels"] == series, "significant_leaves"].tolist() == authors[column].tolist()
 
 
 # --- miMic ---------------------------------------------------------------------------

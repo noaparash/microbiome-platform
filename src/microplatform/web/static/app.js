@@ -67,7 +67,9 @@ if (figureGrid) {
         .then((response) => response.text())
         .then((text) => {
           // Box outlines (BOX_LINE in figures.py) take the page's muted text colour, readable in both themes.
-          const fig = JSON.parse(recolor(text, css).replaceAll("#3f4a4a", css.getPropertyValue("--muted").trim()));
+          // A marked band behind rows (SHADE) takes the page's border colour: subtle in both themes.
+          const fig = JSON.parse(recolor(text, css).replaceAll("#3f4a4a", css.getPropertyValue("--muted").trim())
+            .replaceAll("#e6eceb", css.getPropertyValue("--border").trim()));
           const color = (name) => css.getPropertyValue(name).trim();
           const axis = { gridcolor: color("--border"), linecolor: color("--border"), zerolinecolor: color("--border") };
           // The title is already a heading above the plot.

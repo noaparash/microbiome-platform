@@ -15,9 +15,9 @@ Runs the authors' ``apply_mimic`` unchanged, fed from the shared ``Dataset``
 - it runs inside ``work_dir``, because miMic always writes .pkl files into the
   current folder.
 
-miMic's own figures are drawn by the authors' plot mode, unchanged (``_authors_plots``,
-seed 42): the cladogram (the headline) and the RP vs SP plot (``tax_vs_rp_sp_anova_p``,
-after the bars). The significant-taxa bars are drawn through ``reports.figures``; the
+miMic's plot mode runs unchanged (``_authors_plots``, seed 42): its cladogram is shown as
+miMic draws it (the headline), and its RP vs SP check (``tax_vs_rp_sp_anova_p``) is redrawn in
+the platform's style from miMic's own numbers, with miMic's drawing offered as a download. The significant-taxa bars are drawn through ``reports.figures``; the
 a-priori p-values are in the summary and the ``apriori_test`` table. The authors' full
 bundle (their tables and every diagnostic plot, several seeds) is made by
 ``engines/mimic_authors.py``, outside the website.
@@ -41,7 +41,7 @@ from microplatform.core.contract import RANK_SEPARATOR, Dataset
 from microplatform.core.errors import UserFacingError
 from microplatform.engines.base import Engine, EngineResult
 from microplatform.engines.labels import native_tag
-from microplatform.reports.figures import Figure, RenderedFigure
+from microplatform.reports.figures import ACCENT, CONTRAST, Figure, RenderedFigure
 
 log = logging.getLogger(__name__)
 
@@ -134,11 +134,12 @@ class MimicEngine(Engine):
         hits = found[found["found_by"] != LEAF_ONLY].reset_index(drop=True)
         leaf_only = found[found["found_by"] == LEAF_ONLY].reset_index(drop=True)
         apriori = _apriori_table(levels)
-        drawn = _authors_plots(work_dir, images, samba_output, tag, start, test, found, data.label_kind, coding)
+        drawn, rp_sp = _authors_plots(work_dir, images, samba_output, tag, start, test, found, data.label_kind,
+                                      coding)
         return EngineResult(
             summary=_summary(start, hits, leaf_only, apriori, data.label_kind, coding, test),
             rendered=drawn,
-            figures=[f for f in (_taxa_figure(hits, data.label_kind, coding),) if f],
+            figures=[f for f in (_taxa_figure(hits, data.label_kind, coding), rp_sp) if f],
             tables={"significant_taxa": hits, "leaf_test_only": leaf_only, "apriori_test": apriori},
             highlight=("significant_taxa", "Most significant taxa (miMic)") if not hits.empty else None,
             record={
@@ -148,6 +149,7 @@ class MimicEngine(Engine):
                 "correct_first": CORRECT_FIRST, "samples": len(tag), "label_coding": coding,
                 "post_hoc_start": str(start), "significant_taxa": len(hits), "leaf_test_only": len(leaf_only),
                 "authors_plots": (PLOT_CALL if drawn else "not drawn (no significant taxa)"),
+                "rp_sp_check": RP_SP_RECORD if rp_sp else "not drawn (no significant taxa)",
                 "plot_seed": PLOT_SEED,
             },
         )
@@ -166,10 +168,11 @@ PLOT_CALL = ("mimic_da.apply_mimic(mode='plot') (seed 42): plot_rp_sp_anova_p ->
 
 
 def _authors_plots(work_dir: Path, images: Path, samba_output, tag: pd.DataFrame, start, test: str,
-                   hits: pd.DataFrame, kind: str, coding: dict) -> list[RenderedFigure]:
-    """miMic's cladogram and its RP vs SP plot, drawn by the authors' plot mode (none if nothing is significant)."""
+                   hits: pd.DataFrame, kind: str, coding: dict) -> tuple[list[RenderedFigure], Figure | None]:
+    """miMic's plot mode: its cladogram (as drawn), and its RP vs SP check redrawn in the platform's style
+    with the authors' own drawing beside it (nothing if nothing is significant)."""
     if start == "nosignificant" or hits.empty:
-        return []
+        return [], None
     import random
 
     import numpy as np
@@ -219,22 +222,53 @@ def _authors_plots(work_dir: Path, images: Path, samba_output, tag: pd.DataFrame
     else:
         log.warning("miMic did not draw its cladogram in %s", plots)
     svg, png = plots / f"{RP_SP_FIGURE}.svg", plots / f"{RP_SP_FIGURE}.png"
-    if svg.exists() and png.exists() and "rp_sp_plotted" in seen:
+    rp_sp = None
+    if "rp_sp_plotted" in seen:
         table, mixed = seen["rp_sp_plotted"]
-        drawn.append(RenderedFigure(
-            name="mimic_rp_sp", lead=False, wide=False,
-            title="miMic's check: real vs shuffled labels per starting level",
-            caption=("Drawn by miMic itself (mimic-da's plot_rp_sp_anova_p, unchanged). For each taxonomic level "
-                     "the tree test could start from, the number of significant leaves with the real labels (RP, "
-                     "blue) and with shuffled labels (SP, red; few or none means the findings are not chance). "
-                     f"Grey: the levels the a-priori test passed, down to the start level used ({mixed}). Log "
-                     "scale; a bar of 0 is not drawn. SP depends on the shuffle (seed 42). Data (CSV): RP and SP "
-                     "per level (the a-priori p-values are in the apriori_test table)."),
-            svg=svg, png=png, data=_rp_sp_table(table, mixed),
-        ))
+        originals = tuple((fmt, path) for fmt, path in (("png", png), ("svg", svg)) if path.exists())
+        rp_sp = _rp_sp_figure(_rp_sp_table(table, mixed), mixed, originals)
     else:
-        log.warning("miMic did not draw its RP vs SP plot in %s", plots)
-    return drawn
+        log.warning("miMic did not compute its RP vs SP check in %s", plots)
+    return drawn, rp_sp
+
+
+REAL, SHUFFLED = "Real labels (RP)", "Shuffled labels (SP)"
+RP_SP_RECORD = {
+    "what": "miMic's RP vs SP check: for each taxonomic level the tree test can start from, the number of "
+            "significant leaves with the real labels (RP) and with randomly shuffled labels (SP).",
+    "computed_by": "mimic_da.apply_mimic(mode='plot'), unchanged; the numbers are the table miMic passes to "
+                   "plot_rp_sp_anova_p",
+    "shuffle": "one shuffle of the labels with numpy's global random generator, seed 42",
+    "drawn_by": "the platform (reports/figures.py, grouped_barh), linear scale with each count written on its bar; "
+                "miMic's own drawing (log scale, where a count of 0 shows no bar) is kept as "
+                "mimic_rp_sp_original.png/.svg",
+    "band": "the levels miMic marks grey in its own plot: from Kingdom down to the level its tree test started "
+            "from (the a-priori test's result)",
+}
+
+
+def _rp_sp_figure(table: pd.DataFrame, mixed: str, originals: tuple) -> Figure:
+    """miMic's RP vs SP counts, in the platform's style (the numbers are miMic's, unchanged)."""
+    levels = list(table["starting_taxonomy"])
+    chosen = mixed.split("&")[0].strip()
+    shade = tuple(levels[: levels.index(chosen) + 1]) if chosen in levels else ()
+    data = table.melt(id_vars="starting_taxonomy", value_vars=["RP", "SP"], var_name="series",
+                      value_name="significant_leaves")
+    data["labels"] = data["series"].map({"RP": REAL, "SP": SHUFFLED})
+    data = data[["starting_taxonomy", "labels", "significant_leaves"]]
+    return Figure(
+        name="mimic_rp_sp", title="Is miMic's result more than chance?",
+        caption=("How many leaves miMic finds significant when its tree test starts at each taxonomic level: "
+                 "with your real labels, and with the same labels shuffled at random. If shuffled labels find "
+                 "few or none, the real findings are unlikely to be chance. Grey marks the levels miMic's first "
+                 "(a-priori) test passed. A statistical check computed by miMic and redrawn in the platform's "
+                 "style; the shuffled count comes from a single shuffle."),
+        data=data, kind="grouped_barh", x="significant_leaves", y="starting_taxonomy", color_by="labels",
+        colors=((REAL, ACCENT), (SHUFFLED, CONTRAST)), shade=shade, shade_label="Passed the a-priori test",
+        x_label="Significant leaves", y_label="Tree test starts at", section="findings",
+        hover="%{customdata[0]}: %{x:,} significant leaves<extra></extra>",
+        originals=originals, original_label="miMic's original",
+    )
 
 
 def _rp_sp_table(table: pd.DataFrame, mixed: str) -> pd.DataFrame:

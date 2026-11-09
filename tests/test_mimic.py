@@ -119,7 +119,8 @@ def test_results_zip_has_the_mimic_tables_and_citation(numeric_run):
         readme = zf.read("README.txt").decode()
     assert {"results/significant_taxa.csv", "results/apriori_test.csv", "analysis.json",
             "figures/1_result/mimic_significant_taxa.svg", "figures/1_result/mimic_rp_sp.csv",
-            "figures/1_result/mimic_rp_sp.png", "figures/1_result/mimic_rp_sp.svg"} <= names
+            "figures/1_result/mimic_rp_sp.png", "figures/1_result/mimic_rp_sp.svg",
+            "figures/1_result/mimic_rp_sp_original.png"} <= names
     first = sorted(n for n in names if n.startswith("figures/"))[0]
     assert first.startswith("figures/1_result/")  # the result comes first, the descriptive overview last
     assert get_tool("miMic").paper.citation in readme and get_tool("MIPMLP").paper.citation in readme
