@@ -88,8 +88,15 @@ All notable changes to `microplatform`. The format follows
   MIPMLP's own output names (`Bacteria;…;Lachnospiraceae_0;;`, no `k__` prefixes) are now
   recognised as taxonomy in the column names, so MIPMLP output can be uploaded. Found on a real
   run: a table prepared for miMic was preprocessed again (64 → 49 features) and miMic found 42 taxa;
-  used as it is, it gives exactly the authors' 56 taxa and p-values. Tables with negative values get
-  no descriptive overview (it needs abundances; the page says why).
+  used as it is, it gives exactly the authors' 34 (`just_mimic.csv`), with identical p-values. Tables
+  with negative values get no descriptive overview (it needs abundances; the page says why).
+- **miMic's headline is its own tree test.** "N taxa are significant" used to count miMic's taxa together
+  with those found only by the plain per-leaf test (the authors' `df_corrs.csv` = `just_mimic.csv` +
+  `u_test_without_mimic.csv`). Now the headline, the `significant_taxa` table, the bar figure and the
+  record count miMic's tree test only (= `just_mimic.csv`); the leaf-only taxa are a separate
+  `leaf_test_only` table, mentioned in one sentence. The reproduction test checks both files.
+- **miMic's cladogram PNG** is 180 mm at 300 dpi (2,125 px, as the lab's reference); ete3's default was
+  the SVG's size in pixels (73,630 px square on a 64-taxon tree).
 - **The result first, the descriptive overview last, everywhere:** the overview is headed
   "Descriptive overview of your data (not the analysis result)", and the ZIP's figures are in
   `figures/1_result/`, `figures/2_data_quality/`, `figures/3_descriptive_overview/`.

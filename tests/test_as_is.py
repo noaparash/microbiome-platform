@@ -2,9 +2,9 @@
 
 A real case (2026-11-08): a table prepared for miMic (64 selected taxa, values that do not add up to
 one total per sample) was preprocessed again by MIPMLP (64 -> 49 features), and miMic's result moved
-away from the authors' (42 taxa instead of their 56). Used as it is, the engine gave exactly the
-authors' 56 taxa and p-values (checked by hand on that private file; here the same is shown on the
-authors' public example).
+away from the authors' (42 taxa instead of their 34, just_mimic.csv). Used as it is, the engine gives
+exactly the authors' 34 taxa and p-values (checked on that private file through the platform; here the
+same is shown on the authors' public example).
 """
 
 import io

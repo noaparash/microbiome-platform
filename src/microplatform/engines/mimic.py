@@ -54,6 +54,7 @@ TOP_TAXA = 25  # shown in the figure; the table lists all of them
 # miMic's own names for the rows of the a-priori test (its first row is the tree's root).
 _LEVELS = ["Root", "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species"]
 _TOOL_FILES = ("df_corrs.pkl", "miMic&Utest.pkl", "u_test_without_mimic.pkl")
+LEAF_ONLY = "leaf test only"  # found only by the plain per-leaf test (the authors' u_test_without_mimic)
 
 
 def load_mimic():
@@ -126,21 +127,25 @@ class MimicEngine(Engine):
             levels = apply_nested_anova(samba_output, str(images), tag, mode="plot", eval=test,
                                         threshold_p=THRESHOLD_P)
 
-        hits = _significant_taxa(work_dir, start, data.label_kind, coding)
+        found = _significant_taxa(work_dir, start, data.label_kind, coding)
+        # miMic's result is its tree test (the authors' just_mimic.csv). Taxa that only the plain leaf
+        # test finds (their u_test_without_mimic.csv) are the baseline miMic is compared with: kept apart.
+        hits = found[found["found_by"] != LEAF_ONLY].reset_index(drop=True)
+        leaf_only = found[found["found_by"] == LEAF_ONLY].reset_index(drop=True)
         apriori = _apriori_table(levels)
-        tree = _cladogram(work_dir, images, samba_output, tag, start, test, hits, data.label_kind, coding)
+        tree = _cladogram(work_dir, images, samba_output, tag, start, test, found, data.label_kind, coding)
         return EngineResult(
-            summary=_summary(start, hits, apriori, data.label_kind, coding),
+            summary=_summary(start, hits, leaf_only, apriori, data.label_kind, coding, test),
             rendered=[tree] if tree else [],
             figures=[f for f in (_taxa_figure(hits, data.label_kind, coding), _apriori_figure(apriori)) if f],
-            tables={"significant_taxa": hits, "apriori_test": apriori},
-            highlight=("significant_taxa", "Most significant taxa") if not hits.empty else None,
+            tables={"significant_taxa": hits, "leaf_test_only": leaf_only, "apriori_test": apriori},
+            highlight=("significant_taxa", "Most significant taxa (miMic)") if not hits.empty else None,
             record={
                 "tool": "miMic", "package": "mimic-da", "version": version("mimic-da"),
                 "test": {"man": "Mann-Whitney (binary)", "corr": "Spearman (continuous)"}[test],
                 "eval": test, "threshold_p": THRESHOLD_P, "sister_correction": SISTER_CORRECTION,
                 "correct_first": CORRECT_FIRST, "samples": len(tag), "label_coding": coding,
-                "post_hoc_start": str(start), "significant_taxa": len(hits),
+                "post_hoc_start": str(start), "significant_taxa": len(hits), "leaf_test_only": len(leaf_only),
                 "cladogram": (CLADOGRAM_CALL if tree else "not drawn (no significant taxa)"),
             },
         )
@@ -195,8 +200,9 @@ def _cladogram(work_dir: Path, images: Path, samba_output, tag: pd.DataFrame, st
         caption=("Drawn by miMic itself (mimic-da's own tree drawing, unchanged). The taxonomy tree of the "
                  f"significant taxa; each node's size grows with -log10(p), and its colour gives the direction ("
                  f"{colours}). Shape: sphere = found by both miMic's tree test and the leaf test, circle = the "
-                 "tree test only, square = the leaf test only. The background shows each taxon's family. "
-                 "Data (CSV): the significant taxa, as in the table below."),
+                 "tree test only, square = the leaf test only (not miMic's result; listed separately). The "
+                 "background shows each taxon's family. Data (CSV): every taxon on the tree, with what found it "
+                 "(column found_by)."),
         svg=svg, png=png, data=hits,
     )
 
@@ -227,7 +233,7 @@ def _significant_taxa(work_dir: Path, start, kind: str, coding: dict) -> pd.Data
         else:
             direction = "increases with the label" if row["scc"] > 0 else "decreases with the label"
         if start == "noAnova" or taxon in leaf_only:
-            found_by = "leaf test only"
+            found_by = LEAF_ONLY
         elif taxon in both:
             found_by = "tree path and leaf test"
         else:
@@ -251,7 +257,8 @@ def _apriori_table(levels: pd.DataFrame) -> pd.DataFrame:
     })
 
 
-def _summary(start, hits: pd.DataFrame, apriori: pd.DataFrame, kind: str, coding: dict) -> list[str]:
+def _summary(start, hits: pd.DataFrame, leaf_only: pd.DataFrame, apriori: pd.DataFrame, kind: str,
+             coding: dict, test: str) -> list[str]:
     lines = []
     if coding and set(coding.values()) != {"0", "1"}:
         lines.append(f"The two groups were coded 0 = '{coding['0']}' and 1 = '{coding['1']}'.")
@@ -265,11 +272,17 @@ def _summary(start, hits: pd.DataFrame, apriori: pd.DataFrame, kind: str, coding
     else:
         lines.append("The a-priori test found no link at any taxonomic level, so only the leaf-level test was applied.")
     if hits.empty:
-        lines.append(f"No taxa differ significantly (p < {THRESHOLD_P:g}).")
+        lines.append(f"miMic's tree test found no significant taxa (p < {THRESHOLD_P:g}).")
     else:
         counts = hits["direction"].value_counts()
         parts = ", ".join(f"{n} {d}" for d, n in counts.items())
-        lines.append(f"{len(hits)} taxa are significant (p < {THRESHOLD_P:g}): {parts}.")
+        lines.append(f"{len(hits)} taxa are significant by miMic's tree test (p < {THRESHOLD_P:g}): {parts}.")
+    if not leaf_only.empty:
+        plain = {"man": "a Mann-Whitney test", "corr": "a Spearman correlation"}.get(test, "a plain test")
+        lines.append(f"Testing each leaf on its own ({plain}, without the tree) found {len(leaf_only)} more "
+                     f"{'taxon' if len(leaf_only) == 1 else 'taxa'} that miMic's tree test did not. They are not "
+                     "miMic's result and are not counted above; they are listed separately (\"leaf test only\"), "
+                     "as in the authors' own output.")
     return lines
 
 

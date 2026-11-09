@@ -45,8 +45,8 @@ def test_download_links_say_which_figure_they_belong_to(mimic_page):
 
 def test_result_tables_are_named_scrollable_regions_with_aligned_headers(mimic_page):
     _, page = mimic_page
-    assert 'role="region" aria-label="Most significant taxa" tabindex="0"' in page
-    assert '<caption class="visually-hidden">Most significant taxa</caption>' in page
+    assert 'role="region" aria-label="Most significant taxa (miMic)" tabindex="0"' in page
+    assert '<caption class="visually-hidden">Most significant taxa (miMic)</caption>' in page
     assert '<th scope="col" class="text-col">Direction</th>' in page  # text: left-aligned header
     assert '<th scope="col">p-value</th>' in page  # number: right-aligned, plain-language name
 

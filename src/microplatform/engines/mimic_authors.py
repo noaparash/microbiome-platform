@@ -56,6 +56,7 @@ IMAGES = "images"  # the folder handed to miMic (iMic images and the authors' ta
 PLOTS = "plots"  # where miMic's plot mode always writes (relative to the current folder)
 TABLES = ("df_corrs.csv", "miMic&Utest.csv", "u_test_without_mimic.csv", "just_mimic.csv")
 TREE_FORMATS = ("svg", "png", "pdf")
+TREE_PNG_MM, TREE_PNG_DPI = 180, 300  # the PNG's size: as the lab's reference tree (2,125 px square)
 
 ADJUSTMENTS = {
     "kstest": "SciPy 1.18 raises TypeError on kstest(x, 'norm', args=(loc, scale)); miMic calls it only "
@@ -67,7 +68,8 @@ ADJUSTMENTS = {
                    "`if index != None:` and relied on the old result (empty -> False, one element -> its "
                    "value). Inside the drawer only, that comparison gives the old result.",
     "tree_formats": "miMic renders correlations_tree.svg with ete3; the same tree and style are also "
-                    "rendered by ete3 to .png and .pdf (inside the drawer only).",
+                    "rendered by ete3 to .png (180 mm wide at 300 dpi, as the lab's reference tree) and .pdf "
+                    "(inside the drawer only).",
     "no_window": "miMic opens the tree in an interactive window (ete3 show) before saving it; without a "
                  "screen that window is skipped (the saved files are unchanged).",
     "offscreen": "Qt draws offscreen (QT_QPA_PLATFORM=offscreen), as miMic forces the Qt5Agg backend.",
@@ -220,8 +222,12 @@ def compatible():
         out = render(self, file_name, *args, tree_style=deepcopy(tree_style), **kwargs)
         stem, _, ext = str(file_name).rpartition(".")
         for other in TREE_FORMATS:
-            if other != ext:
-                render(self, f"{stem}.{other}", *args, tree_style=deepcopy(tree_style), **kwargs)
+            if other == ext:
+                continue
+            # The PNG at a printable size: without a width, ete3 uses the SVG's own units as pixels
+            # (73,630 px square on a 64-taxon tree). 180 mm at 300 dpi = the reference's 2,125 px.
+            size = dict(w=TREE_PNG_MM, units="mm", dpi=TREE_PNG_DPI) if other == "png" else {}
+            render(self, f"{stem}.{other}", *args, tree_style=deepcopy(tree_style), **{**kwargs, **size})
         return out
 
     def tree_view(*args, **kwargs):

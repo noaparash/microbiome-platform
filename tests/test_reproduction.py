@@ -107,6 +107,10 @@ def test_mimic_cladogram_is_the_authors_own_tree(run, tmp_path):
     workflows.run_goal(run, "differ", tmp_path / "cache")
     ours = run.figures_dir / "mimic_cladogram.svg"
     assert ours.exists() and run.figure_file("mimic_cladogram.png") is not None
+    from PIL import Image
+
+    with Image.open(run.figures_dir / "mimic_cladogram.png") as png:  # printable, as the lab's reference
+        assert 2000 <= max(png.size) <= 2200, png.size  # 180 mm at 300 dpi (it was once 73,630 px square)
     shown = [f.name for f in workflows.describe(run).findings]
     assert shown[0] == "mimic_cladogram"  # the headline figure, before the bars and the a-priori test
 
@@ -138,7 +142,8 @@ def mimic_theirs(tmp_path_factory):
         selected, _ = apply_mimic(str(folder), tag, eval="man", threshold_p=0.05, processed=processed,
                                   apply_samba=True, save=True)
     # Read back exactly what miMic wrote (pandas' default reader can be off in the last digit).
-    return selected, pd.read_csv(folder / "df_corrs.csv", index_col=0, float_precision="round_trip")
+    read = lambda name: pd.read_csv(folder / name, index_col=0, float_precision="round_trip")  # noqa: E731
+    return selected, read("df_corrs.csv"), read("just_mimic.csv"), read("u_test_without_mimic.csv")
 
 
 @pytest.fixture(scope="module")
@@ -148,27 +153,34 @@ def mimic_ours(tmp_path_factory):
     files = [(p.name, p.read_bytes()) for p in (MIMIC_EXAMPLE / "for_process.csv", MIMIC_EXAMPLE / "tag.csv")]
     run = workflows.start_run(root / "runs", sort_uploads(files))
     workflows.run_goal(run, "differ", cache_dir=root / "cache")
-    return run.engine_record(), run.table("significant_taxa")
+    both = pd.concat([run.table("significant_taxa"), run.table("leaf_test_only")], ignore_index=True)
+    return run.engine_record(), both, run.table("significant_taxa"), run.table("leaf_test_only")
 
 
 def test_mimic_finds_exactly_the_authors_taxa(mimic_theirs, mimic_ours):
-    _, theirs = mimic_theirs
-    _, ours = mimic_ours
+    """miMic's own result = the authors' just_mimic.csv; the leaf-test-only taxa = their
+    u_test_without_mimic.csv; together = their df_corrs.csv. The headline counts miMic's only."""
+    _, theirs, just_mimic, leaf_only = mimic_theirs
+    record, ours, our_mimic, our_leaf_only = mimic_ours
     assert len(theirs) > 0, "the authors' example should find significant taxa"
     assert sorted(ours["taxon"]) == sorted(theirs.index)
+    assert sorted(our_mimic["taxon"]) == sorted(just_mimic.index)
+    assert sorted(our_leaf_only["taxon"]) == sorted(leaf_only.index)
+    assert record["record"]["significant_taxa"] == len(just_mimic)
+    assert f"{len(just_mimic)} taxa are significant by miMic's tree test" in " ".join(record["summary"])
 
 
 def test_mimic_scores_and_p_values_are_identical(mimic_theirs, mimic_ours):
-    _, theirs = mimic_theirs
-    _, ours = mimic_ours
+    _, theirs, _, _ = mimic_theirs
+    _, ours, _, _ = mimic_ours
     ours = ours.set_index("taxon").loc[theirs.index]
     pd.testing.assert_series_equal(ours["p"], theirs["p"], check_names=False, check_exact=True)
     pd.testing.assert_series_equal(ours["statistic"], theirs["scc"], check_names=False, check_exact=True)
 
 
 def test_mimic_starts_the_post_hoc_test_at_the_same_level(mimic_theirs, mimic_ours):
-    selected, _ = mimic_theirs
-    record, _ = mimic_ours
+    selected, _, _, _ = mimic_theirs
+    record, _, _, _ = mimic_ours
     assert record["record"]["post_hoc_start"] == str(selected)
     assert record["record"]["eval"] == "man"
 
