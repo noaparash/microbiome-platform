@@ -106,7 +106,7 @@ def test_analyze_runs_a_whole_analysis_without_the_website(tmp_path):
     # With labels, the recommended task is miMic (its own cladogram first); data-quality figures come with every run.
     assert view.engine["tool"] == "miMic"
     assert {f.name for f in view.figures} == {"reads_per_sample", "mimic_cladogram", "mimic_significant_taxa",
-                                               "mimic_apriori_test", *OVERVIEW}
+                                               "mimic_rp_sp", *OVERVIEW}
 
 
 def test_every_goal_has_a_tool_reference():

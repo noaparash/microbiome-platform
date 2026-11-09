@@ -18,7 +18,8 @@ figures. This module runs the whole published pipeline, exactly as the authors' 
 Nothing statistical is reimplemented and the authors' package is never modified. mimic-da
 1.0.1 was written for older libraries, so ``compatible()`` makes four small, scoped
 adjustments for the libraries installed here (Python 3.13), each restoring the behaviour the
-authors' code was written against, plus two for running without a screen. They are listed in
+authors' code was written against, plus some for running without a screen and for presentation
+(file formats, a stand-in font, legible tree labels). They are listed in
 ``ADJUSTMENTS`` and recorded with every run.
 
 Run it: ``python -m microplatform.engines.mimic_authors processed.csv tag.csv out_dir``.
@@ -59,6 +60,9 @@ TREE_FORMATS = ("svg", "png", "pdf")
 TREE_PNG_MM, TREE_PNG_DPI = 180, 300  # the PNG's size: as the lab's reference tree (2,125 px square)
 TREE_LABEL_SCALE = 4  # miMic's leaf labels (100 pt) are ~4 px tall at that size; 400 pt reads clearly
 TREE_ARC_SPAN = 360  # ete3's default 359° leaves a cut-out wedge where the circle should close
+RP_SP_FIGURE = "tax_vs_rp_sp_anova_p"  # miMic's RP vs SP plot (plot_rp_sp_anova_p), in plots/
+AUTHORS_FONT = "Times New Roman"  # what miMic's diagnostic plots ask for
+FONT_STAND_IN = "Nimbus Roman"  # its metric-compatible clone (URW), on Linux servers without it
 
 ADJUSTMENTS = {
     "kstest": "SciPy 1.18 raises TypeError on kstest(x, 'norm', args=(loc, scale)); miMic calls it only "
@@ -77,6 +81,11 @@ ADJUSTMENTS = {
                        "wide that 100 pt labels are ~4 px tall at 180 mm) and the circle is closed (arc "
                        "360°, ete3's default 359° leaves a wedge cut out). The tree, the taxa, the markers' "
                        "sizes, shapes and colours are miMic's.",
+    "rp_sp_formats": "miMic saves its RP vs SP plot (tax_vs_rp_sp_anova_p) as .png only; the same matplotlib "
+                     "figure is also saved as .svg, right after miMic saves it.",
+    "font": "miMic's diagnostic plots ask for Times New Roman. Where it is not installed (the Linux server), "
+            "its metric-compatible clone Nimbus Roman is used instead of matplotlib's default sans-serif. "
+            "matplotlib's settings are restored after the run (miMic changes them globally).",
     "no_window": "miMic opens the tree in an interactive window (ete3 show) before saving it; without a "
                  "screen that window is skipped (the saved files are unchanged).",
     "offscreen": "Qt draws offscreen (QT_QPA_PLATFORM=offscreen), as miMic forces the Qt5Agg backend.",
@@ -190,12 +199,13 @@ def compatible():
     load_mimic()
     import ete3
     import matplotlib
+    import matplotlib.pyplot  # noqa: F401  (rp_sp_plot saves the current figure)
     import mimic_da.miMic_test as mt
     from scipy import stats
 
     seen: dict = {}
     saved = {"stats": mt.stats, "cm": mt.cm, "creare_tree_view": mt.creare_tree_view,
-             "calculate_rsp": mt.calculate_rsp}
+             "calculate_rsp": mt.calculate_rsp, "plot_rp_sp_anova_p": mt.plot_rp_sp_anova_p, "mpl": mt.mpl}
     show, render, index_ne = ete3.TreeNode.show, ete3.TreeNode.render, pd.Index.__ne__
     text_face = mt.TextFace
 
@@ -217,6 +227,29 @@ def compatible():
         def get_cmap(name=None, lut=None):
             cmap = matplotlib.colormaps[name]
             return cmap.resampled(lut) if lut is not None else cmap
+
+    from matplotlib import font_manager
+
+    installed = {f.name for f in font_manager.fontManager.ttflist}
+
+    class Matplotlib(types.ModuleType):
+        def __getattr__(self, name):
+            return getattr(saved["mpl"], name)
+
+        @staticmethod
+        def rc(group, **kwargs):
+            if (group == "font" and kwargs.get("family") == AUTHORS_FONT and AUTHORS_FONT not in installed
+                    and FONT_STAND_IN in installed):
+                kwargs["family"] = FONT_STAND_IN
+            return saved["mpl"].rc(group, **kwargs)
+
+    def rp_sp_plot(df, mixed, save):
+        seen["rp_sp_plotted"] = (df.copy(), mixed)
+        out = saved["plot_rp_sp_anova_p"](df, mixed, save)
+        # The figure miMic just saved as .png; no date and fixed element ids, so the same run gives the same file.
+        with matplotlib.rc_context({"svg.hashsalt": RP_SP_FIGURE}):
+            matplotlib.pyplot.gcf().savefig(f"{save}/{RP_SP_FIGURE}.svg", metadata={"Date": None})
+        return out
 
     def old_truth(self, other):
         result = index_ne(self, other)
@@ -255,11 +288,12 @@ def compatible():
         seen["rp_sp"] = df.copy()
         return saved["calculate_rsp"](df, save)
 
-    mt.stats, mt.cm = Stats("stats"), Colormaps("cm")
-    mt.creare_tree_view, mt.calculate_rsp = tree_view, rsp
+    mt.stats, mt.cm, mt.mpl = Stats("stats"), Colormaps("cm"), Matplotlib("matplotlib")
+    mt.creare_tree_view, mt.calculate_rsp, mt.plot_rp_sp_anova_p = tree_view, rsp, rp_sp_plot
     ete3.TreeNode.show = lambda self, *a, **k: None
     try:
-        yield seen
+        with matplotlib.rc_context():  # miMic sets fonts globally (mpl.rc); restore them afterwards
+            yield seen
     finally:
         for name, value in saved.items():
             setattr(mt, name, value)

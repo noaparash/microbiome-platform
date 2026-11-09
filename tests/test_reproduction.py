@@ -115,13 +115,22 @@ def test_mimic_cladogram_is_the_authors_own_tree(run, tmp_path):
     # Legible labels (miMic's 100 pt were ~4 px tall at this size) and a closed circle.
     assert 'font-size="400pt"' in svg and 'font-size="100pt"' not in svg
     shown = [f.name for f in workflows.describe(run).findings]
-    assert shown[0] == "mimic_cladogram"  # the headline figure, before the bars and the a-priori test
+    assert shown[0] == "mimic_cladogram"  # the headline figure, before the bars
+    assert shown[-1] == "mimic_rp_sp"  # the authors' RP vs SP check, after the bars
+    assert "mimic_apriori_test" not in shown  # replaced by the authors' own figure
 
     features = workflows.build_dataset(run, CANONICAL, tmp_path / "cache")[0]
     tags = features.labels.to_frame()
     mimic_authors.run_bundle(features.features.loc[tags.index], tags, tmp_path / "authors")
     theirs = tmp_path / "authors" / "plots" / "correlations_tree.svg"
     assert ours.read_bytes() == theirs.read_bytes()
+    # miMic's RP vs SP plot: byte for byte the authors' plot_rp_sp_anova_p (same seed), PNG and SVG.
+    for ext in ("png", "svg"):
+        mine = (run.figures_dir / f"mimic_rp_sp.{ext}").read_bytes()
+        assert mine == (tmp_path / "authors" / "plots" / f"tax_vs_rp_sp_anova_p.{ext}").read_bytes(), ext
+    rp_sp = pd.read_csv(run.figures_dir / "mimic_rp_sp.csv")
+    authors = pd.read_csv(tmp_path / "authors" / "rp_sp.csv")
+    assert rp_sp["RP"].tolist() == authors["RP"].tolist() and rp_sp["SP"].tolist() == authors["SP"].tolist()
 
 
 # --- miMic ---------------------------------------------------------------------------

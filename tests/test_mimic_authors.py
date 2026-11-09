@@ -16,7 +16,8 @@ from microplatform.engines.mimic import load_mimic
 ROOT = Path(__file__).parents[1]
 EXAMPLE = ROOT / "tests" / "data" / "mimic_example"
 PLOTS = ["correlations_tree.pdf", "correlations_tree.png", "correlations_tree.svg", "corrs_within_family.png",
-         "hist.png", "interaction.png", "rsp_vs_beta.png", "tax_vs_rp_sp_anova_p.png"]
+         "hist.png", "interaction.png", "rsp_vs_beta.png", "tax_vs_rp_sp_anova_p.png",
+         "tax_vs_rp_sp_anova_p.svg"]
 
 
 # --- the adjustments: scoped, and each one gives the old behaviour -----------------------------

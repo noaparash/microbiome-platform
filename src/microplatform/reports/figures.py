@@ -159,6 +159,8 @@ class RenderedFigure:
     png: Path
     data: pd.DataFrame
     section: Section = "findings"
+    lead: bool = True  # first among the figures (the headline); False: after the figures we draw
+    wide: bool = True  # takes the whole row; False for a small plot (shown at its own size)
 
 
 # --- the figures for preprocessing ---------------------------------------------
@@ -240,7 +242,8 @@ def export(figures: list[Figure], out_dir: Path) -> list[ExportedFigure]:
 
 def export_rendered(figures: list[RenderedFigure], out_dir: Path) -> list[ExportedFigure]:
     """Copy each tool-drawn figure's SVG and PNG unchanged, write its data CSV and an HTML page showing
-    the SVG, and add them to the folder's manifest (first among the figures: it is the headline)."""
+    the SVG, and add them to the folder's manifest (first among the figures when ``lead``: the headline;
+    otherwise after the others)."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     exported = []
@@ -258,9 +261,11 @@ def export_rendered(figures: list[RenderedFigure], out_dir: Path) -> list[Export
             f"<h1>{html.escape(fig.title)}</h1><p>{html.escape(fig.caption)}</p>{svg}</body></html>\n",
             encoding="utf-8")
         files = {f: f"{fig.name}.{f}" for f in ("png", "svg", "html", "csv")}
-        exported.append(ExportedFigure(fig.name, fig.title, fig.caption, files, fig.section, wide=True,
+        exported.append(ExportedFigure(fig.name, fig.title, fig.caption, files, fig.section, wide=fig.wide,
                                        rendered=True))
-    _add_to_manifest(exported, out_dir, first=True)
+    leads = {f.name for f in figures if f.lead}
+    _add_to_manifest([e for e in exported if e.name in leads], out_dir, first=True)
+    _add_to_manifest([e for e in exported if e.name not in leads], out_dir)
     return exported
 
 
