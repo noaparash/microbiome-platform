@@ -206,9 +206,10 @@ def _authors_plots(work_dir: Path, images: Path, samba_output, tag: pd.DataFrame
         drawn.append(RenderedFigure(
             name="mimic_cladogram",
             title="miMic's cladogram: where on the taxonomy tree the groups differ",
-            caption=("Drawn by miMic itself (mimic-da's own tree drawing; for legibility only, the labels are "
-                     "4x larger and the circle is closed). The taxonomy tree of the "
-                     f"significant taxa; each node's size grows with -log10(p), and its colour gives the direction ("
+            caption=("Drawn by miMic itself (mimic-da's own tree drawing; for readability, every marker is capped "
+                     "at a small size, as in the lab's reference tree, and the circle is closed). The taxonomy "
+                     "tree of the significant taxa; a node's size grows with -log10(p) up to that cap (so most "
+                     "are the same size), and its colour gives the direction ("
                      f"{colours}). Shape: sphere = found by both miMic's tree test and the leaf test, circle = the "
                      "tree test only, square = the leaf test only (not miMic's result; listed separately). The "
                      "background shows each taxon's family. Data (CSV): every taxon on the tree, with what found it "

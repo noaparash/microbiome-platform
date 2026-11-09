@@ -19,7 +19,7 @@ Nothing statistical is reimplemented and the authors' package is never modified.
 1.0.1 was written for older libraries, so ``compatible()`` makes four small, scoped
 adjustments for the libraries installed here (Python 3.13), each restoring the behaviour the
 authors' code was written against, plus some for running without a screen and for presentation
-(file formats, a stand-in font, legible tree labels). They are listed in
+(file formats, a stand-in font, the tree's marker cap). They are listed in
 ``ADJUSTMENTS`` and recorded with every run.
 
 Run it: ``python -m microplatform.engines.mimic_authors processed.csv tag.csv out_dir``.
@@ -58,7 +58,12 @@ PLOTS = "plots"  # where miMic's plot mode always writes (relative to the curren
 TABLES = ("df_corrs.csv", "miMic&Utest.csv", "u_test_without_mimic.csv", "just_mimic.csv")
 TREE_FORMATS = ("svg", "png", "pdf")
 TREE_PNG_MM, TREE_PNG_DPI = 180, 300  # the PNG's size: as the lab's reference tree (2,125 px square)
-TREE_LABEL_SCALE = 4  # miMic's leaf labels (100 pt) are ~4 px tall at that size; 400 pt reads clearly
+# Marker cap (declared readability change from mimic-da 1.0.1, matching the colleague's rendered tree):
+# miMic sizes markers 17 x -log10(p) with no limit (2,338 units on a p = 1e-137 taxon, beside 100 pt labels).
+# The colleague's tree: largest circle radius ~3.5 (7 across), squares ~7 wide, labels ~3.5x that radius,
+# i.e. the largest marker is ~0.57 of the label size. With miMic's 100 pt labels: at most 57.
+TREE_LABEL_PT = 100  # miMic's own label size (TextFace fsize=100), unchanged
+TREE_MARKER_MAX = round(TREE_LABEL_PT * 7 / (3.5 * 3.5))  # = 57: the colleague's marker-to-label proportion
 TREE_ARC_SPAN = 360  # ete3's default 359° leaves a cut-out wedge where the circle should close
 RP_SP_FIGURE = "tax_vs_rp_sp_anova_p"  # miMic's RP vs SP plot (plot_rp_sp_anova_p), in plots/
 AUTHORS_FONT = "Times New Roman"  # what miMic's diagnostic plots ask for
@@ -76,11 +81,13 @@ ADJUSTMENTS = {
     "tree_formats": "miMic renders correlations_tree.svg with ete3; the same tree and style are also "
                     "rendered by ete3 to .png (180 mm wide at 300 dpi, as the lab's reference tree) and .pdf "
                     "(inside the drawer only).",
-    "tree_legibility": "Presentation only, in the cladogram drawer: the leaf labels are drawn 4x larger "
-                       "(400 pt instead of miMic's 100 pt; miMic's large -log10(p) markers make the tree so "
-                       "wide that 100 pt labels are ~4 px tall at 180 mm) and the circle is closed (arc "
-                       "360°, ete3's default 359° leaves a wedge cut out). The tree, the taxa, the markers' "
-                       "sizes, shapes and colours are miMic's.",
+    "tree_markers": "Declared readability change from mimic-da 1.0.1, matching the colleague's rendered "
+                    "cladogram: every node marker is at most 57 units across (miMic: 17 x -log10(p) with no "
+                    "limit, up to 2,338 on a p = 1e-137 taxon), i.e. the colleague's proportion of the largest "
+                    "marker (circle radius ~3.5, square ~7) to the labels (~3.5x that radius) at miMic's own "
+                    "100 pt labels. Below the cap miMic's sizes stay. Shapes, fills, colours, labels and taxa "
+                    "are miMic's.",
+    "tree_closed": "The cladogram's circle is closed (arc 360°; ete3's default 359° leaves a wedge cut out).",
     "rp_sp_formats": "miMic saves its RP vs SP plot (tax_vs_rp_sp_anova_p) as .png only; the same matplotlib "
                      "figure is also saved as .svg, right after miMic saves it.",
     "font": "miMic's diagnostic plots ask for Times New Roman. Where it is not installed (the Linux server), "
@@ -207,7 +214,6 @@ def compatible():
     saved = {"stats": mt.stats, "cm": mt.cm, "creare_tree_view": mt.creare_tree_view,
              "calculate_rsp": mt.calculate_rsp, "plot_rp_sp_anova_p": mt.plot_rp_sp_anova_p, "mpl": mt.mpl}
     show, render, index_ne = ete3.TreeNode.show, ete3.TreeNode.render, pd.Index.__ne__
-    text_face = mt.TextFace
 
     class Stats(types.ModuleType):
         def __getattr__(self, name):
@@ -260,6 +266,9 @@ def compatible():
         return result
 
     def render_formats(self, file_name, *args, tree_style=None, **kwargs):
+        for node in self.traverse():  # miMic set every node's style just before rendering
+            if node.img_style["size"] > TREE_MARKER_MAX:
+                node.img_style["size"] = TREE_MARKER_MAX
         if tree_style is not None:
             tree_style = deepcopy(tree_style)
             tree_style.arc_span = TREE_ARC_SPAN
@@ -274,15 +283,12 @@ def compatible():
             render(self, f"{stem}.{other}", *args, tree_style=deepcopy(tree_style), **{**kwargs, **size})
         return out
 
-    def legible_text(text, fsize=10, **kwargs):
-        return text_face(text, fsize=fsize * TREE_LABEL_SCALE, **kwargs)
-
     def tree_view(*args, **kwargs):
-        pd.Index.__ne__, ete3.TreeNode.render, mt.TextFace = old_truth, render_formats, legible_text
+        pd.Index.__ne__, ete3.TreeNode.render = old_truth, render_formats
         try:
             return saved["creare_tree_view"](*args, **kwargs)
         finally:
-            pd.Index.__ne__, ete3.TreeNode.render, mt.TextFace = index_ne, render, text_face
+            pd.Index.__ne__, ete3.TreeNode.render = index_ne, render
 
     def rsp(df, save):
         seen["rp_sp"] = df.copy()

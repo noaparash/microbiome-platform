@@ -112,8 +112,12 @@ def test_mimic_cladogram_is_the_authors_own_tree(run, tmp_path):
     with Image.open(run.figures_dir / "mimic_cladogram.png") as png:  # printable, as the lab's reference
         assert 2000 <= max(png.size) <= 2200, png.size  # 180 mm at 300 dpi (it was once 73,630 px square)
     svg = ours.read_text()
-    # Legible labels (miMic's 100 pt were ~4 px tall at this size) and a closed circle.
-    assert 'font-size="400pt"' in svg and 'font-size="100pt"' not in svg
+    # miMic's own 100 pt labels; markers capped (TREE_MARKER_MAX), so the tree is no longer stretched by
+    # 2,000-unit markers (the SVG was ~67,000 units wide on the 1,506-sample case).
+    assert 'font-size="100pt"' in svg and 'font-size="400pt"' not in svg
+    import re
+    radii = [float(r) for r in re.findall(r'<circle[^>]* r="([0-9.]+)"', svg)]
+    assert radii and max(radii) <= mimic_authors.TREE_MARKER_MAX / 2 + 0.5, max(radii)
     shown = [f.name for f in workflows.describe(run).findings]
     assert shown[0] == "mimic_cladogram"  # the headline figure, before the bars
     assert shown[-1] == "mimic_rp_sp"  # the authors' RP vs SP check, after the bars
