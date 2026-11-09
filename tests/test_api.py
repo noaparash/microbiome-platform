@@ -21,13 +21,15 @@ from microplatform.router.goals import GOALS
 
 ROOT = Path(__file__).parents[1]
 
-# The public API as released in 0.3.0 (0.2.0 + ``metabolites`` in analyze). If this test fails,
-# the API changed: make sure it was meant to, record it in CHANGELOG.md (Added / Changed / Removed),
-# then update this.
+# The public API as released in 0.3.0 (0.2.0 + ``metabolites`` in analyze), plus, unreleased and in
+# CHANGELOG.md: ``preprocessing`` in analyze and ``as_is`` in build_dataset (both last, with defaults,
+# so earlier calls still work). If this test fails, the API changed: make sure it was meant to,
+# record it in CHANGELOG.md (Added / Changed / Removed), then update this.
 API_0_3 = {
     "analyze": "mp.analyze(counts: str | Path, labels: str | Path | None = None, goal: str | None = None, "
                "out_dir: str | Path = 'microplatform-runs', cache_dir: str | Path | None = None, "
-               "options: dict | None = None, metabolites: str | Path | None = None) -> RunView",
+               "options: dict | None = None, metabolites: str | Path | None = None, "
+               "preprocessing: str | None = None) -> RunView",
     "read_table": "mp.read_table(source: str | IO, **kwargs) -> DataFrame",
     "profile_counts": "mp.profile_counts(raw: DataFrame) -> CountsProfile",
     "profile_labels": "mp.profile_labels(tags: DataFrame, sample_ids: list[str]) -> LabelProfile",
@@ -44,7 +46,8 @@ API_0_3 = {
     "run_goal": "mp.run_goal(run: Run, goal_id: str, cache_dir: Path | None = None, "
                 "choices: dict | None = None) -> None",
     "build_dataset": "mp.build_dataset(run: Run, settings: PreprocessSettings = CANONICAL, "
-                     "cache_dir: Path | None = None, engine: str | None = None) -> tuple[Dataset, PreprocessResult]",
+                     "cache_dir: Path | None = None, engine: str | None = None, as_is: bool = False) "
+                     "-> tuple[Dataset, PreprocessResult]",
     "Dataset": "mp.Dataset(features: DataFrame, settings: PreprocessSettings, raw_counts: DataFrame, "
                "labels: Series | None = None, label_kind: LabelKind | None = None, "
                "metabolites: DataFrame | None = None, engine: str | None = None)",
@@ -100,10 +103,10 @@ def test_analyze_runs_a_whole_analysis_without_the_website(tmp_path):
     assert view.run.status == "done"
     assert view.record["output_features"] > 0
     assert (view.run.path / "processed.csv").exists()
-    # With labels, the recommended task is miMic; data-quality figures come with every run.
+    # With labels, the recommended task is miMic (its own cladogram first); data-quality figures come with every run.
     assert view.engine["tool"] == "miMic"
-    assert {f.name for f in view.figures} == {"reads_per_sample", "mimic_significant_taxa", "mimic_apriori_test",
-                                               *OVERVIEW}
+    assert {f.name for f in view.figures} == {"reads_per_sample", "mimic_cladogram", "mimic_significant_taxa",
+                                               "mimic_apriori_test", *OVERVIEW}
 
 
 def test_every_goal_has_a_tool_reference():

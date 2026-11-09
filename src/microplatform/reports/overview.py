@@ -60,6 +60,10 @@ VIOLIN = "composition_violin"  # only with split_violin=True and two groups, rig
 
 __all__ = ["overview_figures", "alpha_diversity", "bray_curtis_pcoa", "sample_groups"]
 
+OVERVIEW_UNAVAILABLE = ("The descriptive overview is not drawn for this table: it has negative values (it is "
+                        "already log-transformed or z-scored), and composition, diversity and distances between "
+                        "samples need abundances.")
+
 
 def overview_figures(
     counts: pd.DataFrame,
@@ -81,7 +85,12 @@ def overview_figures(
     (default) or "colorblind"; ``split_violin`` adds the per-phylum split violins when the
     samples form two groups. A table that cannot be shown as relative abundance (e.g.
     already log-transformed, with negative values) gets no composition figures.
+    A table with negative values (already log-transformed or z-scored, e.g. MIPMLP output used as it
+    is) gets no overview at all: composition, diversity and Bray-Curtis distances need abundances,
+    and would be wrong on such values (the page says why: ``OVERVIEW_UNAVAILABLE``).
     """
+    if (counts.to_numpy() < 0).any():
+        return []
     with_reads = counts.loc[counts.sum(axis=1) > 0]
     grouped = label_kind in GROUPABLE and labels is not None
     groups = sample_groups(with_reads.index, labels if grouped else None)

@@ -4,16 +4,25 @@
 {% macro figure_grid(run_id, figs) -%}
 <div class="figures{% if figs|length == 1 %} figures-single{% endif %}" data-plotly="{{ url_for('main.plotly_js') }}">
   {% for fig in figs %}
-    <figure class="figure{% if fig.tall %} figure-tall{% endif %}{% if fig.wide %} figure-wide{% endif %}" aria-labelledby="fig-{{ fig.name }}">
+    <figure class="figure{% if fig.tall %} figure-tall{% endif %}{% if fig.wide %} figure-wide{% endif %}{% if fig.rendered %} figure-rendered{% endif %}" aria-labelledby="fig-{{ fig.name }}">
       <h4 class="figure-title" id="fig-{{ fig.name }}">{{ fig.title }}</h4>
-      <div class="plot" data-plot="{{ url_for('main.figure_file', run_id=run_id, name=fig.files.json) }}"
-           data-label="{{ fig.title }}">
-        <img src="{{ url_for('main.figure_file', run_id=run_id, name=fig.files.png) }}"
-             alt="{{ fig.title }}. {{ fig.caption }}" loading="lazy">
-      </div>
+      {% if fig.rendered %}
+        {# Drawn by the tool's own code (e.g. miMic's cladogram): its SVG as it is, no interactive version. #}
+        <div class="plot">
+          <img src="{{ url_for('main.figure_file', run_id=run_id, name=fig.files.svg) }}"
+               alt="{{ fig.title }}. {{ fig.caption }}" loading="lazy">
+        </div>
+      {% else %}
+        <div class="plot" data-plot="{{ url_for('main.figure_file', run_id=run_id, name=fig.files.json) }}"
+             data-label="{{ fig.title }}">
+          <img src="{{ url_for('main.figure_file', run_id=run_id, name=fig.files.png) }}"
+               alt="{{ fig.title }}. {{ fig.caption }}" loading="lazy">
+        </div>
+      {% endif %}
       <figcaption>{{ fig.caption }}</figcaption>
       <p class="downloads">Download:
-        {% set formats = [("png", "PNG"), ("svg", "SVG"), ("html", "Interactive"), ("csv", "Data (CSV)")]
+        {% set formats = [("png", "PNG"), ("svg", "SVG"), ("html", "Web page" if fig.rendered else "Interactive"),
+                          ("csv", "Data (CSV)")]
                          + ([("tests", "Tests (CSV)")] if fig.files.tests else []) %}
         {% for fmt, label in formats %}
           <a href="{{ url_for('main.figure_file', run_id=run_id, name=fig.files[fmt], download=1) }}">{{ label }}<span class="visually-hidden"> of “{{ fig.title }}”</span></a>{% if not loop.last %} ·{% endif %}

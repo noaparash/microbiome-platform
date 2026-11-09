@@ -151,14 +151,26 @@ def run_goal(run_id: str):
     return redirect(url_for(".analysis", run_id=run.id, _anchor="results"))
 
 
+@bp.post("/runs/<run_id>/preprocessing")
+def set_preprocessing(run_id: str):
+    """The data check's choice: use the table as it is, or preprocess it with MIPMLP."""
+    run = _get_run(run_id)
+    try:
+        workflows.set_preprocessing(run, request.form.get("preprocessing", ""))
+    except UserFacingError as exc:
+        _flash_error(exc)
+    return redirect(url_for(".analysis", run_id=run.id, _anchor="plan"))
+
+
 @bp.get("/runs/<run_id>/download")
 def download(run_id: str):
     run = _get_run(run_id)
     if not run.processed_file.exists():
         abort(404)
+    skipped = (run.record() or {}).get("skipped")
     return send_file(
         run.processed_file, mimetype="text/csv", as_attachment=True,
-        download_name=f"{_stem(run)}_mipmlp.csv",
+        download_name=f"{_stem(run)}_{'table_as_used' if skipped else 'mipmlp'}.csv",
     )
 
 

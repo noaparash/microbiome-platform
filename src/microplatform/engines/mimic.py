@@ -15,9 +15,11 @@ Runs the authors' ``apply_mimic`` unchanged, fed from the shared ``Dataset``
 - it runs inside ``work_dir``, because miMic always writes .pkl files into the
   current folder.
 
-miMic's own plot mode is not used here; results are drawn through
-``reports.figures`` instead. The authors' full bundle (their tables, diagnostic
-plots and cladogram) is made by ``engines/mimic_authors.py``, outside the website.
+The headline figure is miMic's own cladogram, drawn by the authors' code (the
+final call of their plot mode; see ``_cladogram``). The significant-taxa bars and
+the a-priori test are drawn through ``reports.figures``. The authors' full bundle
+(their tables and every diagnostic plot) is made by ``engines/mimic_authors.py``,
+outside the website.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ import io
 import logging
 import math
 import os
+import shutil
 import warnings
 from importlib.metadata import version
 from pathlib import Path
@@ -37,7 +40,7 @@ from microplatform.core.contract import RANK_SEPARATOR, Dataset
 from microplatform.core.errors import UserFacingError
 from microplatform.engines.base import Engine, EngineResult
 from microplatform.engines.labels import native_tag
-from microplatform.reports.figures import Figure
+from microplatform.reports.figures import Figure, RenderedFigure
 
 log = logging.getLogger(__name__)
 
@@ -125,8 +128,10 @@ class MimicEngine(Engine):
 
         hits = _significant_taxa(work_dir, start, data.label_kind, coding)
         apriori = _apriori_table(levels)
+        tree = _cladogram(work_dir, images, samba_output, tag, start, test, hits, data.label_kind, coding)
         return EngineResult(
             summary=_summary(start, hits, apriori, data.label_kind, coding),
+            rendered=[tree] if tree else [],
             figures=[f for f in (_taxa_figure(hits, data.label_kind, coding), _apriori_figure(apriori)) if f],
             tables={"significant_taxa": hits, "apriori_test": apriori},
             highlight=("significant_taxa", "Most significant taxa") if not hits.empty else None,
@@ -136,8 +141,64 @@ class MimicEngine(Engine):
                 "eval": test, "threshold_p": THRESHOLD_P, "sister_correction": SISTER_CORRECTION,
                 "correct_first": CORRECT_FIRST, "samples": len(tag), "label_coding": coding,
                 "post_hoc_start": str(start), "significant_taxa": len(hits),
+                "cladogram": (CLADOGRAM_CALL if tree else "not drawn (no significant taxa)"),
             },
         )
+
+
+# miMic's cladogram is drawn by the authors' own code: the last call of ``apply_mimic(mode="plot")``,
+# which goes on to ``creare_tree_view``. The rest of plot mode (16 more test passes on real and shuffled
+# labels) only feeds its other diagnostic plots, so it is skipped; the tree is the same (tests/
+# test_reproduction.py compares it byte for byte with the authors' whole plot mode).
+CLADOGRAM_CALL = ("mimic_da.miMic_test.calculate_all_imgs_tag_corr(mode='plot', colorful=True) -> "
+                  "creare_tree_view (ete3), unchanged, with engines/mimic_authors.ADJUSTMENTS; matplotlib "
+                  "draws without a screen (Agg)")
+
+
+def _cladogram(work_dir: Path, images: Path, samba_output, tag: pd.DataFrame, start, test: str,
+               hits: pd.DataFrame, kind: str, coding: dict) -> RenderedFigure | None:
+    """miMic's own correlation cladogram (``plots/correlations_tree.svg``), or None if nothing is significant."""
+    if start == "nosignificant" or hits.empty:
+        return None
+    import mimic_da.miMic_test as mt
+
+    from microplatform.engines.mimic_authors import COLORFUL, THRESHOLD_EDGE, compatible  # (imports this module)
+
+    plots = work_dir / "plots"
+    shutil.rmtree(plots, ignore_errors=True)
+    import matplotlib.pyplot as plt
+
+    backend = plt.get_backend()
+    plt.switch_backend("Agg")  # the authors' plot mode opens windows (plt.show); here it only saves files
+    try:
+        with compatible(), contextlib.chdir(work_dir), _quiet():
+            mt.calculate_all_imgs_tag_corr(
+                samba_output, str(images), tag, start, eval=test, sis=SISTER_CORRECTION,
+                correct_first=CORRECT_FIRST, mode="plot", threshold_p=THRESHOLD_P,
+                THRESHOLD_edge=THRESHOLD_EDGE, shuffle=False, colorful=COLORFUL,
+            )
+    finally:
+        plt.close("all")
+        with contextlib.suppress(Exception):
+            plt.switch_backend(backend)
+    svg, png = plots / "correlations_tree.svg", plots / "correlations_tree.png"
+    if not svg.exists() or not png.exists():
+        log.warning("miMic did not draw its cladogram in %s", plots)
+        return None
+    if kind == "binary":
+        colours = f"blue: higher in '{coding['1']}', red: higher in '{coding['0']}'"
+    else:
+        colours = "blue: increases with the label, red: decreases with it"
+    return RenderedFigure(
+        name="mimic_cladogram",
+        title="miMic's cladogram: where on the taxonomy tree the groups differ",
+        caption=("Drawn by miMic itself (mimic-da's own tree drawing, unchanged). The taxonomy tree of the "
+                 f"significant taxa; each node's size grows with -log10(p), and its colour gives the direction ("
+                 f"{colours}). Shape: sphere = found by both miMic's tree test and the leaf test, circle = the "
+                 "tree test only, square = the leaf test only. The background shows each taxon's family. "
+                 "Data (CSV): the significant taxa, as in the table below."),
+        svg=svg, png=png, data=hits,
+    )
 
 
 def display_name(taxon: str) -> str:

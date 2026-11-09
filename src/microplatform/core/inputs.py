@@ -71,9 +71,15 @@ class Inputs:
 
 
 def is_lineage(name: str) -> bool:
-    """'k__Bacteria;p__;c__…' is a lineage: every non-empty rank starts with a rank letter and '__'."""
+    """A taxonomy string: 'k__Bacteria;p__;c__…' (every non-empty rank starts with a rank letter
+    and '__'), or MIPMLP's own output names, ranks without prefixes ('Bacteria;Firmicutes;…;
+    Lachnospiraceae_0;;', and its 'else;;;;;;;' column)."""
     parts = [p.strip() for p in str(name).split(RANK_SEPARATOR)]
-    return bool(parts[0]) and all(RANK_PART.match(p) for p in parts if p)
+    if not parts[0]:
+        return False
+    if any("__" in p for p in parts):
+        return all(RANK_PART.match(p) for p in parts if p)
+    return len(parts) > 1
 
 
 def with_taxonomy_row(content: bytes) -> bytes | None:

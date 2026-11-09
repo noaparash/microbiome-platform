@@ -206,10 +206,30 @@ class _Heartbeat:
         while not self._stop.wait(HEARTBEAT_SECONDS):
             try:
                 data = json.loads(self.lock_file.read_text(encoding="utf-8"))
-                data["heartbeat"] = time.time()
-                self.lock_file.write_text(json.dumps(data), encoding="utf-8")
+            except FileNotFoundError:
+                return  # the lock is gone: the run is over
             except (OSError, ValueError):
+                continue  # a moment's clash with a reader: try again at the next beat
+            data["heartbeat"] = time.time()
+            _replace_atomically(self.lock_file, json.dumps(data))
+
+
+def _replace_atomically(path: Path, text: str) -> None:
+    """Write ``text`` to ``path`` so readers only ever see the old or the new content, never a half-written
+    file (a half-written lock would read as "no heartbeat" and make a live run look abandoned)."""
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        for attempt in range(5):
+            try:
+                os.replace(tmp, path)
                 return
+            except PermissionError:  # Windows: a reader has the file open for a moment
+                time.sleep(0.05 * (attempt + 1))
+    except OSError:
+        pass
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def _heartbeat_age(run: runs.Run) -> float:

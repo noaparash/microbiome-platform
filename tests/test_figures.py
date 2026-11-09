@@ -117,8 +117,9 @@ def test_bundle_has_everything(finished_run):
         names = set(zf.namelist())
         assert {"README.txt", "record.json", "results/processed_table.csv",
                 "inputs/counts.csv", "inputs/labels.csv"} <= names
-        for fig in ("reads_per_sample", "taxa_prevalence", "composition_bars", "beta_pcoa"):
-            assert {f"figures/{fig}.{fmt}" for fmt in FORMATS} <= names
+        assert {f"figures/2_data_quality/reads_per_sample.{fmt}" for fmt in FORMATS} <= names
+        for fig in ("taxa_prevalence", "composition_bars", "beta_pcoa"):
+            assert {f"figures/3_descriptive_overview/{fig}.{fmt}" for fmt in FORMATS} <= names
         assert not any(n.endswith(".json") and n.startswith("figures/") for n in names)
         assert json.loads(zf.read("record.json"))["tool"] == "MIPMLP"
         assert finished_run.id in zf.read("README.txt").decode()

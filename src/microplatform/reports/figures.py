@@ -10,12 +10,16 @@ A ``Figure`` holds the exact table that is plotted plus how to draw it.
     <name>.csv    the underlying data, so the figure can be re-made or edited
     <name>_tests.csv   the statistical tests shown on the figure, if any (``Figure.stats``)
 
-Every engine draws through this module, so all results look and download alike.
+Every engine draws through this module, so all results look and download alike. The one
+exception is a figure drawn by a tool's own plotting code (``RenderedFigure``, e.g. miMic's
+cladogram): ``export_rendered`` copies its SVG and PNG unchanged and adds the HTML page and the CSV.
 """
 
 from __future__ import annotations
 
+import html
 import json
+import shutil
 import textwrap
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -137,6 +141,24 @@ class ExportedFigure:
     section: Section = "quality"
     tall: bool = False  # one row per item (e.g. per taxon): needs the full width and more height
     wide: bool = False  # many bars side by side, or several pies: needs the full width
+    rendered: bool = False  # drawn by a tool's own plotting code (RenderedFigure): no interactive plotly version
+
+
+@dataclass
+class RenderedFigure:
+    """A figure drawn by a tool's own plotting code, not by us (e.g. miMic's cladogram).
+
+    Its SVG and PNG are copied unchanged; the export adds a standalone HTML page that shows the SVG,
+    and ``data`` as the CSV (what the figure shows). It is never redrawn.
+    """
+
+    name: str
+    title: str
+    caption: str
+    svg: Path
+    png: Path
+    data: pd.DataFrame
+    section: Section = "findings"
 
 
 # --- the figures for preprocessing ---------------------------------------------
@@ -212,12 +234,42 @@ def export(figures: list[Figure], out_dir: Path) -> list[ExportedFigure]:
         exported.append(ExportedFigure(
             fig.name, fig.title, fig.caption, files, fig.section, tall=fig.kind == "barh", wide=_is_wide(fig),
         ))
+    _add_to_manifest(exported, out_dir)
+    return exported
+
+
+def export_rendered(figures: list[RenderedFigure], out_dir: Path) -> list[ExportedFigure]:
+    """Copy each tool-drawn figure's SVG and PNG unchanged, write its data CSV and an HTML page showing
+    the SVG, and add them to the folder's manifest (first among the figures: it is the headline)."""
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    exported = []
+    for fig in figures:
+        shutil.copyfile(fig.svg, out_dir / f"{fig.name}.svg")
+        shutil.copyfile(fig.png, out_dir / f"{fig.name}.png")
+        fig.data.to_csv(out_dir / f"{fig.name}.csv", index=False)
+        svg = Path(fig.svg).read_text(encoding="utf-8")
+        svg = svg[svg.index("<svg"):] if "<svg" in svg else svg  # inline: drop the XML declaration
+        (out_dir / f"{fig.name}.html").write_text(
+            "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">"
+            f"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>{html.escape(fig.title)}</title>"
+            "<style>body{margin:16px;font-family:Arial,sans-serif;color:#0f2e33;background:#fff}"
+            "svg{max-width:100%;height:auto}p{max-width:60rem}</style></head><body>"
+            f"<h1>{html.escape(fig.title)}</h1><p>{html.escape(fig.caption)}</p>{svg}</body></html>\n",
+            encoding="utf-8")
+        files = {f: f"{fig.name}.{f}" for f in ("png", "svg", "html", "csv")}
+        exported.append(ExportedFigure(fig.name, fig.title, fig.caption, files, fig.section, wide=True,
+                                       rendered=True))
+    _add_to_manifest(exported, out_dir, first=True)
+    return exported
+
+
+def _add_to_manifest(exported: list[ExportedFigure], out_dir: Path, first: bool = False) -> None:
+    """Replace figures of the same name in the manifest and keep the others."""
     names = {e.name for e in exported}
     kept = [e for e in load_manifest(out_dir) if e.name not in names]
-    (out_dir / "figures.json").write_text(
-        json.dumps([asdict(e) for e in kept + exported], indent=2), encoding="utf-8"
-    )
-    return exported
+    ordered = exported + kept if first else kept + exported
+    (out_dir / "figures.json").write_text(json.dumps([asdict(e) for e in ordered], indent=2), encoding="utf-8")
 
 
 def load_manifest(figures_dir: Path) -> list[ExportedFigure]:

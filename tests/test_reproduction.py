@@ -96,6 +96,27 @@ def test_a_repeated_lineage_in_the_column_names_is_kept_as_written(tmp_path):
     pd.testing.assert_frame_equal(from_headers, combined)
 
 
+# --- miMic's cladogram: the authors' own drawing ---------------------------------------------
+
+def test_mimic_cladogram_is_the_authors_own_tree(run, tmp_path):
+    """The engine draws miMic's cladogram with the last call of the authors' plot mode only. On the
+    same table and labels, its SVG is byte for byte the one the authors' whole plot mode
+    (engines/mimic_authors.py, apply_mimic(mode="plot")) writes."""
+    from microplatform.engines import mimic_authors
+
+    workflows.run_goal(run, "differ", tmp_path / "cache")
+    ours = run.figures_dir / "mimic_cladogram.svg"
+    assert ours.exists() and run.figure_file("mimic_cladogram.png") is not None
+    shown = [f.name for f in workflows.describe(run).findings]
+    assert shown[0] == "mimic_cladogram"  # the headline figure, before the bars and the a-priori test
+
+    features = workflows.build_dataset(run, CANONICAL, tmp_path / "cache")[0]
+    tags = features.labels.to_frame()
+    mimic_authors.run_bundle(features.features.loc[tags.index], tags, tmp_path / "authors")
+    theirs = tmp_path / "authors" / "plots" / "correlations_tree.svg"
+    assert ours.read_bytes() == theirs.read_bytes()
+
+
 # --- miMic ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="module")

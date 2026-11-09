@@ -26,7 +26,13 @@ from microplatform.core.inputs import (
     sort_uploads,
 )
 from microplatform.core.metabolites import MetaboliteProfile, profile_metabolites
-from microplatform.core.preprocessing import CANONICAL, PreprocessResult, PreprocessSettings, preprocess
+from microplatform.core.preprocessing import (
+    CANONICAL,
+    PreprocessResult,
+    PreprocessSettings,
+    preprocess,
+    use_as_is,
+)
 from microplatform.core.profiler import (
     CountsProfile,
     Issue,
@@ -53,8 +59,16 @@ SETTING_WORDS = {
 
 __all__ = [
     "RunView", "add_labels", "add_metabolites", "analyze", "build_bundle", "build_dataset", "describe", "run_goal",
-    "start_example_run", "start_run",
+    "set_preprocessing", "start_example_run", "start_run",
 ]
+
+# How a run's table becomes the features: preprocessed with MIPMLP, or used as it is because it already
+# looks preprocessed (never preprocessed twice without the user choosing it). See ``preprocessing_mode``.
+PREPROCESSING_MODES = ("mipmlp", "as_is")
+AS_IS_NOTHING_TO_DO = ("Your table is used as it is, because it already looks preprocessed, so there is nothing "
+                       "to preprocess. If it is raw data, choose to preprocess it in the data check above.")
+AS_IS_NEEDS_MIPMLP = ("{tool} needs MIPMLP's own preprocessing ({how}), so it cannot use a table that is already "
+                      "preprocessed. If your table is raw data, choose to preprocess it in the data check above.")
 
 
 @dataclass
@@ -78,6 +92,12 @@ class RunView:
     tables: dict[str, pd.DataFrame] | None = None  # the engine's tables (first rows, for the page)
     options: dict | None = None  # goal id → the engine's advanced settings (EngineOption)
     metabolites: MetaboliteProfile | None = None  # the metabolite table's check, if there is one
+    preprocessing: str = "mipmlp"  # "mipmlp" or "as_is" (see PREPROCESSING_MODES)
+
+    @property
+    def as_is(self) -> bool:
+        """The table is used as uploaded, without MIPMLP (it already looks preprocessed)."""
+        return self.preprocessing == "as_is"
 
     @property
     def ready(self) -> bool:
@@ -94,7 +114,7 @@ class RunView:
     @property
     def representation_note(self) -> str | None:
         """Plain words for any way this run's table differs from the shared table (None if it doesn't)."""
-        if not self.record:
+        if not self.record or self.record.get("skipped"):
             return None
         shared = asdict(CANONICAL)
         used = self.record.get("settings", {})
@@ -115,6 +135,13 @@ class RunView:
     def overview_figures(self) -> list[figures.ExportedFigure]:
         """The data overview (composition, diversity, sparsity): descriptive, the same for every tool."""
         return [f for f in self.figures if f.section == "overview"]
+
+    @property
+    def overview_note(self) -> str | None:
+        """Why a finished run has no descriptive overview (negative values), or None."""
+        if self.show_results and not self.overview_figures and self.profile.has_negatives:
+            return overview.OVERVIEW_UNAVAILABLE
+        return None
 
     @property
     def status(self) -> str:
@@ -183,6 +210,7 @@ def analyze(
     cache_dir: str | Path | None = None,
     options: dict | None = None,
     metabolites: str | Path | None = None,
+    preprocessing: str | None = None,
 ) -> RunView:
     """Run a whole analysis from files on disk, without the website.
 
@@ -193,10 +221,16 @@ def analyze(
     for GIMIC. All outputs are written to a new folder inside ``out_dir``,
     ``view.run.path``: ``processed.csv``, ``tables/``, ``figures/``, ``record.json`` and
     ``engine.json``. ``view.engine`` holds the summary and the record of every setting.
+    ``preprocessing`` is ``"mipmlp"`` or ``"as_is"`` (use the table as it is, for a table that is
+    already preprocessed); by default it is ``"as_is"`` exactly when the table already looks
+    preprocessed (negative values, or samples adding up to different totals), so a table is never
+    preprocessed twice without asking for it. ``view.preprocessing`` says which was used.
     Raises ``UserFacingError`` (with a message and a fix) if the data cannot be used.
     """
     paths = [Path(p) for p in (counts, labels, metabolites) if p]
     run = start_run(Path(out_dir), sort_uploads([(p.name, p.read_bytes()) for p in paths]), goal)
+    if preprocessing is not None:
+        set_preprocessing(run, preprocessing)
     run_goal(run, goal or describe(run).default_goal, Path(cache_dir) if cache_dir else None, options)
     return describe(run)
 
@@ -237,6 +271,9 @@ def describe(run: runs.Run) -> RunView:
         available.add("metabolites")
     options = goal_options(frozenset(available), label_profile.kind if usable_labels else None)
     meta = run.meta()
+    mode = preprocessing_mode(meta, profile)
+    if mode == "as_is":
+        options = _without_mipmlp(options)
     recommendation = recommend(options, meta.get("requested_goal"))
     record = run.record()
     engine = run.engine_record()
@@ -256,21 +293,63 @@ def describe(run: runs.Run) -> RunView:
         figures=figures.load_manifest(run.figures_dir),
         engine=engine,
         tables={name: run.table(name, rows=TABLE_PREVIEW_ROWS) for name in engine["tables"]} if engine else None,
-        options={goal: e.options for goal, e in ENGINES.items() if e.options},
+        # Advanced settings are preprocessing variations: none apply to a table used as it is.
+        options={} if mode == "as_is" else {goal: e.options for goal, e in ENGINES.items() if e.options},
         metabolites=metabolite_profile,
+        preprocessing=mode,
     )
+
+
+def preprocessing_mode(meta: dict, profile: CountsProfile) -> str:
+    """'as_is' or 'mipmlp': the user's choice if made, otherwise 'as_is' exactly when the table already
+    looks preprocessed (``CountsProfile.looks_preprocessed``), so nothing is preprocessed twice by default."""
+    chosen = meta.get("preprocessing")
+    if chosen in PREPROCESSING_MODES:
+        return chosen
+    return "as_is" if profile.looks_preprocessed else "mipmlp"
+
+
+def set_preprocessing(run: runs.Run, mode: str) -> None:
+    """The user's choice from the data check: 'as_is' (use the table as uploaded) or 'mipmlp'."""
+    if mode not in PREPROCESSING_MODES:
+        raise InputError(f"'{mode}' is not a preprocessing choice.", "Choose 'as_is' or 'mipmlp'.")
+    if run.status in ("queued", "running"):
+        raise InputError("This analysis is already running.", "Wait for it to finish, then change the choice.")
+    run.update_meta(preprocessing=mode)
+
+
+def _without_mipmlp(options: list[GoalOption]) -> list[GoalOption]:
+    """The goals for a table used as it is: those that need MIPMLP's own run are switched off, with why."""
+    adjusted = []
+    for option in options:
+        engine = ENGINES.get(option.goal.id)
+        if option.goal.id == "preprocess":
+            option = replace(option, enabled=False, reason=AS_IS_NOTHING_TO_DO, missing=())
+        elif option.enabled and engine is not None and engine.preprocessing != CANONICAL:
+            how = "with a z-score per taxon" if engine.preprocessing.z_scoring != "No" else "with settings of its own"
+            option = replace(option, enabled=False, reason=AS_IS_NEEDS_MIPMLP.format(tool=option.goal.tool, how=how))
+        adjusted.append(option)
+    return adjusted
 
 
 def build_dataset(
     run: runs.Run, settings: PreprocessSettings = CANONICAL, cache_dir: Path | None = None,
-    engine: str | None = None,
+    engine: str | None = None, as_is: bool = False,
 ) -> tuple[Dataset, PreprocessResult]:
     """The one canonical representation every engine consumes, validated against the contract.
 
     ``engine`` names the engine it is for, so only that engine's declared exceptions apply.
+    ``as_is``: the uploaded table is the features (it is already preprocessed; ``use_as_is``), which
+    only engines that use the shared settings can take.
     """
     raw = run.counts()
-    result = preprocess(raw, settings, cache_dir=cache_dir)
+    if as_is and settings != CANONICAL:
+        raise UserFacingError(
+            "This analysis needs MIPMLP's own preprocessing settings, so it cannot use a table that is "
+            "already preprocessed.",
+            "If your table is raw data, choose to preprocess it in the data check; otherwise choose "
+            "another task or the default settings.")
+    result = use_as_is(raw) if as_is else preprocess(raw, settings, cache_dir=cache_dir)
     features = result.table.rename_axis(ID_COLUMN)
     features.index = features.index.astype(str)
 
@@ -302,9 +381,10 @@ def run_goal(run: runs.Run, goal_id: str, cache_dir: Path | None = None, choices
     engine = check_goal(run, goal_id)
     choices = engine.resolve(choices)
 
+    as_is = preprocessing_mode(run.meta(), profile_counts(run.counts())) == "as_is"
     run.set_status("running", goal=goal_id, error=None, choices=choices)
     try:
-        dataset, result = build_dataset(run, engine.settings_for(choices), cache_dir, engine.name)
+        dataset, result = build_dataset(run, engine.settings_for(choices), cache_dir, engine.name, as_is=as_is)
         run.save_result(result)  # the representation this engine used is kept for every run
         figures.export(figures.preprocessing_figures(dataset.raw_counts, dataset.settings), run.figures_dir)
         figures.export(overview.overview_figures(dataset.raw_counts, dataset.settings, dataset.labels,
@@ -340,6 +420,7 @@ def _save_engine_result(run: runs.Run, engine, found, choices: dict) -> None:
     for name, table in found.tables.items():
         run.save_table(name, table)
     figures.export(found.figures, run.figures_dir)
+    figures.export_rendered(found.rendered, run.figures_dir)  # the tool's own figure leads the findings
     run.save_engine_record({
         "tool": engine.name,
         "goal": engine.goal,

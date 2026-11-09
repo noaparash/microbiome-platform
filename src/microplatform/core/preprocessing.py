@@ -26,7 +26,7 @@ import pandas as pd
 
 from microplatform.core.contract import ID_COLUMN, TAXONOMY_ROW
 from microplatform.core.errors import UserFacingError
-from microplatform.core.profiler import profile_counts
+from microplatform.core.profiler import count_matrix, profile_counts
 
 
 class PreprocessError(UserFacingError):
@@ -76,6 +76,7 @@ class PreprocessResult:
     from_cache: bool
     seconds: float
     mipmlp_version: str
+    skipped: bool = False  # True: the uploaded table was used as it is (see ``use_as_is``)
 
     @property
     def n_features(self) -> int:
@@ -83,6 +84,15 @@ class PreprocessResult:
 
     def record(self) -> dict:
         """Everything needed to reproduce this run, for the report."""
+        if self.skipped:
+            return {
+                "tool": "none",
+                "skipped": True,
+                "why": AS_IS_REASON,
+                "samples": self.table.shape[0],
+                "input_taxa": self.n_input_taxa,
+                "output_features": self.n_features,
+            }
         return {
             "tool": "MIPMLP",
             "mipmlp_version": self.mipmlp_version,
@@ -93,6 +103,9 @@ class PreprocessResult:
         }
 
     def summary(self) -> list[str]:
+        if self.skipped:
+            return [f"Not preprocessed: your table ({self.n_features:,} features) was used exactly as uploaded, "
+                    "because it already looks preprocessed. MIPMLP was not run on it again."]
         level = {6: "genus", 7: "species"}.get(self.settings.taxonomy_level,
                                                f"level {self.settings.taxonomy_level}")
         return [
@@ -145,6 +158,31 @@ def preprocess(
             json.dumps(asdict(settings), indent=2), encoding="utf-8"
         )
     return PreprocessResult(table, settings, profile.n_taxa, False, seconds, version("MIPMLP"))
+
+
+AS_IS_REASON = ("The uploaded table is neither read counts nor complete relative abundances (it has negative "
+                "values, or its samples add up to different totals), so it looks already preprocessed. "
+                "Preprocessing it again would apply the log and the grouping a second time.")
+
+
+def use_as_is(raw: pd.DataFrame) -> PreprocessResult:
+    """The uploaded table itself as the features, for a table that is already preprocessed.
+
+    Nothing is changed: the values and the column names (the lineages) are the uploaded ones,
+    which is what the tools receive after MIPMLP anyway. The record says preprocessing was skipped.
+    """
+    profile = profile_counts(raw)
+    if not profile.ok:
+        errors = [i for i in profile.issues if i.level == "error"]
+        raise PreprocessError(" ".join(i.message for i in errors), " ".join(i.fix for i in errors))
+    table = count_matrix(raw).astype(float)
+    if table.columns.duplicated().any():
+        raise PreprocessError(
+            "Some column names appear more than once, so the table cannot be used as it is.",
+            "Give every column its own name (a preprocessed table has one column per feature), "
+            "or let MIPMLP preprocess it.",
+        )
+    return PreprocessResult(table, CANONICAL, profile.n_taxa, False, 0.0, version("MIPMLP"), skipped=True)
 
 
 def cache_key(raw: pd.DataFrame, settings: PreprocessSettings) -> str:

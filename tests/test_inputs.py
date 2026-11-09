@@ -123,7 +123,11 @@ def _headers_table(sep=","):
 @pytest.mark.parametrize(("name", "expected"), [
     ("k__Bacteria;p__Firmicutes;c__Bacilli", True), ("k__Bacteria;p__;c__", True),
     ("d__Bacteria; p__Bacillota", True), ("k__Bacteria", True), ("k__Bacteria;", True),
-    ("Tag", False), ("ASV_1", False), ("met1", False), ("Bacteria;Firmicutes", False), ("", False)])
+    ("Tag", False), ("ASV_1", False), ("met1", False), ("", False), (";p__Firmicutes", False),
+    ("k__Bacteria;Firmicutes", False),  # prefixes on some ranks only: not a lineage
+    # MIPMLP's own output names (no prefixes), so its processed table is recognised too
+    ("Bacteria;Firmicutes", True), ("Bacteria;Bacillota;Bacilli;Lactobacillales;Streptococcaceae_0;;", True),
+    ("else;;;;;;;", True)])
 def test_lineage_names_are_recognised(name, expected):
     assert is_lineage(name) is expected
 

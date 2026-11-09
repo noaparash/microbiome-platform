@@ -265,13 +265,47 @@ def test_the_heartbeat_is_refreshed_while_working(root, new_run, cache, monkeypa
     assert jobs.claim(run, "me")
     claimed = json.loads(run.lock_file.read_text())["heartbeat"]
     seen = []
-    watcher = threading.Thread(target=lambda: (time.sleep(1.0), seen.append(
-        json.loads(run.lock_file.read_text())["heartbeat"]) if run.lock_file.exists() else None))
+
+    def watch():
+        time.sleep(1.0)
+        for _ in range(20):  # Windows may refuse a read for a moment while the lock is swapped in
+            try:
+                seen.append(json.loads(run.lock_file.read_text())["heartbeat"])
+                return
+            except PermissionError:
+                time.sleep(0.02)
+
+    watcher = threading.Thread(target=watch)
     watcher.start()
     jobs.process(run, cache)
     watcher.join()
     assert seen and seen[0] > claimed
     assert run.status == "done"
+
+
+def test_a_reader_never_sees_a_half_written_lock(root, new_run, cache, monkeypatch):
+    """The heartbeat swaps in a complete new lock file: a reader racing it gets valid JSON every time
+    (a half-written lock once read as "no heartbeat", i.e. an abandoned run)."""
+    monkeypatch.setattr(jobs, "HEARTBEAT_SECONDS", 0.001)
+    monkeypatch.setitem(ENGINES, "preprocess", _Slow())
+    run = new_run()
+    jobs.submit(run, "preprocess")
+    assert jobs.claim(run, "me")
+    beat = jobs._Heartbeat(run.lock_file)
+    beat.start()
+    broken, reads = 0, 0
+    deadline = time.time() + 1.0
+    while time.time() < deadline:
+        try:
+            json.loads(run.lock_file.read_text())
+            reads += 1
+        except ValueError:
+            broken += 1
+        except PermissionError:
+            pass  # Windows only: the swap itself; the content is never partial
+    beat.stop()
+    assert reads > 50 and broken == 0
+    assert list(run.path.glob("*.tmp")) == []  # no leftovers
 
 
 # --- email ------------------------------------------------------------------------------

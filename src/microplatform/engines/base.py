@@ -25,7 +25,7 @@ import pandas as pd
 from microplatform.core.contract import Dataset, InputKind
 from microplatform.core.inputs import InputError
 from microplatform.core.preprocessing import CANONICAL, PreprocessSettings
-from microplatform.reports.figures import Figure
+from microplatform.reports.figures import Figure, RenderedFigure
 
 
 @dataclass
@@ -35,6 +35,8 @@ class EngineResult:
     # findings and never folded away, so they are read together.
     notes: list[str] = field(default_factory=list)
     figures: list[Figure] = field(default_factory=list)  # drawn through reports.figures
+    # Drawn by the tool's own plotting code (e.g. miMic's cladogram), copied unchanged; shown first.
+    rendered: list[RenderedFigure] = field(default_factory=list)
     tables: dict[str, pd.DataFrame] = field(default_factory=dict)  # name → table, saved as CSV
     record: dict = field(default_factory=dict)  # tool version and every setting, for reproducibility
     highlight: tuple[str, str] | None = None  # (table name, heading): the table to preview on the page

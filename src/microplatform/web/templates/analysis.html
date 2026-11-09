@@ -60,6 +60,29 @@
     </ul>
   {% endif %}
 
+  {# Never preprocess twice by default: a table that already looks preprocessed is used as it is, and the
+     user can say otherwise (the choice is stored with the run). #}
+  {% if view.ready and (profile.looks_preprocessed or meta.preprocessing) %}
+    <div class="preprocessing-choice issue issue-warning" id="preprocessing">
+      {% if view.as_is %}
+        <span class="issue-message"><strong>Your table already looks preprocessed</strong>
+          ({{ profile.preprocessed_because }}), so it is used <strong>as it is</strong>: MIPMLP is not run on it again.</span>
+        <span class="issue-fix">If it is raw data (counts or relative abundances), preprocess it instead.</span>
+      {% else %}
+        <span class="issue-message"><strong>MIPMLP will preprocess this table.</strong>
+          {% if profile.looks_preprocessed %}It already looks preprocessed ({{ profile.preprocessed_because }}):
+          preprocessing it again applies the log and the grouping twice and changes the results.{% endif %}</span>
+      {% endif %}
+      {% if view.show_plan %}
+        <form method="post" action="{{ url_for('main.set_preprocessing', run_id=view.run.id) }}">
+          <input type="hidden" name="preprocessing" value="{{ 'mipmlp' if view.as_is else 'as_is' }}">
+          <button class="btn btn-secondary" type="submit">
+            {{ "It's raw data: preprocess it with MIPMLP" if view.as_is else "Use my table as it is" }}</button>
+        </form>
+      {% endif %}
+    </div>
+  {% endif %}
+
   {% if not view.ready %}
     <div class="blocked">
       <p><strong>This file needs fixing first.</strong> Fix the problems marked in red, then upload it again.</p>
@@ -258,14 +281,18 @@
       {% endfor %}
     </p>
 
-    <h3 class="section-break">Preprocessing (MIPMLP)</h3>
+    <h3 class="section-break">{{ "Preprocessing: not run (your table was used as uploaded)" if record.skipped else "Preprocessing (MIPMLP)" }}</h3>
   {% endif %}
 
   <dl class="stats">
     <div><dt>Samples</dt><dd>{{ record.samples|count }}</dd></div>
-    <div><dt>Taxa in</dt><dd>{{ record.input_taxa|count }}</dd></div>
-    <div><dt>Features out</dt><dd>{{ record.output_features|count }}</dd></div>
-    <div><dt>Time</dt><dd>{{ "cached" if record.from_cache else "%.0f s"|format(record.seconds) }}</dd></div>
+    {% if record.skipped %}
+      <div><dt>Features</dt><dd>{{ record.output_features|count }}</dd></div>
+    {% else %}
+      <div><dt>Taxa in</dt><dd>{{ record.input_taxa|count }}</dd></div>
+      <div><dt>Features out</dt><dd>{{ record.output_features|count }}</dd></div>
+      <div><dt>Time</dt><dd>{{ "cached" if record.from_cache else "%.0f s"|format(record.seconds) }}</dd></div>
+    {% endif %}
   </dl>
   <ul class="facts">{% for line in record.summary %}<li>{{ line }}</li>{% endfor %}</ul>
 
@@ -278,7 +305,7 @@
   {% endif %}
 
   <div class="results-head subhead">
-    <h3>Processed table</h3>
+    <h3>{{ "The table the analysis used" if record.skipped else "Processed table" }}</h3>
     <a class="btn btn-secondary" href="{{ url_for('main.download', run_id=view.run.id) }}" download>Table (CSV)</a>
   </div>
   {% set preview = view.preview %}
@@ -302,9 +329,15 @@
 
   {# The same for every tool: what the data looks like. Mostly descriptive; it says so, and says which
      figures carry exploratory group tests, before the figures. #}
+  {% if view.overview_note %}
+    <section class="data-overview section-break" aria-labelledby="overview-heading">
+      <h3 id="overview-heading">Descriptive overview of your data</h3>
+      <p class="muted">{{ view.overview_note }}</p>
+    </section>
+  {% endif %}
   {% if view.overview_figures %}
     <section class="data-overview section-break" aria-labelledby="overview-heading">
-      <h3 id="overview-heading">Data overview</h3>
+      <h3 id="overview-heading">Descriptive overview of your data <span class="muted optional">(not the analysis result)</span></h3>
       <p class="overview-note"><strong>Mostly descriptive.</strong> These figures show what your data looks like
         (composition, diversity and sparsity), computed from your uploaded table, with composition as relative
         abundance (%). They are the same whichever task you ran. When your samples form groups, the two
@@ -318,8 +351,8 @@
   <details class="record">
     <summary>Reproducibility record</summary>
     <dl class="record-list">
-      <div><dt>Preprocessing</dt><dd>MIPMLP {{ record.mipmlp_version }}</dd></div>
-      {% for key, value in record.settings.items() %}
+      <div><dt>Preprocessing</dt><dd>{% if record.skipped %}none: the uploaded table was used as it is ({{ record.why }}){% else %}MIPMLP {{ record.mipmlp_version }}{% endif %}</dd></div>
+      {% for key, value in (record.settings or {}).items() %}
         <div><dt>{{ key|replace("_", " ") }}</dt><dd><code>{{ value }}</code></dd></div>
       {% endfor %}
       {% if view.engine and view.engine.tool != "MIPMLP" %}

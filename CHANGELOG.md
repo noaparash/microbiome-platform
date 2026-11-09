@@ -65,7 +65,34 @@ All notable changes to `microplatform`. The format follows
 - **A table without labels is explained in the Plan**: what runs without labels (MIPMLP,
   GIMIC, the descriptive data overview) and what a labels file or a metabolite table would add.
 
+### Added
+- **miMic's own cladogram** is the headline miMic figure (`mimic_cladogram`: the authors' SVG and PNG
+  unchanged, an HTML page showing the SVG, and the significant taxa as CSV). It is drawn by mimic-da's
+  own code: the final call of `apply_mimic(mode="plot")`,
+  `calculate_all_imgs_tag_corr(mode="plot", colorful=True)` → `creare_tree_view` (ete3), with the
+  recorded `mimic_authors.ADJUSTMENTS`; the rest of plot mode (16 more test passes that feed only its
+  other diagnostic plots) is skipped. Reproduction test: byte for byte the SVG that the authors' whole
+  plot mode writes. New `figures.RenderedFigure` / `export_rendered` (a tool-drawn figure, copied, never
+  redrawn) and `EngineResult.rendered`; checked on the headless Linux server (Qt offscreen).
+
 ### Changed
+- **Never preprocessed twice by default (correctness).** A table that already looks preprocessed
+  (`CountsProfile.looks_preprocessed`: negative values, or samples adding up to different totals,
+  such as MIPMLP output or a table prepared for miMic) is used **as it is**
+  (`preprocessing.use_as_is`, record `{"tool": "none", "skipped": true, "why": …}`): MIPMLP is not
+  run on it again. The data check says so and lets the user choose MIPMLP instead
+  (`workflows.set_preprocessing`, `POST /runs/<id>/preprocessing`, meta `preprocessing`).
+  Tasks that need MIPMLP's own run are switched off with a reason ("Just preprocess"; LOCATE, which
+  z-scores each taxon), as are the advanced settings (GIMIC's "mean" grouping). New:
+  `mp.analyze(..., preprocessing=None | "as_is" | "mipmlp")`, `build_dataset(..., as_is=False)`.
+  MIPMLP's own output names (`Bacteria;…;Lachnospiraceae_0;;`, no `k__` prefixes) are now
+  recognised as taxonomy in the column names, so MIPMLP output can be uploaded. Found on a real
+  run: a table prepared for miMic was preprocessed again (64 → 49 features) and miMic found 42 taxa;
+  used as it is, it gives exactly the authors' 56 taxa and p-values. Tables with negative values get
+  no descriptive overview (it needs abundances; the page says why).
+- **The result first, the descriptive overview last, everywhere:** the overview is headed
+  "Descriptive overview of your data (not the analysis result)", and the ZIP's figures are in
+  `figures/1_result/`, `figures/2_data_quality/`, `figures/3_descriptive_overview/`.
 - **Website:** the home page leads with "Start an analysis" (primary) and offers "See an example"
   as the secondary button. In the Plan step the optional "Add a labels file" / "Add a metabolite
   table" boxes now come before Run, under "Have more files? Add them before you run"; the email

@@ -67,10 +67,25 @@ class CountsProfile:
     median_reads: float
     sample_ids: list[str]
     issues: list[Issue] = field(default_factory=list)
+    has_negatives: bool = False  # only transformed values (e.g. log, z-scores) can be negative
 
     @property
     def ok(self) -> bool:
         return not any(i.level == "error" for i in self.issues)
+
+    @property
+    def looks_preprocessed(self) -> bool:
+        """Neither read counts nor complete relative abundances: negative values, or samples whose
+        values add up to different totals. Such a table may already be preprocessed (MIPMLP output,
+        or a table prepared for one tool), and preprocessing it again would change it."""
+        return self.value_kind == "transformed"
+
+    @property
+    def preprocessed_because(self) -> str:
+        """Why the table looks already preprocessed, in plain words (for the data check)."""
+        if self.has_negatives:
+            return "it has negative values, as log-transformed or z-scored data does"
+        return "its samples add up to different totals, so it is neither read counts nor complete relative abundances"
 
     @property
     def depth_note(self) -> str | None:
@@ -89,7 +104,8 @@ class CountsProfile:
             {
                 "counts": "Values are raw read counts",
                 "relative": "Values are relative abundances",
-                "transformed": "Values look already transformed (e.g. log)",
+                "transformed": ("Values look already transformed (e.g. log)" if self.has_negatives else
+                                "Values are not read counts, and samples add up to different totals"),
             }[self.value_kind]
             + f"; {self.zero_fraction:.0%} of entries are zero."
         )
@@ -259,6 +275,7 @@ def profile_counts(raw: pd.DataFrame) -> CountsProfile:
         median_reads=float(reads.median()) if len(reads) else 0.0,
         sample_ids=sample_ids,
         issues=issues,
+        has_negatives=bool((values < 0).to_numpy().any()),
     )
 
 

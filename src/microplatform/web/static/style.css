@@ -454,6 +454,9 @@ main:focus { outline: none; } /* focused only as the skip link's target */
 .figure-tall .plot { aspect-ratio: auto; height: clamp(420px, 70vh, 760px); }
 .figure-wide { grid-column: 1 / -1; }
 .figure-wide .plot { aspect-ratio: 5 / 2; }
+/* A tool's own figure (e.g. miMic's round cladogram) keeps its own proportions, up to a screen high. */
+.figure-rendered .plot { aspect-ratio: auto; height: auto; display: flex; justify-content: center; }
+.figure-rendered .plot img { width: auto; height: auto; max-width: 100%; max-height: 85vh; }
 .overview-note { margin: 0 0 1rem; padding: 0.6rem 0.85rem; border-left: 3px solid var(--accent-ink);
   background: var(--surface-2); border-radius: 0 8px 8px 0; color: var(--text); }
 .findings { font-size: 1.02rem; }
@@ -534,6 +537,7 @@ pre.code { background: var(--surface-2); border: 1px solid var(--border); paddin
   .question-card { padding: 1.1rem; }
   .plot { aspect-ratio: 5 / 4; }
   .figure-wide .plot { aspect-ratio: 4 / 3.4; }
+  .figure-rendered .plot { aspect-ratio: auto; }
   .record-list div { flex-direction: column; gap: 0; }
   .results-actions, .results-head .btn { width: 100%; }
   .step-name { display: none; }

@@ -204,10 +204,12 @@ def test_options_dataset_name_palette_and_split_violin(counts, labels):
     assert dict(violin.colors) == dict(figs["alpha_diversity"].colors)  # a group keeps its colour
 
 
-def test_a_log_transformed_table_gets_no_composition(counts):
-    logged = np.log10(counts + 0.1)  # negative values: not abundances
-    names = {f.name for f in overview_figures(logged, CANONICAL)}
-    assert "composition_bars" not in names and "composition_pie" not in names and "alpha_diversity" in names
+def test_a_log_transformed_table_gets_no_overview(counts):
+    """Negative values (log-transformed or z-scored, e.g. MIPMLP output used as it is) are not abundances:
+    composition, diversity and Bray-Curtis distances would all be wrong, so none is drawn (the page says why)."""
+    logged = np.log10(counts + 0.1)
+    assert overview_figures(logged, CANONICAL) == []
+    assert overview_figures(counts, CANONICAL)  # abundances: the overview as usual
 
 
 def test_sparsity_figures(grouped, counts):
@@ -316,9 +318,9 @@ def test_every_analysis_gets_the_overview_and_the_zip_has_it(finished_run):
     with zipfile.ZipFile(io.BytesIO(workflows.build_bundle(finished_run))) as zf:
         names = set(zf.namelist())
         for name in FIGURE_NAMES:
-            assert {f"figures/{name}.{fmt}" for fmt in FORMATS} <= names
+            assert {f"figures/3_descriptive_overview/{name}.{fmt}" for fmt in FORMATS} <= names
         readme = zf.read("README.txt").decode()
-        assert "mostly descriptive" in readme and "Exploratory" in readme
+        assert "descriptive" in readme and "NOT the analysis result" in readme and "Exploratory" in readme
 
 
 def test_the_results_page_shows_the_overview_as_descriptive(tmp_path):
@@ -330,7 +332,8 @@ def test_the_results_page_shows_the_overview_as_descriptive(tmp_path):
     page = client.post(f"{url}/run", data={"goal": "preprocess"}, follow_redirects=True).get_data(as_text=True)
     section = page.split('<section class="data-overview section-break" aria-labelledby="overview-heading">', 1)[1]
     section = section.split("</section>", 1)[0]
-    assert '<h3 id="overview-heading">Data overview</h3>' in section
+    assert '<h3 id="overview-heading">Descriptive overview of your data' in section
+    assert "(not the analysis result)" in section
     assert "Mostly descriptive." in section and "<strong>exploratory</strong>" in section
     assert 'class="figure figure-wide"' in section and "Composition of each sample (phylum)" in section
     assert page.index("overview-heading") < page.index("Reproducibility record")
