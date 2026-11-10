@@ -30,7 +30,33 @@ Every analysis starts with **MIPMLP preprocessing**, then continues to the tool 
 
 ---
 
-## Install
+## Opening the platform
+
+The platform runs on the lab server **peptibase10** and is always on: there is nothing to install
+to use it.
+
+**Once it has a public HTTPS address** (being set up with IT), just open that address in a browser.
+
+**Until then**, anyone with a peptibase10 account opens it through an SSH tunnel:
+
+1. Open a tunnel to the server (PowerShell on Windows, Terminal on macOS/Linux), with your own
+   peptibase10 user name, and leave the window open while you use the site:
+
+   ```bash
+   ssh -N -L 8000:127.0.0.1:8000 <your-user-name>@peptibase10.math.biu.ac.il
+   ```
+
+   It asks for your peptibase10 password and then shows nothing more: that means it is working.
+   If you normally reach peptibase10 through a gateway or another tunnel, add the same forwarding
+   there (local port 8000 → `127.0.0.1:8000` on peptibase10).
+2. Open **http://127.0.0.1:8000** in your browser.
+
+If port 8000 is already taken on your computer, use another one on the left
+(`-L 8001:127.0.0.1:8000`) and open http://127.0.0.1:8001.
+
+---
+
+## Install (to run it yourself or use it from Python)
 
 Setup is just a few commands, and **[uv](https://docs.astral.sh/uv/)** does the hard part for you — it builds a clean, isolated environment for this project alone, so nothing touches the rest of your machine. Install uv once:
 
@@ -57,7 +83,7 @@ uv sync          # installs Python 3.13 + every dependency from the lock file
 
 ## Quick start
 
-**Through the website** (point-and-click: upload → data check → recommended plan → results):
+**The website, on your own computer** (point-and-click: upload → data check → recommended plan → results):
 
 ```bash
 uv run flask --app microplatform.web run
