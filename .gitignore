@@ -41,3 +41,6 @@ Thumbs.db
 # Server settings hold secrets: only the template is versioned
 *.env
 !*.env.example
+
+# Claude Code project instructions: local only, not shared with the lab (2026-11-10)
+CLAUDE.md

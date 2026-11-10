@@ -75,7 +75,7 @@ def test_only_declared_engines_have_exceptions():
     from microplatform.core.contract import ENGINE_EXCEPTIONS
 
     assert set(ENGINE_EXCEPTIONS) <= {e.name for e in ENGINES.values()}
-    assert set(ENGINE_EXCEPTIONS) == {"GIMIC"}  # adding one is a decision: record it in CLAUDE.md first
+    assert set(ENGINE_EXCEPTIONS) == {"GIMIC"}  # adding one is a decision: record it in core/contract.py and the CHANGELOG first
     for name, fields in ENGINE_EXCEPTIONS.items():
         assert fields and all(values for values in fields.values()), name
 

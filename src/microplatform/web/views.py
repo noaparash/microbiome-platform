@@ -1,6 +1,6 @@
 """Routes only: each one calls the package and renders the answer.
 
-No business logic lives here (see "Package-first" in CLAUDE.md).
+No business logic lives here (see "Package first" in docs/package-guide.md).
 """
 
 from __future__ import annotations
