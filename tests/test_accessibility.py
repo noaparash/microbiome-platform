@@ -181,3 +181,18 @@ def test_a_status_badge_appears_only_when_a_tool_is_not_available(client):
     for url in ("/", "/methods"):
         page = client.get(url).get_data(as_text=True)
         assert "chip-available" not in page  # all five are available: a badge would say nothing
+
+
+def test_a_plot_with_its_own_height_gets_a_box_of_that_height():
+    """Plotly figures that set a height (one row per taxon or level: barh, grouped_barh) must not run past
+    their box over the caption and downloads (seen on the miMic results page, 2026-11-10)."""
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert re.search(r"if \(layout\.height\) \{\s*el\.style\.aspectRatio = \"auto\";\s*"
+                     r"el\.style\.height = `\$\{layout\.height\}px`;", js)
+    import pandas as pd
+
+    data = pd.DataFrame({"name": list("abc"), "v": [1, 2, 3], "g": list("xyx")})
+    for kind in ("barh", "grouped_barh"):
+        fig = figures.Figure(name="t", title="t", caption="c", data=data, kind=kind, x="v", y="name",
+                             x_label="v", y_label="", color_by="g" if kind == "grouped_barh" else None)
+        assert figures.to_plotly(fig).layout.height  # the kinds this guards do set a height

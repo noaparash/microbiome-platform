@@ -8,6 +8,10 @@ All notable changes to `microplatform`. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Results page: a chart that sets its own height (miMic's taxa bars, the RP vs SP check) no longer
+  runs past its box over the caption and the download links.
+
 ### Added
 - **Group tests on the diversity figures**, as in the lab's reference analysis
   (louzounlab/Early-Pregnancy-Oral-Microbiome), only when the samples form groups

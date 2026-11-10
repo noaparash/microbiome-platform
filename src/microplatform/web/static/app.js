@@ -131,6 +131,12 @@ if (figureGrid) {
             font: { ...fig.layout.font, color: color("--text") },
           };
           for (const name of axes) layout[name] = { ...fig.layout[name], ...axis };
+          // A figure that sets its own height (one row per taxon or per level) gets a box of exactly that
+          // height; otherwise the plot would run past its box, over the caption and the downloads.
+          if (layout.height) {
+            el.style.aspectRatio = "auto";
+            el.style.height = `${layout.height}px`;
+          }
           el.replaceChildren();
           // For screen readers the plot is one picture named by its title; the caption and the
           // data download carry the details.
