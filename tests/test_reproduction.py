@@ -112,16 +112,31 @@ def test_mimic_cladogram_is_the_authors_own_tree(run, tmp_path):
     with Image.open(run.figures_dir / "mimic_cladogram.png") as png:  # printable, as the lab's reference
         assert 2000 <= max(png.size) <= 2200, png.size  # 180 mm at 300 dpi (it was once 73,630 px square)
     svg = ours.read_text()
-    # Legible labels (miMic's 100 pt were ~4 px tall at this size) and a closed circle.
-    assert 'font-size="400pt"' in svg and 'font-size="100pt"' not in svg
+    # miMic's own 100 pt labels; markers capped (TREE_MARKER_MAX), so the tree is no longer stretched by
+    # 2,000-unit markers (the SVG was ~67,000 units wide on the 1,506-sample case).
+    assert 'font-size="100pt"' in svg and 'font-size="400pt"' not in svg
+    import re
+    radii = [float(r) for r in re.findall(r'<circle[^>]* r="([0-9.]+)"', svg)]
+    assert radii and max(radii) <= mimic_authors.TREE_MARKER_MAX / 2 + 0.5, max(radii)
     shown = [f.name for f in workflows.describe(run).findings]
-    assert shown[0] == "mimic_cladogram"  # the headline figure, before the bars and the a-priori test
+    assert shown[0] == "mimic_cladogram"  # the headline figure, before the bars
+    assert shown[-1] == "mimic_rp_sp"  # the authors' RP vs SP check, after the bars
+    assert "mimic_apriori_test" not in shown  # replaced by the authors' own figure
 
     features = workflows.build_dataset(run, CANONICAL, tmp_path / "cache")[0]
     tags = features.labels.to_frame()
     mimic_authors.run_bundle(features.features.loc[tags.index], tags, tmp_path / "authors")
     theirs = tmp_path / "authors" / "plots" / "correlations_tree.svg"
     assert ours.read_bytes() == theirs.read_bytes()
+    # miMic's RP vs SP check: its own drawing ships unchanged (byte for byte the authors'
+    # plot_rp_sp_anova_p, same seed), and the platform's redraw shows exactly miMic's numbers.
+    for ext in ("png", "svg"):
+        mine = (run.figures_dir / f"mimic_rp_sp_original.{ext}").read_bytes()
+        assert mine == (tmp_path / "authors" / "plots" / f"tax_vs_rp_sp_anova_p.{ext}").read_bytes(), ext
+    redrawn = pd.read_csv(run.figures_dir / "mimic_rp_sp.csv")
+    authors = pd.read_csv(tmp_path / "authors" / "rp_sp.csv")
+    for series, column in (("Real labels (RP)", "RP"), ("Shuffled labels (SP)", "SP")):
+        assert redrawn.loc[redrawn["labels"] == series, "significant_leaves"].tolist() == authors[column].tolist()
 
 
 # --- miMic ---------------------------------------------------------------------------

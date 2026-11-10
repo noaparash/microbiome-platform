@@ -15,11 +15,12 @@ Runs the authors' ``apply_mimic`` unchanged, fed from the shared ``Dataset``
 - it runs inside ``work_dir``, because miMic always writes .pkl files into the
   current folder.
 
-The headline figure is miMic's own cladogram, drawn by the authors' code (the
-final call of their plot mode; see ``_cladogram``). The significant-taxa bars and
-the a-priori test are drawn through ``reports.figures``. The authors' full bundle
-(their tables and every diagnostic plot) is made by ``engines/mimic_authors.py``,
-outside the website.
+miMic's plot mode runs unchanged (``_authors_plots``, seed 42): its cladogram is shown as
+miMic draws it (the headline), and its RP vs SP check (``tax_vs_rp_sp_anova_p``) is redrawn in
+the platform's style from miMic's own numbers, with miMic's drawing offered as a download. The significant-taxa bars are drawn through ``reports.figures``; the
+a-priori p-values are in the summary and the ``apriori_test`` table. The authors' full
+bundle (their tables and every diagnostic plot, several seeds) is made by
+``engines/mimic_authors.py``, outside the website.
 """
 
 from __future__ import annotations
@@ -40,7 +41,7 @@ from microplatform.core.contract import RANK_SEPARATOR, Dataset
 from microplatform.core.errors import UserFacingError
 from microplatform.engines.base import Engine, EngineResult
 from microplatform.engines.labels import native_tag
-from microplatform.reports.figures import Figure, RenderedFigure
+from microplatform.reports.figures import ACCENT, CONTRAST, Figure, RenderedFigure
 
 log = logging.getLogger(__name__)
 
@@ -133,11 +134,12 @@ class MimicEngine(Engine):
         hits = found[found["found_by"] != LEAF_ONLY].reset_index(drop=True)
         leaf_only = found[found["found_by"] == LEAF_ONLY].reset_index(drop=True)
         apriori = _apriori_table(levels)
-        tree = _cladogram(work_dir, images, samba_output, tag, start, test, found, data.label_kind, coding)
+        drawn, rp_sp = _authors_plots(work_dir, images, samba_output, tag, start, test, found, data.label_kind,
+                                      coding)
         return EngineResult(
             summary=_summary(start, hits, leaf_only, apriori, data.label_kind, coding, test),
-            rendered=[tree] if tree else [],
-            figures=[f for f in (_taxa_figure(hits, data.label_kind, coding), _apriori_figure(apriori)) if f],
+            rendered=drawn,
+            figures=[f for f in (_taxa_figure(hits, data.label_kind, coding), rp_sp) if f],
             tables={"significant_taxa": hits, "leaf_test_only": leaf_only, "apriori_test": apriori},
             highlight=("significant_taxa", "Most significant taxa (miMic)") if not hits.empty else None,
             record={
@@ -146,28 +148,37 @@ class MimicEngine(Engine):
                 "eval": test, "threshold_p": THRESHOLD_P, "sister_correction": SISTER_CORRECTION,
                 "correct_first": CORRECT_FIRST, "samples": len(tag), "label_coding": coding,
                 "post_hoc_start": str(start), "significant_taxa": len(hits), "leaf_test_only": len(leaf_only),
-                "cladogram": (CLADOGRAM_CALL if tree else "not drawn (no significant taxa)"),
+                "authors_plots": (PLOT_CALL if drawn else "not drawn (no significant taxa)"),
+                "rp_sp_check": RP_SP_RECORD if rp_sp else "not drawn (no significant taxa)",
+                "plot_seed": PLOT_SEED,
             },
         )
 
 
-# miMic's cladogram is drawn by the authors' own code: the last call of ``apply_mimic(mode="plot")``,
-# which goes on to ``creare_tree_view``. The rest of plot mode (16 more test passes on real and shuffled
-# labels) only feeds its other diagnostic plots, so it is skipped; the tree is the same (tests/
-# test_reproduction.py compares it byte for byte with the authors' whole plot mode).
-CLADOGRAM_CALL = ("mimic_da.miMic_test.calculate_all_imgs_tag_corr(mode='plot', colorful=True) -> "
-                  "creare_tree_view (ete3), unchanged, with engines/mimic_authors.ADJUSTMENTS; matplotlib "
-                  "draws without a screen (Agg)")
+# miMic's own figures are drawn by the authors' own code: their whole plot mode,
+# ``apply_mimic(mode="plot")``, exactly as engines/mimic_authors.py runs it (seed 42). It re-runs the tree
+# test from every starting level on the real labels (RP) and on shuffled labels (SP), draws the RP vs SP
+# plot (``plot_rp_sp_anova_p``) and finally the cladogram (``creare_tree_view``). The SP counts depend on
+# the seed; the cladogram and the tables do not. tests/test_reproduction.py compares both figures byte for
+# byte with mimic_authors.run_bundle.
+PLOT_SEED = 42
+PLOT_CALL = ("mimic_da.apply_mimic(mode='plot') (seed 42): plot_rp_sp_anova_p -> plots/tax_vs_rp_sp_anova_p.png "
+             "and calculate_all_imgs_tag_corr(mode='plot', colorful=True) -> creare_tree_view (ete3), unchanged, "
+             "with engines/mimic_authors.ADJUSTMENTS; matplotlib draws without a screen (Agg)")
 
 
-def _cladogram(work_dir: Path, images: Path, samba_output, tag: pd.DataFrame, start, test: str,
-               hits: pd.DataFrame, kind: str, coding: dict) -> RenderedFigure | None:
-    """miMic's own correlation cladogram (``plots/correlations_tree.svg``), or None if nothing is significant."""
+def _authors_plots(work_dir: Path, images: Path, samba_output, tag: pd.DataFrame, start, test: str,
+                   hits: pd.DataFrame, kind: str, coding: dict) -> tuple[list[RenderedFigure], Figure | None]:
+    """miMic's plot mode: its cladogram (as drawn), and its RP vs SP check redrawn in the platform's style
+    with the authors' own drawing beside it (nothing if nothing is significant)."""
     if start == "nosignificant" or hits.empty:
-        return None
-    import mimic_da.miMic_test as mt
+        return [], None
+    import random
 
-    from microplatform.engines.mimic_authors import COLORFUL, THRESHOLD_EDGE, compatible  # (imports this module)
+    import numpy as np
+    from mimic_da import apply_mimic
+
+    from microplatform.engines.mimic_authors import COLORFUL, RP_SP_FIGURE, THRESHOLD_EDGE, compatible
 
     plots = work_dir / "plots"
     shutil.rmtree(plots, ignore_errors=True)
@@ -176,36 +187,100 @@ def _cladogram(work_dir: Path, images: Path, samba_output, tag: pd.DataFrame, st
     backend = plt.get_backend()
     plt.switch_backend("Agg")  # the authors' plot mode opens windows (plt.show); here it only saves files
     try:
-        with compatible(), contextlib.chdir(work_dir), _quiet():
-            mt.calculate_all_imgs_tag_corr(
-                samba_output, str(images), tag, start, eval=test, sis=SISTER_CORRECTION,
-                correct_first=CORRECT_FIRST, mode="plot", threshold_p=THRESHOLD_P,
-                THRESHOLD_edge=THRESHOLD_EDGE, shuffle=False, colorful=COLORFUL,
+        with compatible() as seen, contextlib.chdir(work_dir), _quiet():
+            random.seed(PLOT_SEED)
+            np.random.seed(PLOT_SEED)
+            apply_mimic(
+                str(images), tag, eval=test, sis=SISTER_CORRECTION, correct_first=CORRECT_FIRST, mode="plot",
+                tax=start, threshold_p=THRESHOLD_P, THRESHOLD_edge=THRESHOLD_EDGE, colorful=COLORFUL,
+                samba_output=samba_output, save=False,
             )
     finally:
         plt.close("all")
         with contextlib.suppress(Exception):
             plt.switch_backend(backend)
+    drawn = []
     svg, png = plots / "correlations_tree.svg", plots / "correlations_tree.png"
-    if not svg.exists() or not png.exists():
-        log.warning("miMic did not draw its cladogram in %s", plots)
-        return None
-    if kind == "binary":
-        colours = f"blue: higher in '{coding['1']}', red: higher in '{coding['0']}'"
+    if svg.exists() and png.exists():
+        if kind == "binary":
+            colours = f"blue: higher in '{coding['1']}', red: higher in '{coding['0']}'"
+        else:
+            colours = "blue: increases with the label, red: decreases with it"
+        drawn.append(RenderedFigure(
+            name="mimic_cladogram",
+            title="miMic's cladogram: where on the taxonomy tree the groups differ",
+            caption=("Drawn by miMic itself (mimic-da's own tree drawing; for readability, every marker is capped "
+                     "at a small size, as in the lab's reference tree, and the circle is closed). The taxonomy "
+                     "tree of the significant taxa; a node's size grows with -log10(p) up to that cap (so most "
+                     "are the same size), and its colour gives the direction ("
+                     f"{colours}). Shape: sphere = found by both miMic's tree test and the leaf test, circle = the "
+                     "tree test only, square = the leaf test only (not miMic's result; listed separately). The "
+                     "background shows each taxon's family. Data (CSV): every taxon on the tree, with what found it "
+                     "(column found_by)."),
+            svg=svg, png=png, data=hits,
+        ))
     else:
-        colours = "blue: increases with the label, red: decreases with it"
-    return RenderedFigure(
-        name="mimic_cladogram",
-        title="miMic's cladogram: where on the taxonomy tree the groups differ",
-        caption=("Drawn by miMic itself (mimic-da's own tree drawing; for legibility only, the labels are "
-                 "4x larger and the circle is closed). The taxonomy tree of the "
-                 f"significant taxa; each node's size grows with -log10(p), and its colour gives the direction ("
-                 f"{colours}). Shape: sphere = found by both miMic's tree test and the leaf test, circle = the "
-                 "tree test only, square = the leaf test only (not miMic's result; listed separately). The "
-                 "background shows each taxon's family. Data (CSV): every taxon on the tree, with what found it "
-                 "(column found_by)."),
-        svg=svg, png=png, data=hits,
+        log.warning("miMic did not draw its cladogram in %s", plots)
+    svg, png = plots / f"{RP_SP_FIGURE}.svg", plots / f"{RP_SP_FIGURE}.png"
+    rp_sp = None
+    if "rp_sp_plotted" in seen:
+        table, mixed = seen["rp_sp_plotted"]
+        originals = tuple((fmt, path) for fmt, path in (("png", png), ("svg", svg)) if path.exists())
+        rp_sp = _rp_sp_figure(_rp_sp_table(table, mixed), mixed, originals)
+    else:
+        log.warning("miMic did not compute its RP vs SP check in %s", plots)
+    return drawn, rp_sp
+
+
+REAL, SHUFFLED = "Real labels (RP)", "Shuffled labels (SP)"
+RP_SP_RECORD = {
+    "what": "miMic's RP vs SP check: for each taxonomic level the tree test can start from, the number of "
+            "significant leaves with the real labels (RP) and with randomly shuffled labels (SP).",
+    "computed_by": "mimic_da.apply_mimic(mode='plot'), unchanged; the numbers are the table miMic passes to "
+                   "plot_rp_sp_anova_p",
+    "shuffle": "one shuffle of the labels with numpy's global random generator, seed 42",
+    "drawn_by": "the platform (reports/figures.py, grouped_barh), linear scale with each count written on its bar; "
+                "miMic's own drawing (log scale, where a count of 0 shows no bar) is kept as "
+                "mimic_rp_sp_original.png/.svg",
+    "band": "the levels miMic marks grey in its own plot: from Kingdom down to the level its tree test started "
+            "from (the a-priori test's result)",
+}
+
+
+def _rp_sp_figure(table: pd.DataFrame, mixed: str, originals: tuple) -> Figure:
+    """miMic's RP vs SP counts, in the platform's style (the numbers are miMic's, unchanged)."""
+    levels = list(table["starting_taxonomy"])
+    chosen = mixed.split("&")[0].strip()
+    shade = tuple(levels[: levels.index(chosen) + 1]) if chosen in levels else ()
+    data = table.melt(id_vars="starting_taxonomy", value_vars=["RP", "SP"], var_name="series",
+                      value_name="significant_leaves")
+    data["labels"] = data["series"].map({"RP": REAL, "SP": SHUFFLED})
+    data = data[["starting_taxonomy", "labels", "significant_leaves"]]
+    return Figure(
+        name="mimic_rp_sp", title="Is miMic's result more than chance?",
+        caption=("How many leaves miMic finds significant when its tree test starts at each taxonomic level: "
+                 "with your real labels, and with the same labels shuffled at random. If shuffled labels find "
+                 "few or none, the real findings are unlikely to be chance. Grey marks the levels miMic's first "
+                 "(a-priori) test passed. A statistical check computed by miMic and redrawn in the platform's "
+                 "style; the shuffled count comes from a single shuffle."),
+        data=data, kind="grouped_barh", x="significant_leaves", y="starting_taxonomy", color_by="labels",
+        colors=((REAL, ACCENT), (SHUFFLED, CONTRAST)), shade=shade, shade_label="Passed the a-priori test",
+        x_label="Significant leaves", y_label="Tree test starts at", section="findings",
+        hover="%{customdata[0]}: %{x:,} significant leaves<extra></extra>",
+        originals=originals, original_label="miMic's original",
     )
+
+
+def _rp_sp_table(table: pd.DataFrame, mixed: str) -> pd.DataFrame:
+    """miMic's RP/SP counts with the level names its plot shows (1-7 = Kingdom..Species, 8 = its combined level).
+
+    miMic passes its a-priori p-values in the same table, but indexed from the root (1 = root), one level off
+    from RP/SP (1 = kingdom); its plot does not draw them. They are left out here: the ``apriori_test`` table
+    has them, correctly labelled."""
+    names = [*_LEVELS[:8], mixed]  # _LEVELS[0] is the root (level 0)
+    out = table[["RP", "SP"]].copy()
+    out.insert(0, "starting_taxonomy", [names[int(i)] if 0 <= int(i) <= 8 else str(i) for i in out.index])
+    return out.reset_index(drop=True)
 
 
 def display_name(taxon: str) -> str:
@@ -305,19 +380,6 @@ def _taxa_figure(hits: pd.DataFrame, kind: str, coding: dict) -> Figure | None:
         data=top, kind="barh", x="statistic", y="name", x_label=x_label, y_label="",
         color_by="direction", section="findings",
         hover="%{y}<br>score %{x:.3g}<extra></extra>",
-    )
-
-
-def _apriori_figure(apriori: pd.DataFrame) -> Figure | None:
-    if apriori.empty:
-        return None
-    return Figure(
-        name="mimic_apriori_test", title="Is the label linked to the microbiome?",
-        caption="miMic's first step tests each taxonomic level as a whole (nested ANOVA, or GLM for "
-                "continuous labels). Bars above the line are significant; the post-hoc tests start only then.",
-        data=apriori, kind="column", x="level", y="minus_log10_p",
-        x_label="Taxonomic level", y_label="−log10(p)", hline=(-math.log10(THRESHOLD_P), f"p = {THRESHOLD_P:g}"),
-        section="findings", hover="%{x}: −log10(p) = %{y:.2f}<extra></extra>",
     )
 
 

@@ -23,7 +23,9 @@
       <p class="downloads">Download:
         {% set formats = [("png", "PNG"), ("svg", "SVG"), ("html", "Web page" if fig.rendered else "Interactive"),
                           ("csv", "Data (CSV)")]
-                         + ([("tests", "Tests (CSV)")] if fig.files.tests else []) %}
+                         + ([("tests", "Tests (CSV)")] if fig.files.tests else [])
+                         + ([("original_png", fig.original_label ~ " (PNG)")] if fig.files.original_png else [])
+                         + ([("original_svg", fig.original_label ~ " (SVG)")] if fig.files.original_svg else []) %}
         {% for fmt, label in formats %}
           <a href="{{ url_for('main.figure_file', run_id=run_id, name=fig.files[fmt], download=1) }}">{{ label }}<span class="visually-hidden"> of “{{ fig.title }}”</span></a>{% if not loop.last %} ·{% endif %}
         {% endfor %}

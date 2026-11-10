@@ -59,13 +59,14 @@ PALETTE = (ACCENT, CONTRAST, "#6d28d9", "#0369a1", "#be185d", "#4d7c0f", "#57534
 # Taxa in composition figures take their colours from one global map, reports/composition.py.
 OTHER = "Other"
 BOX_LINE = "#3f4a4a"  # box outlines and medians
+SHADE = "#e6eceb"  # a light band behind rows that a figure marks (e.g. grouped_barh's shade)
 
 # Interactive files: plotly.js shows a "Share chart" button by default, which uploads the
 # plot's data to Chart Studio online. Uploads may be clinical, so it is always off.
 PLOTLY_CONFIG = {"displaylogo": False, "showSendToCloud": False, "responsive": True}
 
 Kind = Literal["bar", "histogram", "barh", "column", "scatter", "line", "stacked", "pie", "box", "composition",
-               "violin"]
+               "violin", "grouped_barh"]
 HIGH_DPI = 300  # composition figures, as in the lab's own figure scripts
 Section = Literal["quality", "findings", "overview"]
 
@@ -90,6 +91,9 @@ class Figure:
                the right panel ("Average"); legend below; ``suptitle`` above (the lab's fig_1B style)
     violin     per ``x``, the spread of ``y``: the first ``group_by`` value as the left half of a
                violin, the second as the right half, medians marked
+    grouped_barh  per label ``y`` (in row order, first on top), one horizontal bar per ``color_by``
+               value side by side, value ``x`` written at each bar's end; ``shade`` lists labels to set
+               on a light band, named by ``shade_label``
 
     ``colors`` fixes the colour of each value (of ``color_by``, of the pie's ``x``, or of the box's
     ``group_by``), so a taxon or a group keeps one colour across figures.
@@ -128,6 +132,12 @@ class Figure:
     panel_titles: tuple[tuple[str, str], ...] = ()  # box: (panel, title), e.g. the test used
     ellipses: float | None = None  # scatter: coverage of each group's ellipse (e.g. 0.95)
     stats: pd.DataFrame | None = None  # the tests behind the figure, written as <name>_tests.csv
+    shade: tuple[str, ...] = ()  # grouped_barh: the labels set on a light band
+    shade_label: str = ""  # grouped_barh: what the band means (in the legend)
+    # Files a tool drew itself for the same result (format → path), shipped unchanged beside the figure
+    # as <name>_original.<format>, and offered as "<original_label> (PNG)" etc.
+    originals: tuple[tuple[str, str | Path], ...] = ()
+    original_label: str = "Tool's original"
 
 
 @dataclass(frozen=True)
@@ -142,6 +152,7 @@ class ExportedFigure:
     tall: bool = False  # one row per item (e.g. per taxon): needs the full width and more height
     wide: bool = False  # many bars side by side, or several pies: needs the full width
     rendered: bool = False  # drawn by a tool's own plotting code (RenderedFigure): no interactive plotly version
+    original_label: str = ""  # files["original_<format>"]: the tool's own drawing of the same result
 
 
 @dataclass
@@ -159,6 +170,8 @@ class RenderedFigure:
     png: Path
     data: pd.DataFrame
     section: Section = "findings"
+    lead: bool = True  # first among the figures (the headline); False: after the figures we draw
+    wide: bool = True  # takes the whole row; False for a small plot (shown at its own size)
 
 
 # --- the figures for preprocessing ---------------------------------------------
@@ -226,6 +239,11 @@ def export(figures: list[Figure], out_dir: Path) -> list[ExportedFigure]:
             files["tests"] = stats_file.name
         else:
             stats_file.unlink(missing_ok=True)  # a re-run without groups must not keep old tests
+        for old in out_dir.glob(f"{fig.name}_original.*"):
+            old.unlink()
+        for fmt, source in fig.originals:
+            shutil.copyfile(source, out_dir / f"{fig.name}_original.{fmt}")
+            files[f"original_{fmt}"] = f"{fig.name}_original.{fmt}"
         _write_static(fig, out_dir)
         interactive = to_plotly(fig)
         interactive.write_html(out_dir / f"{fig.name}.html", include_plotlyjs=True, full_html=True,
@@ -233,6 +251,7 @@ def export(figures: list[Figure], out_dir: Path) -> list[ExportedFigure]:
         (out_dir / f"{fig.name}.json").write_text(interactive.to_json(), encoding="utf-8")
         exported.append(ExportedFigure(
             fig.name, fig.title, fig.caption, files, fig.section, tall=fig.kind == "barh", wide=_is_wide(fig),
+            original_label=fig.original_label if fig.originals else "",
         ))
     _add_to_manifest(exported, out_dir)
     return exported
@@ -240,7 +259,8 @@ def export(figures: list[Figure], out_dir: Path) -> list[ExportedFigure]:
 
 def export_rendered(figures: list[RenderedFigure], out_dir: Path) -> list[ExportedFigure]:
     """Copy each tool-drawn figure's SVG and PNG unchanged, write its data CSV and an HTML page showing
-    the SVG, and add them to the folder's manifest (first among the figures: it is the headline)."""
+    the SVG, and add them to the folder's manifest (first among the figures when ``lead``: the headline;
+    otherwise after the others)."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     exported = []
@@ -258,9 +278,11 @@ def export_rendered(figures: list[RenderedFigure], out_dir: Path) -> list[Export
             f"<h1>{html.escape(fig.title)}</h1><p>{html.escape(fig.caption)}</p>{svg}</body></html>\n",
             encoding="utf-8")
         files = {f: f"{fig.name}.{f}" for f in ("png", "svg", "html", "csv")}
-        exported.append(ExportedFigure(fig.name, fig.title, fig.caption, files, fig.section, wide=True,
+        exported.append(ExportedFigure(fig.name, fig.title, fig.caption, files, fig.section, wide=fig.wide,
                                        rendered=True))
-    _add_to_manifest(exported, out_dir, first=True)
+    leads = {f.name for f in figures if f.lead}
+    _add_to_manifest([e for e in exported if e.name in leads], out_dir, first=True)
+    _add_to_manifest([e for e in exported if e.name not in leads], out_dir)
     return exported
 
 
@@ -377,7 +399,8 @@ def _write_static(fig: Figure, out_dir: Path) -> None:
         with matplotlib.rc_context({"svg.fonttype": "none"}):
             (_write_composition if fig.kind == "composition" else _write_violin)(fig, out_dir)
         return
-    height = max(3.5, 0.26 * len(fig.data) + 1.4) if fig.kind == "barh" else 4
+    height = (max(3.5, 0.26 * len(fig.data) + 1.4) if fig.kind == "barh"
+              else max(3.5, 0.24 * len(fig.data) + 1.6) if fig.kind == "grouped_barh" else 4)
     width = 10 if _is_wide(fig) else 7
     with matplotlib.rc_context({"svg.fonttype": "none", "font.size": 10}):
         mpl = MplFigure(figsize=(width, height), layout="constrained")
@@ -424,6 +447,8 @@ def _write_static(fig: Figure, out_dir: Path) -> None:
             if legend:
                 ax.legend(handles=[Patch(color=c, label=g) for g, c in legend], frameon=False,
                           loc="lower right")
+        elif fig.kind == "grouped_barh":
+            _draw_grouped_barh(fig, ax)
         elif fig.kind == "scatter":
             colors, legend = _group_colors(fig)
             ax.scatter(fig.data[fig.x], fig.data[fig.y], c=colors, s=28, alpha=0.85, edgecolors="white",
@@ -603,6 +628,40 @@ def _write_pies(fig: Figure, mpl: MplFigure, out_dir: Path) -> None:
     _save(mpl, fig, out_dir)
 
 
+def _grouped_layout(fig: Figure) -> tuple[list[str], list[tuple[str, str]], float]:
+    """grouped_barh: the labels (first on top), the series with their colours, and each bar's height."""
+    labels = list(dict.fromkeys(fig.data[fig.y].astype(str)))
+    _, series = _group_colors(fig)
+    return labels, series, 0.8 / max(len(series), 1)
+
+
+def _draw_grouped_barh(fig: Figure, ax) -> None:
+    labels, series, height = _grouped_layout(fig)
+    rows = {label: i for i, label in enumerate(labels)}
+    top = max(float(fig.data[fig.x].max()), 1.0)
+    handles = []
+    for i in (i for i, label in enumerate(labels) if label in fig.shade):
+        ax.axhspan(i - 0.5, i + 0.5, color=SHADE, zorder=0, linewidth=0)
+    if fig.shade:
+        handles.append(Patch(color=SHADE, label=fig.shade_label))
+    for k, (name, color) in enumerate(series):
+        part = fig.data[fig.data[fig.color_by].astype(str) == name]
+        # Series top to bottom within a label, in legend order.
+        ys = [rows[str(v)] - 0.4 + height * (k + 0.5) for v in part[fig.y]]
+        ax.barh(ys, part[fig.x], height=height * 0.92, color=color, zorder=2)
+        for y, value in zip(ys, part[fig.x]):
+            ax.annotate(f"{value:,.0f}", (value, y), xytext=(3, 0), textcoords="offset points", va="center",
+                        fontsize=8, color=BOX_LINE)
+        handles.append(Patch(color=color, label=name))
+    ax.set_yticks(range(len(labels)), labels)
+    ax.set_ylim(len(labels) - 0.5, -0.5)  # first label on top
+    ax.set_xlim(0, top * 1.12)
+    ax.tick_params(axis="y", length=0)
+    # Under the axis (clear of the title): constrained layout makes room for it.
+    ax.legend(handles=handles, frameon=False, loc="upper left", bbox_to_anchor=(0, -0.09), ncol=len(handles),
+              fontsize=8.5, borderaxespad=0)
+
+
 def _draw_box(ax, x: float, values: np.ndarray, width: float = 0.55) -> None:
     """A Tukey box (quartiles, median, whiskers to the furthest point within 1.5 × IQR), as plotly draws it.
 
@@ -701,6 +760,26 @@ def to_plotly(fig: Figure) -> go.Figure:
             out.add_trace(go.Bar(x=rows[fig.x], y=rows[fig.y], orientation="h", marker_color=color,
                                  name=group or "", hovertemplate=fig.hover, showlegend=group is not None))
         out.update_yaxes(autorange="reversed", categoryorder="array", categoryarray=list(fig.data[fig.y]))
+    elif fig.kind == "grouped_barh":
+        labels, series, _ = _grouped_layout(fig)
+        for i in (i for i, label in enumerate(labels) if label in fig.shade):
+            out.add_shape(type="rect", xref="paper", x0=0, x1=1, yref="y", y0=i - 0.5, y1=i + 0.5,
+                          fillcolor=SHADE, line={"width": 0}, layer="below")
+        if fig.shade:  # a legend entry for the band
+            # A marker, not a bar: an empty bar trace would still take a slot in every group.
+            out.add_trace(go.Scatter(x=[None], y=[None], mode="markers", name=fig.shade_label, hoverinfo="skip",
+                                     marker={"symbol": "square", "size": 12, "color": SHADE,
+                                             "line": {"color": "#8a9a9a", "width": 1}}))
+        for name, color in series:
+            part = fig.data[fig.data[fig.color_by].astype(str) == name]
+            out.add_trace(go.Bar(x=part[fig.x], y=[labels.index(str(v)) for v in part[fig.y]], orientation="h",
+                                 marker_color=color, name=name, text=part[fig.x], texttemplate="%{x:,.0f}",
+                                 textposition="outside", cliponaxis=False, customdata=part[[fig.y]],
+                                 hovertemplate=fig.hover))
+        out.update_layout(barmode="group", bargap=0.18)
+        out.update_yaxes(tickmode="array", tickvals=list(range(len(labels))), ticktext=labels,
+                         range=[len(labels) - 0.5, -0.5], ticks="")
+        out.update_xaxes(range=[0, max(float(fig.data[fig.x].max()), 1.0) * 1.15])
     elif fig.kind == "scatter":
         _, legend = _group_colors(fig)
         for group, color in legend or [(None, ACCENT)]:
@@ -733,14 +812,18 @@ def to_plotly(fig: Figure) -> go.Figure:
     if fig.hline:
         out.add_hline(y=fig.hline[0], line_dash="dash", line_color=MARKER, annotation_position="top left",
                       annotation_text=fig.hline[1], annotation_font_color=MARKER)
-    height = max(360, 22 * len(fig.data) + 120) if fig.kind == "barh" else None
+    height = (max(360, 22 * len(fig.data) + 120) if fig.kind == "barh"
+              else max(360, 20 * len(fig.data) + 140) if fig.kind == "grouped_barh" else None)
     out.update_layout(
         title={"text": _title(fig), "x": 0, "xanchor": "left"},
         xaxis_title=fig.x_label, yaxis_title=fig.y_label,
         template="simple_white", margin={"l": 60, "r": 20, "t": 50, "b": 50},
-        bargap={"bar": 0.05, "histogram": 0.05, "stacked": 0}.get(fig.kind, 0.25), height=height,
+        bargap={"bar": 0.05, "histogram": 0.05, "stacked": 0, "grouped_barh": 0.18}.get(fig.kind, 0.25),
+        height=height,
         # Stacked: the legend lists taxa top to bottom in the order they are stacked, beside the bars.
         legend=({"traceorder": "reversed", "title": {"text": fig.color_by.capitalize()}} if fig.kind == "stacked"
+                # Under the axis title, as in the PNG (several entries: clear of the title above).
+                else {"orientation": "h", "x": 0, "y": -0.16, "yanchor": "top"} if fig.kind == "grouped_barh"
                 # Group legends sit above the plot, clear of the axis title below.
                 else {"orientation": "h", "x": 0, "y": 1.02, "yanchor": "bottom"}),
     )
