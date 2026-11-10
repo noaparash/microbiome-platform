@@ -169,7 +169,8 @@ def test_the_figures_carry_the_tests_and_say_they_are_exploratory(example, tmp_p
     alpha, beta = figs["alpha_diversity"], figs["beta_pcoa"]
     assert alpha.caption.endswith(EXPLORATORY) and beta.caption.endswith(EXPLORATORY)
     assert alpha.brackets and dict(alpha.panel_titles) and beta.ellipses == 0.95
-    assert "PERMANOVA" in beta.subtitle and "PERMDISP" in beta.caption and "η²" in beta.caption
+    assert "PERMANOVA" in beta.subtitle and "PERMANOVA" in beta.caption  # the caption says what is tested
+    assert "PERMDISP" in beta.details and "η²" in beta.details and "Shapiro-Wilk" in alpha.details  # fine print
     exported = {e.name: e for e in export([alpha, beta], tmp_path)}
     for name in ("alpha_diversity", "beta_pcoa"):
         assert exported[name].files["tests"] == f"{name}_tests.csv"

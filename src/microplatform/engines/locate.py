@@ -105,7 +105,7 @@ class LocateEngine(Engine):
         return EngineResult(
             summary=_summary(len(train), len(test), scores, prepared),
             notes=_notes(prepared),
-            figures=[f for f in (_scores_figure(scores),) if f],
+            figures=[f for f in (_scores_figure(scores, len(test)),) if f],
             tables={
                 "metabolite_scores": scores,
                 "predicted_metabolites_test": out["pred_val"].rename_axis("sample").reset_index(),
@@ -153,8 +153,8 @@ def _summary(n_train: int, n_test: int, scores: pd.DataFrame, prepared: dict) ->
         f"{n_test:,} it had not seen ({round((1 - TEST_SIZE) * 100)}% for training, "
         f"{round(TEST_SIZE * 100)}% for testing, seed {SEED}).",
         f"Across {len(rho):,} metabolites, the median Spearman correlation between measured and predicted "
-        f"levels on the test samples is {rho.median():.2f}; {int((rho > 0).sum()):,} are predicted better "
-        "than chance would suggest (correlation above 0)." if len(rho) else
+        f"levels on the test samples is {rho.median():.2f}; {int((rho > 0).sum()):,} have a correlation above 0 "
+        "(predicted in the right direction; no test of chance was made)." if len(rho) else
         "No metabolite varied enough in the test samples to score the predictions.",
     ]
     if prepared["left_out_constant"]:
@@ -180,15 +180,22 @@ def _notes(prepared: dict) -> list[str]:
     return notes
 
 
-def _scores_figure(scores: pd.DataFrame) -> Figure | None:
-    top = scores.dropna(subset=["spearman"]).head(TOP)
+def _scores_figure(scores: pd.DataFrame, n_test: int) -> Figure | None:
+    scored = scores.dropna(subset=["spearman"])
+    top = scored.head(TOP)
     if top.empty:
         return None
     return Figure(
         name="locate_metabolite_scores", title="Best-predicted metabolites",
-        caption=f"Spearman correlation between measured and predicted levels on the test samples, for the "
-                f"{len(top)} best-predicted metabolites. 0 means no relation, 1 a perfect ranking. "
-                "Every metabolite is in the table download.",
+        caption=f"How well LOCATE predicted each metabolite in the {n_test:,} test samples it did not learn "
+                "from: the Spearman correlation between measured and predicted levels (1 = the same order, "
+                "0 = no relation, below 0 = the wrong direction). "
+                + (f"Showing the {len(top)} best of {len(scored):,}; every" if len(scored) > len(top) else "Every")
+                + " metabolite is in the table download. Model performance from one training run, not a "
+                "statistical test.",
+        details="Spearman correlation per metabolite on one test set (20%, seed 42), the LOCATE paper's measure; "
+                "metabolites prepared as relative abundance, log10 (1e-6 added), z-scored (a reconstruction: "
+                "see the record).",
         data=top.iloc[::-1].reset_index(drop=True), kind="barh", x="spearman", y="metabolite",
         x_label="Spearman correlation (test samples)", y_label="", section="findings",
         hover="%{y}: %{x:.2f}<extra></extra>",

@@ -128,7 +128,7 @@ class ImicEngine(Engine):
         return EngineResult(
             summary=_summary(len(train), len(test), metrics, coding),
             notes=_notes(len(test)),
-            figures=[f for f in (_roc_figure(test),) if f],
+            figures=[f for f in (_roc_figure(test, coding),) if f],
             tables={"predictions": predictions, "test_metrics": pd.DataFrame([metrics])},
             highlight=("predictions", "Predictions (test samples first)"),
             record={
@@ -236,7 +236,7 @@ def _notes(n_test: int) -> list[str]:
     return notes
 
 
-def _roc_figure(test: pd.DataFrame) -> Figure | None:
+def _roc_figure(test: pd.DataFrame, coding: dict) -> Figure | None:
     from sklearn.metrics import auc, roc_curve
 
     if test["label"].nunique() < 2:
@@ -245,8 +245,15 @@ def _roc_figure(test: pd.DataFrame) -> Figure | None:
     data = pd.DataFrame({"false_positive_rate": fpr, "true_positive_rate": tpr})
     return Figure(
         name="imic_roc", title=f"ROC curve on the test samples (AUC {auc(fpr, tpr):.3f})",
-        caption="How well iMic's probabilities separate the two groups on samples it had not seen. "
-                "The dashed line is chance; the closer the curve to the top-left, the better.",
+        caption=f"How well iMic tells the two groups apart on the {len(test):,} test samples it did not learn "
+                f"from. Moving along the curve lowers the probability needed to call a sample '{coding['1']}': "
+                f"up means more '{coding['1']}' samples caught, right means more '{coding['0']}' samples wrongly "
+                "called. The dashed line is guessing; the nearer the curve to the top-left corner, the better. "
+                "The AUC in the title sums it up (0.5 = chance, 1 = perfect). Model performance on one split "
+                "of the samples, not a statistical test.",
+        details=f"ROC from iMic's predicted probabilities of '{coding['1']}' (sklearn roc_curve, auc). One "
+                "train/test split (80/20, seed 42); iMic predicts with its published code, in training mode "
+                "(dropout on), as apply_iMic does.",
         data=data, kind="line", x="false_positive_rate", y="true_positive_rate",
         x_label="False positive rate", y_label="True positive rate", diagonal=True, section="findings",
         hover="FPR %{x:.2f}, TPR %{y:.2f}<extra></extra>",

@@ -11,6 +11,18 @@ All notable changes to `microplatform`. The format follows
 ### Fixed
 - Results page: a chart that sets its own height (miMic's taxa bars, the RP vs SP check) no longer
   runs past its box over the caption and the download links.
+- `mp.analyze(..., out_dir="runs")` with a relative folder crashed for iMic (the engines change into
+  their work folder); work folders are now absolute.
+- LOCATE's summary no longer calls a correlation above 0 "better than chance" (no test was made).
+
+### Changed
+- Every figure caption says what the figure shows, how to read it, and what kind of result it is
+  (a tool's statistical test, exploratory tests, model performance, or descriptive). The fine print
+  (method, settings, provenance) moved to a new `Figure.details` / `RenderedFigure.details`, shown
+  under a closed "Method details" on the page and in the ZIP's `figures/FIGURES.txt`.
+- miMic's bar chart explains its score: the centred Mann-Whitney U, which grows with the number of
+  samples (compare bars within one figure, not across datasets).
+- CLAUDE.md (the assistant's working notes) is no longer in the repository.
 
 ### Added
 - **Group tests on the diversity figures**, as in the lab's reference analysis

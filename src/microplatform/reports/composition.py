@@ -168,10 +168,11 @@ def composition_figure(top: pd.DataFrame, colors: dict[str, str], dataset: str |
     return Figure(
         name="composition_bars",
         title="Composition of each sample (phylum)",
-        caption=f"Left: each bar is one sample, the share of its abundance from each phylum, adding up to "
-                f"100%. Right: the mean of all samples. The {named} phyla with the highest mean have a colour"
-                f"{rest}. Samples are sorted by {lead} (most first). Relative abundance from the uploaded "
-                f"table, collapsed to phylum, not the log-transformed table the tools use.{left_out} {descriptive}",
+        caption=f"Left: each bar is one sample, split into the share of each phylum (adding up to 100%). "
+                f"Right: the average of all samples. The {named} most abundant phyla have their own colour"
+                f"{rest}. Samples are sorted by {lead} (most first).{left_out} {descriptive}",
+        details="Relative abundance from the uploaded table, summed to phylum (the p__ rank). This is not "
+                "the log-transformed table the tools analyse.",
         data=data, kind="composition", x="sample", y="percent", color_by="phylum",
         x_label="Samples", y_label="Relative abundance (%)", summary=(MEAN,),
         colors=tuple(colors.items()), suptitle=dataset,

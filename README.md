@@ -152,7 +152,7 @@ Every figure carries a one-line caption saying what it shows and how to read it.
 Every run returns the shared data overview and the reproducibility files above. On top of that, each tool adds its own result:
 
 - **MIPMLP** — the cleaned, standardised table itself, as CSV: the shared representation every other tool builds on. Preprocessing produces a table, not a statistical test.
-- **miMic** — a cladogram of the taxonomy tree marking the bacteria that differ between the groups; a bar chart of each significant taxon with its effect size and the group it is higher in; a "real vs shuffled labels" check that the findings are more than chance; and the significant-taxa table.
+- **miMic** — a cladogram of the taxonomy tree marking the bacteria that differ between the groups; a bar chart of each significant taxon with its miMic score and the group it is higher in; a "real vs shuffled labels" check that the findings are more than chance; and the significant-taxa table.
 - **iMic** — the prediction performance on held-out test samples: a ROC curve with its AUC, and a per-sample table of each test sample's predicted probability and predicted group.
 - **GIMIC** — the microbiome distances between the samples, with a view of how the samples compare and group together.
 - **LOCATE** — the metabolite levels predicted from the microbiome, together with how well each metabolite is predicted.

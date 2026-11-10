@@ -26,6 +26,7 @@ from microplatform.core.contract import (
     check_settings,
 )
 from microplatform.core.inputs import sort_uploads
+from microplatform.engines.mimic import MIMIC_RESULT
 from microplatform.core.preprocessing import CANONICAL
 from microplatform.engines import ENGINES, Engine, EngineResult
 from microplatform.reports.figures import Figure
@@ -147,6 +148,9 @@ def test_every_engine_runs_on_the_same_representation(engine, full_run, cache, t
     assert isinstance(result, EngineResult) and all(isinstance(s, str) for s in result.summary)
     assert all(isinstance(f, Figure) for f in result.figures)
     assert all(isinstance(t, pd.DataFrame) for t in result.tables.values())
+    # Every caption ends by saying what kind of result its figure is (a tool's test, or not a test at all).
+    for fig in [*result.figures, *result.rendered]:
+        assert fig.caption.endswith(("not a statistical test.", MIMIC_RESULT)), (fig.name, fig.caption)
 
 
 def test_a_differently_named_label_column_is_normalised(tmp_path):

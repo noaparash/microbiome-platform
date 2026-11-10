@@ -389,7 +389,9 @@ def run_goal(run: runs.Run, goal_id: str, cache_dir: Path | None = None, choices
         figures.export(figures.preprocessing_figures(dataset.raw_counts, dataset.settings), run.figures_dir)
         figures.export(overview.overview_figures(dataset.raw_counts, dataset.settings, dataset.labels,
                                                  dataset.label_kind, dataset=_dataset_name(run)), run.figures_dir)
-        found = engine.run(dataset, run.path / "work" / engine.name.lower(), choices)
+        # Absolute: the engines change into this folder, so a relative one (mp.analyze(out_dir="runs"))
+        # would point somewhere else once inside it.
+        found = engine.run(dataset, (run.path / "work" / engine.name.lower()).resolve(), choices)
         _save_engine_result(run, engine, found, choices)
     except UserFacingError as exc:
         run.set_status("failed", error={"message": exc.message, "fix": exc.fix})

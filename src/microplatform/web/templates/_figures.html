@@ -20,6 +20,9 @@
         </div>
       {% endif %}
       <figcaption>{{ fig.caption }}</figcaption>
+      {% if fig.details %}
+        <details class="figure-details"><summary>Method details</summary><p>{{ fig.details }}</p></details>
+      {% endif %}
       <p class="downloads">Download:
         {% set formats = [("png", "PNG"), ("svg", "SVG"), ("html", "Web page" if fig.rendered else "Interactive"),
                           ("csv", "Data (CSV)")]

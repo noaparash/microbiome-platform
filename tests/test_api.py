@@ -126,3 +126,13 @@ def test_results_zip_cites_from_the_single_source(tmp_path):
 def test_example_overview():
     counts, labels = workflows.example_overview()
     assert counts.n_samples == 40 and labels.kind == "binary"
+
+
+@pytest.mark.parametrize("goal", ["predict", "group"])
+def test_analyze_works_with_a_relative_out_dir(tmp_path, monkeypatch, goal):
+    """The README's own example passes out_dir="runs". The engines change into their work folder, so a
+    relative path used to point nowhere once inside it (iMic crashed: found in the review, 2026-11-10)."""
+    monkeypatch.chdir(tmp_path)
+    view = mp.analyze(EXAMPLE_COUNTS, EXAMPLE_TAGS, goal=goal, out_dir="runs", cache_dir="cache")
+    assert view.status == "done", view.error
+    assert view.engine["tables"]

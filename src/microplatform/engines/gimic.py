@@ -177,8 +177,12 @@ def _notes(grouping: str, has_map: bool) -> list[str]:
 def _map_figure(coords: pd.DataFrame, coloured: bool) -> Figure:
     return Figure(
         name="gimic_map", title="Map of the samples (UMAP of GIMIC distances)",
-        caption="Each point is a sample; similar samples lie close together"
-                + (", coloured by label." if coloured else "."),
+        caption="Each point is a sample, placed so that samples with similar microbiomes (a small GIMIC "
+                "distance) lie close together" + (", coloured by label" if coloured else "") + ". Use it to see "
+                "groups and outliers: the axes have no units, and distances on the map are only approximate "
+                "(the exact ones are in the distance matrix download). Descriptive only, not a statistical test.",
+        details=f"UMAP of the GIMIC distance matrix (umap.UMAP(metric='precomputed', random_state={UMAP_SEED})); "
+                "GIMIC distance = the spectral angle between FFT-smoothed iMic images (samba-metric).",
         data=coords, kind="scatter", x="map_1", y="map_2", x_label="Map dimension 1",
         y_label="Map dimension 2", color_by="group" if coloured else None, label="sample",
         hover="%{text}<extra></extra>", section="findings",
@@ -188,7 +192,10 @@ def _map_figure(coords: pd.DataFrame, coloured: bool) -> Figure:
 def _separation_figure(separation: pd.DataFrame) -> Figure:
     return Figure(
         name="gimic_group_distances", title="Distances within and between groups",
-        caption="Average GIMIC distance between pairs of samples in the same group, and in different groups.",
+        caption="The average GIMIC distance between two samples from the same group, and between two samples "
+                "from different groups. If 'between groups' is clearly higher than 'within', samples are more "
+                "alike inside their group than across groups. Descriptive only, not a statistical test.",
+        details="Means over all pairs of samples (each pair once); the number of pairs is in the data CSV.",
         data=separation, kind="column", x="comparison", y="mean_distance", x_label="",
         y_label="Average GIMIC distance", hover="%{x}: %{y:.3g}<extra></extra>", section="findings",
     )

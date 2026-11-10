@@ -209,14 +209,16 @@ def _authors_plots(work_dir: Path, images: Path, samba_output, tag: pd.DataFrame
         drawn.append(RenderedFigure(
             name="mimic_cladogram",
             title="miMic's cladogram: where on the taxonomy tree the groups differ",
-            caption=("Drawn by miMic itself (mimic-da's own tree drawing; for readability, every marker is capped "
-                     "at a small size, as in the lab's reference tree, and the circle is closed). The taxonomy "
-                     "tree of the significant taxa; a node's size grows with -log10(p) up to that cap (so most "
-                     "are the same size), and its colour gives the direction ("
-                     f"{colours}). Shape: sphere = found by both miMic's tree test and the leaf test, circle = the "
-                     "tree test only, square = the leaf test only (not miMic's result; listed separately). The "
-                     "background shows each taxon's family. Data (CSV): every taxon on the tree, with what found it "
-                     "(column found_by)."),
+            caption=("The taxonomy tree of the taxa miMic found, drawn by miMic itself. Each marker is a taxon; "
+                     f"its colour gives the direction ({colours}). Shape: sphere = found by miMic's tree test and "
+                     "by testing the leaf on its own, circle = the tree test only, square = the leaf test only "
+                     "(not miMic's result; listed separately). The background colour shows each taxon's family. "
+                     f"{MIMIC_RESULT}"),
+            details=("Drawn by mimic-da's own tree drawing (calculate_all_imgs_tag_corr, mode 'plot', then "
+                     "creare_tree_view, ete3). A marker's size grows with -log10(p); for readability every marker is "
+                     "capped at a small size (as in the lab's reference tree), so most look the same, and the circle "
+                     "is closed (ete3's default leaves a 1-degree gap). Taxa, shapes, colours and positions are "
+                     "miMic's. Data (CSV): every taxon on the tree, with what found it (column found_by)."),
             svg=svg, png=png, data=hits,
         ))
     else:
@@ -233,6 +235,8 @@ def _authors_plots(work_dir: Path, images: Path, samba_output, tag: pd.DataFrame
 
 
 REAL, SHUFFLED = "Real labels (RP)", "Shuffled labels (SP)"
+MIMIC_RESULT = "miMic's result: a statistical test (p < 0.05, with miMic's FDR correction among sister taxa)."
+
 RP_SP_RECORD = {
     "what": "miMic's RP vs SP check: for each taxonomic level the tree test can start from, the number of "
             "significant leaves with the real labels (RP) and with randomly shuffled labels (SP).",
@@ -261,8 +265,11 @@ def _rp_sp_figure(table: pd.DataFrame, mixed: str, originals: tuple) -> Figure:
         caption=("How many leaves miMic finds significant when its tree test starts at each taxonomic level: "
                  "with your real labels, and with the same labels shuffled at random. If shuffled labels find "
                  "few or none, the real findings are unlikely to be chance. Grey marks the levels miMic's first "
-                 "(a-priori) test passed. A statistical check computed by miMic and redrawn in the platform's "
-                 "style; the shuffled count comes from a single shuffle."),
+                 "(a-priori) test passed. A check computed by miMic from a single shuffle, not a statistical test."),
+        details=("miMic's RP vs SP check (apply_mimic, mode 'plot'; the numbers are the table miMic passes to "
+                 "plot_rp_sp_anova_p), unchanged. One shuffle of the labels, seed 42. Redrawn by the platform on a "
+                 "linear scale with each count written on its bar; miMic's own drawing (log scale, where a count "
+                 "of 0 shows no bar) is the \"miMic's original\" download."),
         data=data, kind="grouped_barh", x="significant_leaves", y="starting_taxonomy", color_by="labels",
         colors=((REAL, ACCENT), (SHUFFLED, CONTRAST)), shade=shade, shade_label="Passed the a-priori test",
         x_label="Significant leaves", y_label="Tree test starts at", section="findings",
@@ -370,13 +377,22 @@ def _taxa_figure(hits: pd.DataFrame, kind: str, coding: dict) -> Figure | None:
     if kind == "binary":
         x_label = f"miMic score (positive = higher in '{coding['1']}')"
         title = "Bacteria that differ between the groups"
+        reading = (f"The bar's length is miMic's score: to the right, higher in '{coding['1']}'; to the left, "
+                   f"higher in '{coding['0']}'. The score grows with the number of samples, so compare bars "
+                   "within this figure, not across datasets.")
+        details = ("Score = the Mann-Whitney U statistic, centred: U - n0*n1/2 + 0.5 (miMic's 'scc'; scipy's "
+                   "mannwhitneyu). p is miMic's tree-test p-value.")
     else:
         x_label = "Spearman correlation with the label"
         title = "Bacteria linked to the label"
+        reading = ("The bar's length is the Spearman correlation with the label (from -1 to 1): to the right, the "
+                   "taxon rises with the label; to the left, it falls.")
+        details = "Score = Spearman's correlation (miMic's 'scc'). p is miMic's tree-test p-value."
     return Figure(
         name="mimic_significant_taxa", title=title,
-        caption=f"Significant taxa from miMic ({shown} of {len(hits)}), most significant at the top, "
-                "coloured by direction. The full list is in the table download.",
+        caption=f"Each bar is one taxon miMic found ({shown} of {len(hits)}), most significant at the top. "
+                f"{reading} Every taxon with its p-value is in the table download. {MIMIC_RESULT}",
+        details=details,
         data=top, kind="barh", x="statistic", y="name", x_label=x_label, y_label="",
         color_by="direction", section="findings",
         hover="%{y}<br>score %{x:.3g}<extra></extra>",

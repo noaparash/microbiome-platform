@@ -196,3 +196,17 @@ def test_a_plot_with_its_own_height_gets_a_box_of_that_height():
         fig = figures.Figure(name="t", title="t", caption="c", data=data, kind=kind, x="v", y="name",
                              x_label="v", y_label="", color_by="g" if kind == "grouped_barh" else None)
         assert figures.to_plotly(fig).layout.height  # the kinds this guards do set a height
+
+
+def test_method_details_are_under_the_caption_and_in_the_zip(mimic_page, client):
+    """Captions say what a figure shows and how to read it; the fine print sits in a closed "Method details"
+    box under it, and in the ZIP's figures/FIGURES.txt (the caption rewrite, 2026-11-10)."""
+    import zipfile
+
+    url, page = mimic_page
+    assert page.count('<details class="figure-details"><summary>Method details</summary>') >= 3
+    assert "Mann-Whitney U statistic, centred" in page  # the miMic score, explained
+    with zipfile.ZipFile(io.BytesIO(client.get(f"{url}/bundle").data)) as zf:
+        notes = zf.read("figures/FIGURES.txt").decode()
+    assert "figures/1_result/mimic_significant_taxa.*" in notes and "Method details: Score = " in notes
+    assert notes.index("1_result") < notes.index("3_descriptive_overview")  # reading order

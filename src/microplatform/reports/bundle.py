@@ -27,7 +27,8 @@ record.json                   preprocessing settings and version, to reproduce t
 analysis.json                 the analysis tool's version, settings and findings, if any
 figures/                      every figure as <name>.png / .svg (SVG text stays editable), <name>.html
                               (interactive; opens offline in any browser) and <name>.csv (its exact
-                              data), in three folders, in reading order:
+                              data), in three folders, in reading order. FIGURES.txt: every figure's
+                              title, caption (how to read it) and method details
   1_result/                   the analysis result: the tool's findings
   2_data_quality/             quality checks of the uploaded table (e.g. sequencing depth)
   3_descriptive_overview/     what the data looks like (composition, diversity, sparsity): descriptive,
@@ -95,10 +96,24 @@ def build_bundle(run: Run) -> bytes:
         if run.metabolites_file.exists():
             zf.write(run.metabolites_file, "inputs/metabolites.csv")
         if run.figures_dir.exists():
+            zf.writestr("figures/FIGURES.txt", figure_notes(run))
             for path in sorted(run.figures_dir.iterdir()):
                 if path.suffix != ".json":  # JSON copies are only for the web page
                     zf.write(path, f"{figure_folder(sections.get(path.name, 'quality'))}/{path.name}")
     return buffer.getvalue()
+
+
+def figure_notes(run: Run) -> str:
+    """Every figure in reading order: where it is in the ZIP, its title, caption and method details."""
+    figures = sorted(load_manifest(run.figures_dir), key=lambda f: list(FIGURE_FOLDERS).index(f.section)
+                     if f.section in FIGURE_FOLDERS else 1)
+    blocks = []
+    for fig in figures:
+        lines = [f"{figure_folder(fig.section)}/{fig.name}.*", f"  {fig.title}", f"  {fig.caption}"]
+        if fig.details:
+            lines.append(f"  Method details: {fig.details}")
+        blocks.append("\n".join(lines))
+    return "Figures\n=======\n\n" + "\n\n".join(blocks) + "\n"
 
 
 def _citations(engine: dict | None, record: dict | None = None) -> str:

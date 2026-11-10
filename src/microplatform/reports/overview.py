@@ -41,13 +41,13 @@ from microplatform.core.preprocessing import PreprocessSettings
 from microplatform.core.profiler import value_kind
 from microplatform.reports import composition, diversity_stats
 from microplatform.reports.composition import PALETTE_DEFAULT, TOP_PHYLA, CompositionError
-from microplatform.reports.figures import OTHER, Figure, group_colors, taxa_prevalence
+from microplatform.reports.figures import DESCRIPTIVE, OTHER, Figure, group_colors, taxa_prevalence
 
 NO_LABEL = "No label"  # samples the labels file does not mention
 ALL_SAMPLES = "All samples"  # the one group when there are no labels
 GROUPABLE: tuple[LabelKind, ...] = ("binary", "categorical")  # a continuous label has no groups
 MIN_ORDINATION = 3  # samples needed for a PCoA map
-DESCRIPTIVE = "Descriptive only, not a statistical test."
+ALPHA_DETAILS = "Shannon index with the natural log; richness = taxa above zero."
 EXPLORATORY = ("Exploratory: tests on the uploaded data, not corrected across this report, and not a "
                "tool's finding.")
 ELLIPSE = 0.95  # the share of a group's points its ellipse holds (normal theory)
@@ -232,22 +232,22 @@ def _alpha_figure(counts: pd.DataFrame, groups: pd.Series, colors: tuple, left_o
     labelled = groups[groups != NO_LABEL]
     table = diversity_stats.alpha_tests(alpha.loc[labelled.index], labelled, ordered) if tested else None
     if value_kind(counts) == "counts":
-        caption = ("Each point is one sample; the box spans the middle half of the samples and the line is the "
-                   "median. Shannon index (natural log) grows with both the number of taxa and how evenly "
-                   "reads are spread among them; richness counts the taxa with at least one read. Computed on "
-                   "the raw counts without rarefaction, so a deeper-sequenced sample tends to show more taxa.")
+        caption = ("Each point is one sample; the box covers the middle half of the samples and the line inside "
+                   "it is the median. Shannon index: higher means more taxa, more evenly spread. Richness: how "
+                   "many taxa the sample contains. Counted on the raw reads without rarefaction, so a "
+                   "deeper-sequenced sample tends to show more taxa.")
     else:  # relative abundances: there are no reads to speak of
-        caption = ("Each point is one sample; the box spans the middle half of the samples and the line is the "
-                   "median. Shannon index (natural log) grows with both the number of taxa and how evenly "
-                   "the abundance is spread among them; richness counts the taxa above zero. Computed on the "
-                   "uploaded values; richness still depends on how deeply each sample was sequenced, which "
-                   "this table (not read counts) does not show.")
+        caption = ("Each point is one sample; the box covers the middle half of the samples and the line inside "
+                   "it is the median. Shannon index: higher means more taxa, more evenly spread. Richness: how "
+                   "many taxa are above zero. Richness also depends on how deeply each sample was sequenced, "
+                   "which this table (not read counts) does not show.")
     if table is None:
         too_few = (f" Groups are not compared: fewer than two groups have {diversity_stats.MIN_PER_GROUP} or more "
                    "samples.") if tested else ""
         return Figure(
             name="alpha_diversity", title="Diversity within each sample (alpha diversity)",
             caption=f"{caption}{too_few}{left_out} {DESCRIPTIVE}",
+            details=ALPHA_DETAILS,
             data=data, kind="box", x="group", y="value", x_label="", y_label="Value",
             group_by="group", facet="measure", label="sample", colors=colors,
             hover="%{text}: %{y:.3g}<extra></extra>", section="overview",
@@ -256,17 +256,20 @@ def _alpha_figure(counts: pd.DataFrame, groups: pd.Series, colors: tuple, left_o
     per_panel = tuple((m, ", ".join(dict.fromkeys(table.loc[table["measure"] == m, "test"])))
                       for m in dict.fromkeys(table["measure"]))
     shown = len(set(table["group_a"]) - {"all groups"} | set(table["group_b"]) - {""})
-    pairs_note = ("Every pair is marked." if shown <= diversity_stats.MAX_BRACKETS else
-                  "Only the overall test is marked; every pair is in the tests CSV.")
+    pairs_note = ("" if shown <= diversity_stats.MAX_BRACKETS else
+                  " With this many groups only the overall test is marked; every pair is in the tests CSV.")
     return Figure(
         name="alpha_diversity",
         title="Diversity within each sample (alpha diversity)",
-        caption=f"{caption} Groups are compared per measure: Shapiro-Wilk in each group decides the test "
-                f"(normal in every group: t-test or ANOVA; otherwise Mann-Whitney U or Kruskal-Wallis; here: "
-                f"{', '.join(tests)}). Brackets show Benjamini-Hochberg (FDR) corrected p-values: *** < 0.001, "
-                f"** < 0.01, * < 0.05, ns otherwise. {pairs_note} Cohen's d and every p-value are in the tests "
-                f"CSV. Richness depends on sequencing depth here, so a richness difference can reflect "
-                f"depth.{left_out} {EXPLORATORY}",
+        caption=f"{caption} Brackets compare the groups, with corrected p-values: * < 0.05, ** < 0.01, "
+                f"*** < 0.001, ns = not significant; the test used is named above each panel.{pairs_note}"
+                f"{left_out} {EXPLORATORY}",
+        details=f"{ALPHA_DETAILS} Groups are compared per measure: Shapiro-Wilk in each group decides the test "
+                f"(normal in every group: Student's t-test or one-way ANOVA; otherwise Mann-Whitney U or "
+                f"Kruskal-Wallis); here: {', '.join(tests)}. Benjamini-Hochberg (FDR) correction over all the "
+                f"pairwise tests of the figure, and separately over the overall tests. Groups with fewer than "
+                f"{diversity_stats.MIN_PER_GROUP} samples are not tested. Cohen's d (pooled SD) and every p-value "
+                f"are in the tests CSV.",
         data=data, kind="box", x="group", y="value", x_label="", y_label="Value",
         group_by="group", facet="measure", label="sample", colors=colors,
         hover="%{text}: %{y:.3g}<extra></extra>", section="overview",
@@ -287,9 +290,9 @@ def _beta_figure(counts: pd.DataFrame, groups: pd.Series | None, colors: tuple, 
         data.insert(1, "group", groups.loc[coords.index].to_numpy())
         order = {g: i for i, g in enumerate(_ordered(groups))}
         data = data.sort_values("group", key=lambda g: g.map(order), kind="stable").reset_index(drop=True)
-    base = ("Each point is one sample; samples close together have similar compositions. The map is a "
-            "principal coordinates analysis (PCoA) of Bray-Curtis distances on relative abundance; each "
-            "axis says how much of the variation it shows.")
+    base = ("Each point is one sample; samples close together have similar compositions. Each axis says how "
+            "much of the variation between samples it shows.")
+    method = "Principal coordinates analysis (PCoA) of Bray-Curtis distances on relative abundance."
     figure = dict(
         name="beta_pcoa", title="How similar samples are (beta diversity, PCoA)",
         data=data, kind="scatter", x="PCo1", y="PCo2",
@@ -303,22 +306,27 @@ def _beta_figure(counts: pd.DataFrame, groups: pd.Series | None, colors: tuple, 
     if table is None:
         too_few = (" Points are coloured by group. Groups are not tested: fewer than two groups have "
                    f"{diversity_stats.MIN_PER_GROUP} or more samples.") if groups is not None else ""
-        return Figure(caption=f"{base}{too_few}{left_out} {DESCRIPTIVE}", **figure)
+        return Figure(caption=f"{base}{too_few}{left_out} {DESCRIPTIVE}", details=method, **figure)
     row = table.iloc[0]
     p_text = _p(row["p_value"], diversity_stats.PERMUTATIONS)
+    spread_differs = row["permdisp_p"] < diversity_stats.ALPHA
+    caution = (" The groups also differ in how spread out they are, so part of this difference may come from "
+               "spread rather than position." if spread_differs else "")
     spread = ("the groups also differ in spread (PERMDISP p < 0.05), so part of the PERMANOVA result may come "
-              "from spread rather than position" if row["permdisp_p"] < diversity_stats.ALPHA else
+              "from spread rather than position" if spread_differs else
               "no difference in spread was found (PERMDISP p ≥ 0.05), so PERMANOVA's assumption of equal spread "
               "looks reasonable")
     return Figure(
-        caption=f"{base} Points are coloured by group; each dashed ellipse is where about {ELLIPSE:.0%} of a "
-                f"group's points would fall if they were normally distributed. PERMANOVA (scikit-bio, "
-                f"{diversity_stats.PERMUTATIONS} permutations, seed {diversity_stats.SEED}) tests whether the "
-                f"groups' compositions differ: pseudo-F = {row['pseudo_F']:.2f}, p {p_text}; η² = "
-                f"{row['eta_squared_pcoa']:.1%} of the variation on all PCoA axes lies between groups "
-                f"(PERMANOVA R² = {row['permanova_R2']:.1%}). PERMDISP (distance to each group's spatial "
-                f"median): F = {row['permdisp_F']:.2f}, p {_p(row['permdisp_p'], diversity_stats.PERMUTATIONS)}; "
-                f"{spread}.{left_out} {EXPLORATORY}",
+        caption=f"{base} Points are coloured by group; each dashed ellipse marks where about {ELLIPSE:.0%} of a "
+                f"group's points would fall. PERMANOVA tests whether the groups' compositions differ: p {p_text}, "
+                f"with {row['eta_squared_pcoa']:.1%} of the variation lying between groups.{caution}"
+                f"{left_out} {EXPLORATORY}",
+        details=f"{method} PERMANOVA (scikit-bio, {diversity_stats.PERMUTATIONS} permutations, seed "
+                f"{diversity_stats.SEED}): pseudo-F = {row['pseudo_F']:.2f}, p {p_text}; η² = "
+                f"{row['eta_squared_pcoa']:.1%} (between/total sums of squares on all PCoA axes); PERMANOVA R² = "
+                f"{row['permanova_R2']:.1%}. PERMDISP (distance to each group's spatial median): F = "
+                f"{row['permdisp_F']:.2f}, p {_p(row['permdisp_p'], diversity_stats.PERMUTATIONS)}; {spread}. "
+                f"Ellipses: {ELLIPSE:.0%} normal-theory (chi-square, 2 degrees of freedom).",
         subtitle=f"PERMANOVA (Bray-Curtis): pseudo-F = {row['pseudo_F']:.2f}, p {p_text} · "
                  f"η² = {row['eta_squared_pcoa']:.1%}",
         ellipses=ELLIPSE, stats=table, **figure,

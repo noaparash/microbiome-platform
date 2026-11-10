@@ -162,7 +162,7 @@ def test_relative_abundance_has_no_sequencing_depth(client):
     figures = json.loads((run / "figures" / "figures.json").read_text(encoding="utf-8"))
     entries = figures if isinstance(figures, list) else list(figures.values())
     alpha = next(f for f in entries if f.get("name") == "alpha_diversity" or "alpha_diversity" in str(f.get("files", "")))
-    assert "taxa above zero" in alpha["caption"] and "raw counts" not in alpha["caption"]
+    assert "taxa are above zero" in alpha["caption"] and "raw reads" not in alpha["caption"]
 
 
 def test_counts_only_runs_the_overview_and_gimic_without_errors(client):

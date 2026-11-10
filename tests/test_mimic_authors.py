@@ -127,6 +127,7 @@ def test_the_whole_bundle_on_the_authors_example(tmp_path):
 
     processed = MIPMLP.preprocess(pd.read_csv(EXAMPLE / "for_process.csv"), taxnomy_group="sub PCA")
     processed.to_csv(tmp_path / "processed.csv")
+    had_plots = (Path.cwd() / "plots").exists()  # a folder of the user's own may already be there
     record = mimic_authors.run(tmp_path / "processed.csv", EXAMPLE / "tag.csv", tmp_path / "run", seeds=(42, 0))
     out = tmp_path / "run"
     assert sorted(p.name for p in (out / "plots").iterdir()) == PLOTS
@@ -136,4 +137,4 @@ def test_the_whole_bundle_on_the_authors_example(tmp_path):
     assert record["differs_on_repeat_of_main_seed"] == []  # the same seed gives the same files
     assert "df_corrs.csv" not in " ".join(record["differs_between_seeds"])  # tables never depend on it
     assert record["adjustments"] == mimic_authors.ADJUSTMENTS and record["version"] == "1.0.1"
-    assert not list(Path.cwd().glob("*.pkl")) and not (Path.cwd() / "plots").exists()  # nothing stray
+    assert not list(Path.cwd().glob("*.pkl")) and (Path.cwd() / "plots").exists() == had_plots  # nothing stray

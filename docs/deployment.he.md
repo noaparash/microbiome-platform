@@ -16,16 +16,18 @@
 | הסביבה (uv, פייתון 3.13, PyTorch ל-CPU) | `~/microbiome-platform/.venv`, ‏uv ב-`~/.local/bin/uv` |
 | ההגדרות (כולל המפתח הסודי) | `~/.config/microplatform/microplatform.env` (הרשאות 600) |
 | הנתונים (העלאות, תוצאות, מטמון) | `~/microplatform-instance` (700) |
-| ה"שקע" של האתר | `~/microplatform-run/web.sock` (התיקייה 700) |
+| הכתובת של האתר | `127.0.0.1:8000` בתוך השרת (`MICROPLATFORM_BIND` בקובץ ההגדרות) |
 | יומנים | `~/microplatform-logs/web.log`, `worker.log` (700) |
 | השירותים | `~/.config/systemd/user/microplatform-web.service`, `microplatform-worker.service` (מ-`deploy/systemd-user/`) |
 
-**גישה פנימית בלבד:** האתר לא מאזין לשום פורט רשת — רק לקובץ שקע בתיקייה פרטית, כך שגם משתמשים אחרים באותו שרת לא מגיעים אליו. פותחים אותו דרך מנהרת SSH מהמחשב הנייד (PowerShell), ומשאירים את החלון פתוח:
+**גישה פנימית בלבד:** האתר מאזין רק ל-`127.0.0.1:8000` בתוך השרת — לא לרשת. כל מי שיש לו חשבון ב-peptibase10 פותח אותו דרך מנהרת SSH (PowerShell), ומשאיר את החלון פתוח:
 
 ```powershell
-ssh -N -L 8000:/home/parashn/microplatform-run/web.sock peptibase10
+ssh -N -L 8000:127.0.0.1:8000 <שם-המשתמש>@peptibase10.math.biu.ac.il
 ```
 ואז בדפדפן: http://127.0.0.1:8000
+
+> **שימו לב (10.11):** בהתחלה האתר האזין לקובץ שקע בתיקייה פרטית (`~/microplatform-run/web.sock`), כך שרק החשבון `parashn` הגיע אליו. ההגדרה שונתה ל-`127.0.0.1:8000` כדי שחברי המעבדה יוכלו להיכנס. המחיר: **כל משתמש של peptibase10** (גם מחוץ למעבדה) יכול לפתוח את האתר, ואין בו כניסה עם סיסמה. התוצאות מוגנות רק בכך שהקישור לכל הרצה ארוך ואקראי. לפני שמעלים נתונים קליניים — ראו את ההמלצה על בקרת גישה בסטטוס (`docs/project-context.md`).
 
 **פקודות שימושיות (בטרמינל של peptibase10):**
 

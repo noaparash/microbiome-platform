@@ -58,6 +58,8 @@ MARKER = "#b42318"
 PALETTE = (ACCENT, CONTRAST, "#6d28d9", "#0369a1", "#be185d", "#4d7c0f", "#57534e")
 # Taxa in composition figures take their colours from one global map, reports/composition.py.
 OTHER = "Other"
+# Every caption ends by saying what kind of result its figure is; this is the descriptive one.
+DESCRIPTIVE = "Descriptive only, not a statistical test."
 BOX_LINE = "#3f4a4a"  # box outlines and medians
 SHADE = "#e6eceb"  # a light band behind rows that a figure marks (e.g. grouped_barh's shade)
 
@@ -106,7 +108,7 @@ class Figure:
 
     name: str  # file stem, e.g. "reads_per_sample"
     title: str
-    caption: str  # one plain-language sentence on how to read it
+    caption: str  # what it shows and how to read it, in plain language; ends with what kind of result it is
     data: pd.DataFrame
     kind: Kind
     x: str
@@ -138,6 +140,9 @@ class Figure:
     # as <name>_original.<format>, and offered as "<original_label> (PNG)" etc.
     originals: tuple[tuple[str, str | Path], ...] = ()
     original_label: str = "Tool's original"
+    # The fine print (method, settings, provenance): kept with the figure in figures.json and shown under
+    # "Method details", so the caption stays short.
+    details: str = ""
 
 
 @dataclass(frozen=True)
@@ -153,6 +158,7 @@ class ExportedFigure:
     wide: bool = False  # many bars side by side, or several pies: needs the full width
     rendered: bool = False  # drawn by a tool's own plotting code (RenderedFigure): no interactive plotly version
     original_label: str = ""  # files["original_<format>"]: the tool's own drawing of the same result
+    details: str = ""  # Figure.details: the fine print, under "Method details"
 
 
 @dataclass
@@ -171,6 +177,7 @@ class RenderedFigure:
     data: pd.DataFrame
     section: Section = "findings"
     lead: bool = True  # first among the figures (the headline); False: after the figures we draw
+    details: str = ""  # as Figure.details
     wide: bool = True  # takes the whole row; False for a small plot (shown at its own size)
 
 
@@ -193,8 +200,8 @@ def _reads_per_sample(counts: pd.DataFrame) -> Figure:
     return Figure(
         name="reads_per_sample",
         title="Sequencing depth per sample",
-        caption="Total reads in each sample, sorted, on a log scale. A sample far above or "
-                "below the rest may be contaminated or a failed sequencing run.",
+        caption="Total reads in each sample, highest to lowest, on a log scale. A sample far below the rest "
+                f"may be a failed sequencing run; one far above may be contaminated. {DESCRIPTIVE}",
         data=data, kind="bar", x="sample", y="reads",
         x_label="Samples (sorted by depth)", y_label="Total reads (log scale)", log_y=True,
         hover="%{x}<br>%{y:,.0f} reads<extra></extra>",
@@ -209,8 +216,9 @@ def taxa_prevalence(counts: pd.DataFrame, settings: PreprocessSettings, section:
     return Figure(
         name="taxa_prevalence",
         title="How widespread each taxon is (column sparsity)",
-        caption="For each taxon, the share of samples it appears in. Most microbiome "
-                f"data is sparse; MIPMLP drops taxa found in fewer than {threshold:g}% of samples.",
+        caption="For each taxon, the share of samples it appears in. Most microbiome data is sparse: many "
+                "taxa appear in only a few samples. The dashed line is MIPMLP's cut-off: taxa found in fewer "
+                f"than {threshold:g}% of samples are dropped before the analysis.",
         data=data, kind="histogram", x="prevalence_percent", y=None,
         x_label="Present in % of samples", y_label="Number of taxa",
         marker=(threshold, f"{threshold:g}% cut-off"),
@@ -251,7 +259,7 @@ def export(figures: list[Figure], out_dir: Path) -> list[ExportedFigure]:
         (out_dir / f"{fig.name}.json").write_text(interactive.to_json(), encoding="utf-8")
         exported.append(ExportedFigure(
             fig.name, fig.title, fig.caption, files, fig.section, tall=fig.kind == "barh", wide=_is_wide(fig),
-            original_label=fig.original_label if fig.originals else "",
+            original_label=fig.original_label if fig.originals else "", details=fig.details,
         ))
     _add_to_manifest(exported, out_dir)
     return exported
@@ -275,11 +283,12 @@ def export_rendered(figures: list[RenderedFigure], out_dir: Path) -> list[Export
             f"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>{html.escape(fig.title)}</title>"
             "<style>body{margin:16px;font-family:Arial,sans-serif;color:#0f2e33;background:#fff}"
             "svg{max-width:100%;height:auto}p{max-width:60rem}</style></head><body>"
-            f"<h1>{html.escape(fig.title)}</h1><p>{html.escape(fig.caption)}</p>{svg}</body></html>\n",
+            f"<h1>{html.escape(fig.title)}</h1><p>{html.escape(fig.caption)}</p>"
+            + (f"<p><small>{html.escape(fig.details)}</small></p>" if fig.details else "") + f"{svg}</body></html>\n",
             encoding="utf-8")
         files = {f: f"{fig.name}.{f}" for f in ("png", "svg", "html", "csv")}
         exported.append(ExportedFigure(fig.name, fig.title, fig.caption, files, fig.section, wide=fig.wide,
-                                       rendered=True))
+                                       rendered=True, details=fig.details))
     leads = {f.name for f in figures if f.lead}
     _add_to_manifest([e for e in exported if e.name in leads], out_dir, first=True)
     _add_to_manifest([e for e in exported if e.name not in leads], out_dir)
