@@ -12,9 +12,11 @@ row named ``taxonomy``.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import IO, Literal
 
+import numpy as np
 import pandas as pd
 
 from microplatform.core.contract import ID_COLUMN, LABEL_COLUMN, RANK_SEPARATOR, TAXONOMY_ROW, LabelKind
@@ -68,6 +70,7 @@ class CountsProfile:
     sample_ids: list[str]
     issues: list[Issue] = field(default_factory=list)
     has_negatives: bool = False  # only transformed values (e.g. log, z-scores) can be negative
+    table_check: "TableCheck | None" = None  # the detected table type and its evidence (check_table)
 
     @property
     def ok(self) -> bool:
@@ -276,6 +279,7 @@ def profile_counts(raw: pd.DataFrame) -> CountsProfile:
         sample_ids=sample_ids,
         issues=issues,
         has_negatives=bool((values < 0).to_numpy().any()),
+        table_check=check_table(values, taxonomy.tolist() if taxonomy is not None else None),
     )
 
 
@@ -394,6 +398,127 @@ def value_kind(values: pd.DataFrame) -> ValueKind:
     if len(sums) and ((abs(sums - 1) < 0.01).all() or (abs(sums - 100) < 1).all()):
         return "relative"
     return "transformed"
+
+
+# --- what kind of table is this? (decides whether MIPMLP should run; see check_table) -----------
+
+TableType = Literal["counts", "relative", "partial_relative", "preprocessed", "unclear"]
+
+RELATIVE_TOLERANCE = 0.01  # a full relative-abundance sample adds up to 1 (or 100) within this
+MANY_ZEROS = 0.10  # partial relative abundances: at least this share of exact zeros (a log removes them)
+SUB_PCA_NAMES = 0.5  # MIPMLP's sub-PCA endings ('_0', '_1', …) on at least this share of the columns
+SUB_PCA_ENDING = re.compile(r"_\d{1,2}$")  # only MIPMLP's short component index, never IDs like '_388775'
+ZERO_MEAN = 1e-6  # a column whose |mean| is below this × its spread looks centred (z-scored)
+
+TABLE_TYPE_NAMES: dict[str, str] = {
+    "counts": "read counts",
+    "relative": "relative abundances",
+    "partial_relative": "relative abundances of a subset of taxa",
+    "preprocessed": "already preprocessed",
+    "unclear": "unclear",
+}
+
+
+@dataclass(frozen=True)
+class TableCheck:
+    """The detected table type, the plain-language reasons, and the numbers they rest on.
+
+    ``evidence`` holds every check (value range, negatives, share of zeros, row sums, …), so the
+    reproducibility record can show exactly why a table was classified as it was."""
+
+    type: TableType
+    reasons: tuple[str, ...]
+    evidence: dict
+
+    @property
+    def name(self) -> str:
+        return TABLE_TYPE_NAMES[self.type]
+
+    @property
+    def sentence(self) -> str:
+        """One plain-English sentence: what was detected and why."""
+        why = "; ".join(self.reasons)
+        if self.type == "unclear":
+            return f"We can't tell what kind of values your table holds ({why})."
+        if self.type == "preprocessed":
+            return f"Your table looks already preprocessed ({why})."
+        return f"Your table looks like {self.name} ({why})."
+
+
+def _last_named_rank(name: str) -> str:
+    """'Bacteria;…;Lachnospiraceae_0;;' -> 'Lachnospiraceae_0' (MIPMLP leaves the ranks below empty)."""
+    parts = [p.strip() for p in str(name).split(RANK_SEPARATOR) if p.strip()]
+    return parts[-1] if parts else str(name).strip()
+
+
+def check_table(values: pd.DataFrame, names: list[str] | None = None) -> TableCheck:
+    """Classify a samples × taxa table. ``names`` are the taxa's lineages (default: the column names).
+
+    The rules, in order (the first that applies wins):
+
+    1. **preprocessed**: any negative value (only a log or a z-score makes them), or at least
+       ``SUB_PCA_NAMES`` of the columns end in MIPMLP's sub-PCA index (``_0``, ``_1``, … one or two
+       digits on the last named rank; database IDs such as ``_388775`` do not count). Columns with a
+       mean of about 0 (z-scored) are a *supporting* signal: they are reported, never decide alone.
+    2. **counts**: every value a whole number, none negative.
+    3. **relative**: every sample (except all-zero ones) adds up to 1, or to 100, within
+       ``RELATIVE_TOLERANCE``.
+    4. **partial_relative**: every value between 0 and 1, at least ``MANY_ZEROS`` exact zeros, and every
+       sample adds up to 1 or less (within ``RELATIVE_TOLERANCE``): shares of a subset of the taxa.
+    5. **unclear**: anything else.
+    """
+    arr = values.to_numpy(dtype=float)
+    names = [str(n) for n in (names if names is not None else values.columns)]
+    sums = arr.sum(axis=1) if arr.size else np.zeros(0)
+    nonzero_sums = sums[sums > 0]
+    spread = arr.std(axis=0) if arr.size else np.zeros(0)
+    varying = spread > 0
+    centred = int((np.abs(arr.mean(axis=0))[varying] <= ZERO_MEAN * spread[varying]).sum()) if arr.size else 0
+    sub_pca = sum(1 for n in names if SUB_PCA_ENDING.search(_last_named_rank(n)))
+    negatives = int((arr < 0).sum())
+    zeros = float((arr == 0).mean()) if arr.size else 0.0
+    whole = float((arr % 1 == 0).mean()) if arr.size else 0.0
+    sums_to_one = int((np.abs(sums - 1) < RELATIVE_TOLERANCE).sum())
+    evidence = {
+        "min": float(arr.min()) if arr.size else 0.0,
+        "max": float(arr.max()) if arr.size else 0.0,
+        "negative_values": negatives,
+        "zero_fraction": round(zeros, 4),
+        "whole_number_fraction": round(whole, 4),
+        "row_sum_min": float(sums.min()) if len(sums) else 0.0,
+        "row_sum_max": float(sums.max()) if len(sums) else 0.0,
+        "samples_adding_up_to_1": sums_to_one,
+        "samples": int(arr.shape[0]),
+        "columns": int(arr.shape[1]) if arr.ndim == 2 else 0,
+        "columns_with_sub_pca_ending": sub_pca,
+        "columns_with_mean_about_0": centred,
+    }
+
+    def found(kind: TableType, *reasons: str) -> TableCheck:
+        return TableCheck(kind, tuple(reasons), evidence)
+
+    centred_note = (f"{centred:,} of {len(names):,} columns have a mean of about 0, as z-scored data does"
+                    if centred else None)
+    pct = f"{zeros:.0%}"
+    if negatives or (names and sub_pca >= SUB_PCA_NAMES * len(names)):
+        reasons = []
+        if negatives:
+            reasons.append(f"{negatives:,} values are negative, as log-transformed or z-scored data is")
+        if names and sub_pca >= SUB_PCA_NAMES * len(names):
+            reasons.append(f"{sub_pca:,} of {len(names):,} column names end in MIPMLP's sub-PCA index (_0, _1, …)")
+        return found("preprocessed", *reasons, *([centred_note] if centred_note else []))
+    if whole == 1.0:
+        return found("counts", "whole numbers, none negative")
+    if len(nonzero_sums) and ((np.abs(nonzero_sums - 1) < RELATIVE_TOLERANCE).all()
+                              or (np.abs(nonzero_sums - 100) < 100 * RELATIVE_TOLERANCE).all()):
+        return found("relative", "every sample adds up to the same total")
+    if arr.size and arr.max() <= 1 and zeros >= MANY_ZEROS and sums.max() <= 1 + RELATIVE_TOLERANCE:
+        return found("partial_relative", "values between 0 and 1, none negative",
+                     f"{pct} of the values are exactly 0",
+                     f"samples add up to {sums.min():.2g}–{sums.max():.2g}, never above 1")
+    reasons = [f"values from {evidence['min']:.3g} to {evidence['max']:.3g}, none negative",
+               f"{pct} exactly 0", "not whole numbers, and samples add up to different totals"]
+    return found("unclear", *reasons, *([centred_note] if centred_note else []))
 
 
 def _label_kind(labels: pd.Series) -> LabelKind:
