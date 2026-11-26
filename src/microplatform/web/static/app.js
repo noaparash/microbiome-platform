@@ -35,8 +35,8 @@ for (const zone of document.querySelectorAll("form.dropzone")) {
 const figureGrid = document.querySelector("[data-plotly]");
 
 // The figures are drawn in the light palette (reports/figures.py). The page's
-// --plot-* colours say what each one becomes here: the same in light mode,
-// brighter in dark mode so lines and bars keep their contrast.
+// --plot-* colours say what each one becomes here (the site is light only, so today
+// they are the same colours; the hook is kept so a page theme can change them in one place).
 const PLOT_COLORS = ["#0f766e", "#b45309", "#b42318", "#6d28d9", "#0369a1", "#be185d", "#4d7c0f", "#57534e"];
 const recolor = (text, css) =>
   PLOT_COLORS.reduce((out, light, i) => {
@@ -66,8 +66,8 @@ if (figureGrid) {
       fetch(el.dataset.plot)
         .then((response) => response.text())
         .then((text) => {
-          // Box outlines (BOX_LINE in figures.py) take the page's muted text colour, readable in both themes.
-          // A marked band behind rows (SHADE) takes the page's border colour: subtle in both themes.
+          // Box outlines (BOX_LINE in figures.py) take the page's muted text colour.
+          // A marked band behind rows (SHADE) takes the page's border colour: subtle.
           const fig = JSON.parse(recolor(text, css).replaceAll("#3f4a4a", css.getPropertyValue("--muted").trim())
             .replaceAll("#e6eceb", css.getPropertyValue("--border").trim()));
           const color = (name) => css.getPropertyValue(name).trim();

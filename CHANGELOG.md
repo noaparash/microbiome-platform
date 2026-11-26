@@ -8,6 +8,10 @@ All notable changes to `microplatform`. The format follows
 
 ## [Unreleased]
 
+### Removed
+- The website's dark mode: the site is always light, whatever the computer's setting (the figures were
+  already drawn in the light palette).
+
 ### Changed
 - Composition (bars and pie, at every level): every taxon found gets its own colour (no "Other", no top 12;
   past the palette, generated colours, never grey). The legend lists them up to 20 (`composition.LEGEND_MAX`);

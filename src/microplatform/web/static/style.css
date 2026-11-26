@@ -54,65 +54,7 @@
   /* Chart colours, in the order of app.js PLOT_COLORS (= reports/figures.py ACCENT, CONTRAST, MARKER, rest of PALETTE). */
   --plot-1: #0f766e; --plot-2: #b45309; --plot-3: #b42318; --plot-4: #6d28d9;
   --plot-5: #0369a1; --plot-6: #be185d; --plot-7: #4d7c0f; --plot-8: #57534e;
-  color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #061f22;
-    --bg-2: #0a2a2e;
-  --logo-pad: 2px 4px;
-  --logo-bg: #e6f2f4; /* the lab logo's text is dark green: give it a light backing */
-    --surface: #0d2e31;
-    --surface-2: #113639;
-    --text: #e8f6f7;
-    --muted: #83a4a8;
-    --border: #1b3e42;
-    --accent: #2ecee4;
-    --accent-2: #63e7f4;
-    --accent-ink: #9fe6f2;
-    --accent-soft: #113a3e;
-    --on-accent: #06211c;
-    --glow: rgb(46 200 224 / 0.3);
-    --header-bg: rgb(6 31 34 / 0.82);
-    --error: #ff8a80;
-    --error-soft: #3a1c1a;
-    --warning: #f0c060;
-    --warning-soft: #3a2e14;
-    --shadow: 0 26px 52px -28px rgb(0 0 0 / 0.6);
-    --shadow-sm: 0 14px 32px -20px rgb(0 0 0 / 0.55);
-    --plot-1: #3ec9bf; --plot-2: #f59e4b; --plot-3: #ff8a80; --plot-4: #a78bfa;
-    --plot-5: #38bdf8; --plot-6: #f472b6; --plot-7: #a3e635; --plot-8: #a8a29e;
-    color-scheme: dark;
-  }
-}
-
-:root[data-theme="dark"] {
-  --bg: #061f22;
-  --bg-2: #0a2a2e;
-  --logo-pad: 2px 4px;
-  --logo-bg: #e6f2f4; /* the lab logo's text is dark green: give it a light backing */
-  --surface: #0d2e31;
-  --surface-2: #113639;
-  --text: #e8f6f7;
-  --muted: #83a4a8;
-  --border: #1b3e42;
-  --accent: #2ecee4;
-  --accent-2: #63e7f4;
-  --accent-ink: #9fe6f2;
-  --accent-soft: #113a3e;
-  --on-accent: #06211c;
-  --glow: rgb(46 200 224 / 0.3);
-  --header-bg: rgb(6 31 34 / 0.82);
-  --error: #ff8a80;
-  --error-soft: #3a1c1a;
-  --warning: #f0c060;
-  --warning-soft: #3a2e14;
-  --shadow: 0 26px 52px -28px rgb(0 0 0 / 0.6);
-  --shadow-sm: 0 14px 32px -20px rgb(0 0 0 / 0.55);
-  --plot-1: #3ec9bf; --plot-2: #f59e4b; --plot-3: #ff8a80; --plot-4: #a78bfa;
-  --plot-5: #38bdf8; --plot-6: #f472b6; --plot-7: #a3e635; --plot-8: #a8a29e;
-  color-scheme: dark;
+  color-scheme: light; /* light only: the site has no dark mode (removed 2026-11-26) */
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -164,7 +106,7 @@ main:focus { outline: none; } /* focused only as the skip link's target */
 .lab-link { display: inline-flex; align-items: center; gap: 0.5rem; color: inherit; text-decoration: none; }
 .lab-bar .lab-link { color: var(--muted); font-weight: 600; }
 .lab-bar .lab-link:hover { color: var(--accent-ink); }
-.lab-logo { flex: none; width: auto; background: var(--logo-bg, transparent); border-radius: 4px; padding: var(--logo-pad, 0); }
+.lab-logo { flex: none; width: auto; }
 .lab-bar .lab-logo { height: 52px; }  /* as on the lab's preg site */
 .site-footer .lab-logo { height: 40px; }
 /* Phones: the logo already names the university, so the top bar keeps to one line. */

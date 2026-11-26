@@ -1,4 +1,4 @@
-"""Results pages: keyboard and screen-reader basics, phones and dark mode, and no data leaving the page."""
+"""Results pages: keyboard and screen-reader basics, phones, light only, and no data leaving the page."""
 
 import io
 import json
@@ -86,17 +86,23 @@ def test_interactive_figures_never_offer_to_upload_data(tmp_path):
     assert "showSendToCloud: false" in js and "displayModeBar: false" in js
 
 
-def test_dark_mode_chart_colours_cover_the_python_palette():
-    """app.js maps each light chart colour to a --plot-N token; the light tokens must equal the palette."""
+def test_chart_colour_tokens_cover_the_python_palette():
+    """app.js maps each chart colour to a --plot-N token; the tokens must equal the palette."""
     js = (STATIC / "app.js").read_text(encoding="utf-8")
     css = (STATIC / "style.css").read_text(encoding="utf-8")
     js_colors = json.loads(re.search(r"const PLOT_COLORS = (\[.*?\]);", js).group(1))
     python = [figures.ACCENT, figures.CONTRAST, figures.MARKER, *figures.PALETTE[2:]]
     assert js_colors == python
-    light = css.split("@media (prefers-color-scheme: dark)", 1)[0]
     for i, color in enumerate(python, start=1):
-        assert f"--plot-{i}: {color};" in light
-    assert css.count(f"--plot-{len(python)}:") == 3  # light, dark (system), dark (chosen)
+        assert f"--plot-{i}: {color};" in css
+    assert css.count(f"--plot-{len(python)}:") == 1  # one theme only
+
+
+def test_the_site_has_no_dark_mode():
+    """Removed at the user's request (2026-11-26): one light theme, whatever the computer's setting."""
+    css = (STATIC / "style.css").read_text(encoding="utf-8")
+    assert "prefers-color-scheme" not in css and "data-theme" not in css
+    assert "color-scheme: light;" in css.split(":root {", 1)[1].split("}", 1)[0]
 
 
 # --- the whole site: keyboard, contrast, phones ------------------------------------------------
@@ -123,25 +129,19 @@ TEXT_ON = ([(fg, bg) for fg in ("text", "muted", "accent-ink") for bg in BACKGRO
               ("error", "error-soft"), ("warning", "warning-soft")])
 
 
-@pytest.mark.parametrize("theme", ["light", "dark"])
-def test_text_colours_meet_wcag_aa_in_both_themes(theme):
+def test_text_colours_meet_wcag_aa():
     css = (STATIC / "style.css").read_text(encoding="utf-8")
     tokens = _tokens(css.split(":root {", 1)[1].split("}", 1)[0])
-    if theme == "dark":
-        tokens |= _tokens(css.split(':root[data-theme="dark"] {', 1)[1].split("}", 1)[0])
     failing = {f"{fg} on {bg}": round(_contrast(tokens[fg], tokens[bg]), 2) for fg, bg in TEXT_ON
                if _contrast(tokens[fg], tokens[bg]) < 4.5}
     assert not failing, failing
 
 
-@pytest.mark.parametrize("theme", ["light", "dark"])
-def test_focus_rings_stand_out_and_the_bright_accent_is_never_text(theme):
+def test_focus_rings_stand_out_and_the_bright_accent_is_never_text():
     """WCAG 1.4.11: a focus ring needs 3:1 against what is around it. The bright accent is too
     light for text (2.4–2.9:1 in the light theme), so no rule may use it as a text colour."""
     css = (STATIC / "style.css").read_text(encoding="utf-8")
     tokens = _tokens(css.split(":root {", 1)[1].split("}", 1)[0])
-    if theme == "dark":
-        tokens |= _tokens(css.split(':root[data-theme="dark"] {', 1)[1].split("}", 1)[0])
     assert all(_contrast(tokens["accent-ink"], tokens[bg]) >= 3 for bg in BACKGROUNDS)
     rings = re.findall(r"outline:\s*3px solid var\(--([\w-]+)\)", css)
     assert rings and set(rings) == {"accent-ink"}
